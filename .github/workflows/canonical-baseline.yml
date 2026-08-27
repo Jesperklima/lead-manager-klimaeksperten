@@ -25,7 +25,7 @@ jobs:
 
       - name: Commit verified baseline
         run: |
-          if git diff --quiet -- index.html baseline/manifest.json; then
+          if [[ -z "$(git status --porcelain -- index.html baseline/manifest.json)" ]]; then
             echo "Canonical baseline already matches repository."
             exit 0
           fi
