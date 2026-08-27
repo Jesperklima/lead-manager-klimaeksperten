@@ -1,0 +1,12 @@
+{
+  "source": "https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/lead-manager-customer",
+  "snapshot": "lead_manager_canonical_baseline_20260827_1242",
+  "active_snapshot": "lead_manager_customer_v9_followup_recipient_fix",
+  "bytes": 164375,
+  "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
+  "verified_markers": [
+    "lm-report-lazy-guard-v1",
+    "lm-followup-recipient-v9",
+    "AI sender aldrig selv"
+  ]
+}
