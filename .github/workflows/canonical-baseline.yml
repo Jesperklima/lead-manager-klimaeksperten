@@ -1,0 +1,36 @@
+name: Fetch verified canonical baseline
+
+on:
+  push:
+    branches:
+      - bootstrap/canonical-baseline
+    paths:
+      - '.github/workflows/canonical-baseline.yml'
+      - 'scripts/fetch-canonical-baseline.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bootstrap/canonical-baseline
+
+      - name: Fetch and verify canonical Lead Manager
+        run: bash scripts/fetch-canonical-baseline.sh
+
+      - name: Commit verified baseline
+        run: |
+          if [[ -z "$(git status --porcelain -- index.html baseline/manifest.json)" ]]; then
+            echo "Canonical baseline already matches repository."
+            exit 0
+          fi
+          git config user.name "lead-manager-baseline-bot"
+          git config user.email "js@klimaeksperten.dk"
+          git add index.html baseline/manifest.json
+          git commit -m "chore: import verified canonical baseline"
+          git push origin HEAD:bootstrap/canonical-baseline

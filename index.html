@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lead Manager – Klimaeksperten</title>
+<style>
+:root{--bg:#f4f7f9;--panel:#fff;--text:#14202a;--muted:#66737d;--border:#dbe3e8;--accent:#14384c;--accent2:#25556d;--soft:#edf3f6;--danger:#9b2f2f;--ok:#2d6a4f;--warn:#8a5a12;--purple:#674188}*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}.app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}.side{background:#102632;color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh}.brand{font-size:20px;font-weight:800;margin-bottom:24px}.brand small{display:block;font-size:12px;font-weight:500;opacity:.72;margin-top:4px}.nav button{width:100%;text-align:left;border:0;background:transparent;color:#dce8ef;padding:11px 12px;border-radius:9px;margin:2px 0}.nav button:hover,.nav button.active{background:#1c3d4d;color:#fff}.sidefoot{position:absolute;left:16px;right:16px;bottom:18px;font-size:12px;color:#a9bec9}.main{padding:24px;min-width:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.top h1{margin:0;font-size:28px}.topactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sub{color:var(--muted);font-size:14px}.btn{border:1px solid var(--border);background:#fff;padding:9px 12px;border-radius:9px;color:var(--text)}.btn:hover{background:#f7fafb}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.danger{color:var(--danger)}.btn.small{font-size:12px;padding:6px 9px}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0}.metric{font-size:30px;font-weight:800;margin:4px 0}.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:14px;margin-top:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.section h2{font-size:18px;margin:0 0 12px}.task{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid var(--border)}.task:first-child{border-top:0}.badge{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--soft);font-size:12px;white-space:nowrap}.badge.a{background:#fee2e2;color:#7f1d1d}.badge.b{background:#fef3c7;color:#78350f}.badge.c{background:#e5e7eb;color:#374151}.badge.ok{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#854d0e}.badge.mail{background:#e0f2fe;color:#075985}.status{font-weight:700}.status.VUNDET{color:var(--ok)}.status.TABT,.status.IKKE-RELEVANT{color:var(--danger)}.status.AFVENTER,.status.PÅ-PAUSE{color:var(--warn)}.status.DIALOG,.status.MØDE,.status.TILBUD{color:var(--purple)}.tablewrap{overflow:auto;background:#fff;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:800px}th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px;vertical-align:top}th{background:#f8fafb;color:#52606a;position:sticky;top:0}.view{display:none}.view.active{display:block}.kanban{display:grid;grid-template-columns:repeat(8,minmax(220px,1fr));gap:12px;overflow:auto;padding-bottom:8px}.col{background:#eef3f6;border:1px solid var(--border);border-radius:12px;padding:10px;min-height:280px}.leadcard{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0;cursor:pointer}.leadcard:hover{border-color:#9fb5c2}.pipeline-card{cursor:grab;user-select:none}.pipeline-card:active{cursor:grabbing}.pipeline-card.dragging{opacity:.45;transform:scale(.98)}.pipeline-col.dragover{outline:2px dashed var(--accent);outline-offset:2px;background:#e3edf2}.leadcard strong{display:block}.leadcard small{color:var(--muted)}.drawer{position:fixed;right:-580px;top:0;width:560px;max-width:100%;height:100%;background:#fff;border-left:1px solid var(--border);box-shadow:-12px 0 35px rgba(0,0,0,.14);transition:right .18s ease;z-index:30;overflow:auto;padding:20px}.drawer.open{right:0}.drawer-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:#fff}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.timeline{margin-top:18px}.event{border-left:3px solid #9fb5c2;padding:5px 0 10px 12px;margin:0 0 8px;word-break:break-word}.event small{color:var(--muted)}.event.mail{border-left-color:#3b82f6}.event.agent{border-left-color:#7c3aed}.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px}.calendar{display:grid;grid-template-columns:repeat(5,minmax(180px,1fr));gap:10px;overflow:auto}.day{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;min-height:320px}.day.dragover{outline:2px dashed var(--accent)}.calitem{padding:8px;border:1px solid var(--border);border-radius:8px;margin:7px 0;background:#f9fbfc;cursor:grab}.calitem strong{display:inline-block;min-width:46px}.modalback{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;z-index:50}.modalback.open{display:flex}.modal{background:#fff;border-radius:14px;padding:18px;width:min(560px,92vw);max-height:88vh;overflow:auto}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#102632;color:#fff;padding:10px 14px;border-radius:999px;display:none;z-index:80}.toast.show{display:block}.notice{padding:10px 12px;border-radius:9px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px}.oknotice{padding:10px 12px;border-radius:9px;background:#ecfdf5;border:1px solid #a7f3d0;color:#166534;font-size:13px}.auth{min-height:100vh;display:grid;place-items:center;padding:24px;background:#102632}.authbox{width:min(460px,100%);background:#fff;border-radius:18px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.2)}.authbox h1{margin:0 0 8px}.authactions{display:flex;gap:8px;flex-wrap:wrap}.loader{padding:30px;text-align:center;color:var(--muted)}.mailrow{display:grid;grid-template-columns:150px minmax(0,1fr) 150px;gap:12px;padding:12px 0;border-top:1px solid var(--border)}.mailrow:first-child{border-top:0}.mailbody{white-space:pre-wrap;max-height:120px;overflow:hidden;color:#475569;font-size:13px;margin-top:5px}.agentgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.split{display:flex;gap:8px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;font-size:12px}.empty{padding:24px;text-align:center;color:var(--muted)}
+@media(max-width:1000px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.sidefoot{display:none}.cards{grid-template-columns:repeat(2,1fr)}.grid2,.grid3{grid-template-columns:1fr}.calendar{grid-template-columns:repeat(5,240px)}.agentgrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.main{padding:16px}.cards{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.row,.row3{grid-template-columns:1fr}.mailrow{grid-template-columns:1fr}.agentgrid{grid-template-columns:1fr}.drawer{width:100%}}
+.status.STATUS-UKLAR{color:#64748b}.status.I-GANG{color:#075985}.offer-summary{margin-bottom:2px}.badge.a{vertical-align:middle}
+.intelitem{padding:10px 0;border-top:1px solid var(--border)}
+.intelitem:first-of-type{border-top:0;padding-top:0}
+.intel-angle{margin-top:6px;padding:8px;border-radius:8px;background:rgba(80,120,170,.08)}
+
+/* UI refresh: compact, responsive CRM + easier horizontal pipeline navigation */
+:root{--sidew:220px;--radius:12px;--shadow:0 6px 22px rgba(16,38,50,.06)}
+.app{grid-template-columns:var(--sidew) minmax(0,1fr)}
+.side{padding:18px 12px;overflow-y:auto;overscroll-behavior:contain}
+.brand{font-size:19px;margin:2px 6px 18px}
+.nav{display:grid;gap:2px}
+.nav button{padding:9px 10px;margin:0;font-size:13px}
+.main{padding:20px;overflow:hidden}
+.top{position:sticky;top:0;z-index:12;background:linear-gradient(var(--bg) 75%,rgba(244,247,249,0));padding:3px 0 14px;margin-bottom:8px}
+.top h1{font-size:24px}
+.card,.tablewrap{box-shadow:var(--shadow)}
+
+.pipeline-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
+.pipeline-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#pipeline{min-width:0}
+.kanban{display:flex;gap:10px;width:100%;overflow-x:auto;overflow-y:hidden;padding:2px 2px 14px;scroll-behavior:smooth;scrollbar-width:auto;scrollbar-color:#9fb5c2 #e6edf1;overscroll-behavior-x:contain;touch-action:pan-x pan-y}
+.kanban::-webkit-scrollbar{height:13px}.kanban::-webkit-scrollbar-track{background:#e6edf1;border-radius:999px}.kanban::-webkit-scrollbar-thumb{background:#9fb5c2;border:3px solid #e6edf1;border-radius:999px}.kanban::-webkit-scrollbar-thumb:hover{background:#7895a4}
+.pipeline-col{flex:0 0 238px;min-width:238px;min-height:calc(100vh - 190px);padding:9px;background:#edf2f5;border-color:#d8e1e6;transition:background .12s ease,outline .12s ease}
+.pipeline-col>strong{font-size:12px;letter-spacing:.025em;text-transform:uppercase;color:#334a57}
+.pipeline-col>.sub{font-size:11px;margin-top:2px}
+.pipeline-card{padding:9px;margin:7px 0;border-radius:9px;box-shadow:0 2px 8px rgba(16,38,50,.04)}
+.pipeline-card strong{font-size:13px;line-height:1.25;margin-bottom:3px}
+.pipeline-card small{font-size:11.5px;line-height:1.3;display:block}
+.pipeline-card:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(16,38,50,.09)}
+.pipeline-card.dragging{opacity:.55;transform:rotate(1deg) scale(.98);box-shadow:0 12px 26px rgba(16,38,50,.16)}
+.pipeline-col.dragover{outline:2px solid var(--accent);outline-offset:-2px;background:#e0ebf0}
+.pipeline-autoscroll-left,.pipeline-autoscroll-right{position:fixed;top:0;bottom:0;width:72px;z-index:20;pointer-events:none;opacity:0;transition:opacity .12s}.pipeline-autoscroll-left{left:var(--sidew);background:linear-gradient(90deg,rgba(20,56,76,.18),transparent)}.pipeline-autoscroll-right{right:0;background:linear-gradient(270deg,rgba(20,56,76,.18),transparent)}.pipeline-autoscroll-left.active,.pipeline-autoscroll-right.active{opacity:1}
+body.pipeline-compact .pipeline-col{flex-basis:190px;min-width:190px}
+body.pipeline-compact .pipeline-card{padding:7px;margin:5px 0}
+body.pipeline-compact .pipeline-card small{font-size:10.5px;max-height:30px;overflow:hidden}
+body.pipeline-compact .pipeline-col{min-height:calc(100vh - 180px)}
+
+/* Responsive information density */
+.cards{gap:10px}.metric{font-size:26px}.grid2,.grid3{gap:10px}.card{border-radius:12px;padding:14px}.tablewrap{max-width:100%}
+@media(max-width:1180px){:root{--sidew:190px}.nav button{font-size:12px;padding:8px}.main{padding:16px}.pipeline-col{flex-basis:215px;min-width:215px}.topactions .pill{display:none}}
+@media(max-width:1000px){:root{--sidew:0px}.app{grid-template-columns:1fr}.side{position:relative;height:auto;padding:10px 12px}.brand{margin-bottom:8px}.nav{display:flex;overflow-x:auto;gap:4px;padding-bottom:4px}.nav button{flex:0 0 auto;width:auto;white-space:nowrap}.main{padding:14px}.pipeline-autoscroll-left{left:0}.pipeline-toolbar{position:sticky;top:76px;z-index:9}.pipeline-col{min-height:60vh}}
+@media(max-width:620px){.main{padding:10px}.pipeline-toolbar{align-items:flex-start;flex-direction:column;top:64px}.pipeline-actions{width:100%}.pipeline-actions .btn{flex:1}.pipeline-col{flex-basis:82vw;min-width:82vw}.top{position:relative}.topactions{width:100%}.topactions .btn{flex:1}.sub{font-size:12px}}
+
+/* AI mail composer */
+.mail-ai-modal{width:min(1040px,96vw);max-height:92vh;padding:0;overflow:hidden;display:flex;flex-direction:column}
+.mail-ai-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border);background:#fff}
+.mail-ai-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(310px,.85fr);min-height:0;flex:1;overflow:hidden}
+.mail-compose-pane{padding:16px 20px 14px;overflow:auto;background:#fff}
+.mail-ai-pane{border-left:1px solid var(--border);background:#f7fafb;display:flex;flex-direction:column;min-height:0;padding:14px}
+.mail-ai-pane textarea{resize:vertical}
+.ai-pane-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.ai-context{font-size:11.5px;line-height:1.35;color:#52606a;background:#edf4f7;border:1px solid #d9e5ea;border-radius:9px;padding:8px 9px;margin:10px 0}
+.ai-quick-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.ai-chip{border:1px solid #cddbe1;background:#fff;color:#274653;border-radius:999px;padding:6px 9px;font-size:11.5px;cursor:pointer}
+.ai-chip:hover{border-color:#8ba5b2;background:#f5fafc}
+.ai-chat{flex:1;min-height:180px;overflow:auto;border:1px solid #dbe5e9;border-radius:10px;background:#fff;padding:10px;margin:2px 0 10px}
+.ai-chat-empty{font-size:12px;line-height:1.45;color:#7a8991;padding:6px}
+.ai-msg{padding:8px 10px;border-radius:10px;margin:7px 0;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.ai-msg.user{margin-left:24px;background:#173f52;color:#fff}
+.ai-msg.assistant{margin-right:24px;background:#eef4f6;color:#203844;border:1px solid #dbe6ea}
+.ai-msg.error{background:#fff1f2;color:#9f1239;border:1px solid #fecdd3}
+.ai-prompt-wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:end}
+.ai-prompt-wrap textarea{width:100%;border:1px solid var(--border);border-radius:9px;padding:9px;font:inherit;background:#fff}
+.ai-suggestion{margin-top:9px;padding:9px 10px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:9px;color:#166534;font-size:12px;line-height:1.4}
+.ai-rewrite-bar{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
+.signature-preview{background:#fafcfd;box-shadow:none}
+.mail-ai-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid var(--border);background:#fff}
+#mBody{font-size:14px;line-height:1.5;min-height:330px}
+#mAiState.ai-ok{background:#ecfdf5;color:#166534;border-color:#bbf7d0}
+#mAiState.ai-warn{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
+#mAiSend[disabled]{opacity:.55;cursor:wait}
+@media(max-width:820px){.mail-ai-modal{width:96vw;max-height:94vh}.mail-ai-layout{grid-template-columns:1fr;overflow:auto}.mail-compose-pane{overflow:visible}.mail-ai-pane{border-left:0;border-top:1px solid var(--border);min-height:420px}.mail-ai-footer{position:sticky;bottom:0}.mail-ai-head{align-items:flex-start}.ai-prompt-wrap{grid-template-columns:1fr}.ai-prompt-wrap .btn{width:100%}}
+
+
+.contact-card{border:1px solid var(--border);background:#fff}.contact-card-title{font-weight:800;font-size:16px;margin-bottom:10px}.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 16px}.contact-item{min-width:0}.contact-label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:2px}.contact-value{font-size:14px;line-height:1.35;overflow-wrap:anywhere}.contact-value a{color:var(--accent2);font-weight:650;text-decoration:none}.contact-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.contact-missing{padding:10px;border:1px dashed var(--border);border-radius:10px;background:var(--soft)}.contact-badges{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}.contact-badge{font-size:11px;padding:3px 7px;border-radius:999px;background:var(--soft);color:var(--muted)}.contact-extra{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}.contact-extra summary{cursor:pointer;font-weight:700}.contact-source{margin-top:10px;font-size:11px;color:var(--muted)}.contact-loading{padding:8px 0;color:var(--muted)}@media(max-width:700px){.contact-grid{grid-template-columns:1fr}}
+
+:root{--bg:#f6f8fc!important;--panel:#fff!important;--text:#10203a!important;--muted:#6b7280!important;--border:#e6eaf0!important;--accent:#3157e8!important;--accent2:#2451d6!important;--soft:#eef2ff!important;--danger:#d84a4a!important;--ok:#14a37f!important;--warn:#e79014!important;--purple:#7857d7!important;--sidew:214px!important;--radius:16px!important;--shadow:0 4px 16px rgba(30,55,90,.05)!important}
+html,body{background:var(--bg)!important;color:var(--text)!important}body{font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif!important}.app{grid-template-columns:var(--sidew) minmax(0,1fr)!important}.side{background:#fff!important;color:#334155!important;border-right:1px solid var(--border)!important;padding:22px 14px!important;box-shadow:none!important}.brand{margin:4px 8px 28px!important;color:#10203a!important;font-size:22px!important;font-weight:850!important;display:flex!important;align-items:center!important;gap:10px!important;line-height:1.1}.brand small{display:block!important;color:var(--muted)!important;font-weight:500!important;font-size:11px!important;margin-top:4px!important;opacity:1!important}.lm-leaf{width:26px;height:26px;border:3px solid #18a86e;border-radius:80% 10% 80% 10%;transform:rotate(-25deg);flex:0 0 auto}.nav{display:grid!important;gap:6px!important}.nav button{border:0!important;background:transparent!important;text-align:left!important;padding:10px 12px!important;border-radius:10px!important;color:#334155!important;margin:0!important;font-size:13px!important}.nav button.active,.nav button:hover{background:#edf3ff!important;color:#2451d6!important}.lm-nav-icon{display:inline-block;width:22px;text-align:center;margin-right:4px;color:#64748b}.nav button.active .lm-nav-icon,.nav button:hover .lm-nav-icon{color:#2451d6}.sidefoot{color:#64748b!important;left:14px!important;right:14px!important;bottom:18px!important}.main{padding:22px 30px!important;overflow:visible!important}.top{position:relative!important;top:auto!important;background:transparent!important;padding:0!important;margin-bottom:22px!important}.top h1{font-size:28px!important;color:#10203a!important}.btn{border:1px solid var(--border)!important;background:#fff!important;color:#10203a!important;border-radius:10px!important;padding:9px 12px!important}.btn:hover{background:#f8fafc!important}.btn.primary{background:#3157e8!important;border-color:#3157e8!important;color:#fff!important}.pill{border:1px solid var(--border)!important;background:#fff!important;color:#475569!important}.card{background:#fff!important;border:1px solid var(--border)!important;border-radius:16px!important;padding:16px!important;box-shadow:var(--shadow)!important}.metric{font-size:30px!important;font-weight:850!important;color:#10203a!important}.sub{color:var(--muted)!important}.tablewrap{background:#fff!important;border:1px solid var(--border)!important;border-radius:16px!important;box-shadow:var(--shadow)!important}th,td{padding:11px 13px!important;border-bottom:1px solid var(--border)!important}th{font-size:12px!important;color:var(--muted)!important;background:#fbfcfe!important}tr:hover td{background:#fafcff!important}.badge,.status{display:inline-flex!important;align-items:center!important;border-radius:999px!important;padding:3px 8px!important;font-size:11px!important;font-weight:700!important;background:#eef2f7!important;color:#475569!important}.status.NY{background:#e7efff!important;color:#2451d6!important}.status.I-GANG,.status.DIALOG{background:#e7f8f2!important;color:#0a7c5d!important}.status.AFVENTER,.status.PÅ-PAUSE{background:#fff3dd!important;color:#a16100!important}.status.MØDE,.status.TILBUD{background:#f0eaff!important;color:#6d45c1!important}.status.VUNDET{background:#def7e9!important;color:#18844d!important}.status.TABT,.status.IKKE-RELEVANT{background:#ffe7e7!important;color:#b33232!important}.auth{background:linear-gradient(135deg,#edf4ff,#f7f5ff)!important}.authbox{width:min(430px,100%)!important;background:#fff!important;border:1px solid var(--border)!important;border-radius:22px!important;padding:28px!important;box-shadow:0 24px 60px rgba(33,55,100,.12)!important}.field input,.field select,.field textarea,#leadSearch,#offerSearch,#offerPipelineSearch{border:1px solid var(--border)!important;border-radius:10px!important;padding:10px 12px!important;background:#fff!important;color:#10203a!important}.drawer{right:-560px!important;width:min(540px,100%)!important;background:#fff!important;border-left:1px solid var(--border)!important;box-shadow:-16px 0 40px rgba(20,35,60,.13)!important;padding:20px!important}.drawer.open{right:0!important}.pipeline-toolbar,.offer-pipeline-toolbar{background:#fff!important;border:1px solid var(--border)!important;border-radius:14px!important;padding:10px 12px!important;box-shadow:var(--shadow)!important}.pipeline-col{flex:0 0 240px!important;min-width:240px!important;background:#eef2f6!important;border:0!important;border-radius:14px!important;padding:10px!important}.pipeline-card{background:#fff!important;border:1px solid var(--border)!important;border-radius:10px!important;padding:10px!important;margin:7px 0!important}.offer-pipe-col{flex:0 0 270px!important;background:#eef2f6!important;border:0!important;border-radius:14px!important}.offer-pipe-card{border:1px solid var(--border)!important;border-radius:11px!important}.day{border:1px solid var(--border)!important;border-radius:14px!important;box-shadow:var(--shadow)!important}.modal{border-radius:18px!important;box-shadow:0 24px 70px rgba(20,35,60,.18)!important}.lm-searchbox{width:min(430px,38vw);position:relative}.lm-searchbox input{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px 10px 36px;background:#fff;color:#10203a}.lm-searchbox:before{content:'⌕';position:absolute;left:12px;top:7px;color:#8a94a6;font-size:19px}.lm-focus-wrap{margin-bottom:16px}.lm-focus{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.lm-focus-card{min-height:140px;display:flex;flex-direction:column;justify-content:space-between}.lm-focus-card strong{font-size:17px}.lm-icon{font-size:24px;margin-bottom:8px}.lm-alert{padding:11px 13px;border-radius:11px;background:#fff7e8;border:1px solid #ffd897;color:#925d00;margin-bottom:12px}.lm-alert.ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534}#metrics{grid-template-columns:repeat(5,minmax(0,1fr))!important;margin-top:12px!important}#dashboard>.grid2{grid-template-columns:minmax(0,1fr) 350px!important}#dashboard>.grid3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(max-width:1000px){:root{--sidew:0px!important}.app{grid-template-columns:1fr!important}.side{height:auto!important;position:relative!important;border-right:0!important;border-bottom:1px solid var(--border)!important}.nav{display:flex!important;overflow:auto!important}.nav button{white-space:nowrap!important;flex:0 0 auto!important}.sidefoot{display:none!important}.main{padding:14px!important}.top{align-items:flex-start!important;flex-direction:column!important}.topactions{width:100%!important}.lm-searchbox{width:100%;flex:1}.lm-focus,#metrics,#dashboard>.grid3{grid-template-columns:repeat(2,minmax(0,1fr))!important}#dashboard>.grid2{grid-template-columns:1fr!important}}
+@media(max-width:620px){.main{padding:10px!important}.lm-focus,#metrics,#dashboard>.grid3{grid-template-columns:1fr!important}.pipeline-col,.offer-pipe-col{flex-basis:82vw!important;min-width:82vw!important}.drawer{width:100%!important}}
+</style>
+<style id="lm-gmail-history-v1-css">
+#gmailHistoryBlock{margin-top:10px;padding:12px}.lm-gh-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.lm-gh-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;background:#eef2ff;color:#3652a6}.lm-gh-badge.ok{background:#dcfce7;color:#166534}.lm-gh-badge.warn{background:#fff3dd;color:#9a6100}.lm-gh-list{display:grid;gap:8px;margin-top:10px}.lm-gh-item{border:1px solid var(--border);border-radius:10px;padding:9px;background:#fff}.lm-gh-ref{font-size:11px;color:#64748b;margin-top:3px}.lm-gh-snippet{font-size:12px;line-height:1.4;color:#475569;margin-top:6px;white-space:pre-wrap;max-height:64px;overflow:hidden}.lm-gh-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.lm-gh-empty{padding:9px 10px;border:1px dashed var(--border);border-radius:9px;background:#f8fafc;color:#64748b}.lm-gh-primary{padding:10px;border-radius:10px;background:#f0fdf4;border:1px solid #bbf7d0}.lm-gh-primary strong{color:#166534}
+</style><style id="lm-customer-v4-css">
+.full-customer-overview{display:grid;gap:12px}.customer-company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}.customer-section{padding-top:10px;border-top:1px solid var(--border)}.customer-section:first-child{padding-top:0;border-top:0}.customer-section-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:8px}.customer-line{min-width:0}.customer-label{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:2px}.customer-value{font-size:14px;line-height:1.35;overflow-wrap:anywhere}.customer-value a{color:var(--accent2);font-weight:650;text-decoration:none}.customer-contact{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;margin-top:8px}.customer-contact:first-of-type{margin-top:0}.customer-contact-name{font-weight:800}.customer-contact-role{font-size:12px;color:var(--muted);margin-top:2px}.customer-contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 14px;margin-top:8px}.customer-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.customer-badge{font-size:10px;padding:3px 7px;border-radius:999px;background:#eef2f7;color:#475569}.customer-badge.ok{background:#dcfce7;color:#166534}.customer-warning{padding:10px 12px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}.customer-progress{padding:10px 12px;border-radius:10px;background:#eef6ff;border:1px solid #bfdbfe;color:#1e40af}.customer-summary{padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid var(--border);line-height:1.45}.customer-actions{display:flex;gap:7px;flex-wrap:wrap}.intel-v2{padding:11px 0;border-top:1px solid var(--border)}.intel-v2:first-of-type{border-top:0;padding-top:0}.intel-v2-title{font-weight:800;margin-bottom:5px}.intel-v2-angle{margin-top:7px;padding:8px;border-radius:8px;background:#f8fafc}.intel-v2-action{margin-top:6px}.intel-v2-source{font-size:11px;color:var(--muted);margin-top:7px}.minuba-rel{padding:11px 12px;border-radius:11px;border:1px solid #c7d2fe;background:#eef2ff}.minuba-rel.exact{border-color:#86efac;background:#f0fdf4}.minuba-rel.chain{border-color:#93c5fd;background:#eff6ff}.minuba-rel.none{border-color:#e5e7eb;background:#f8fafc}.minuba-rel.warn{border-color:#fed7aa;background:#fff7ed}.minuba-rel-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}.minuba-tag{font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08)}.minuba-locations{margin-top:8px;display:grid;gap:5px}.minuba-location{font-size:12px;padding-top:5px;border-top:1px solid rgba(100,116,139,.15)}.minuba-meta{font-size:11px;color:#64748b;margin-top:7px}.minuba-refresh{margin-top:8px}.minuba-api-setup{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+#gmailDirectCard{margin-top:14px}.gmail-direct-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.gmail-direct-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;background:#fff3dd;color:#9a6100}.gmail-direct-status.ok{background:#dcfce7;color:#166534}.gmail-direct-status.bad{background:#fee2e2;color:#991b1b}.gmail-direct-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.gmail-direct-note{margin-top:9px;padding:9px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:9px;font-size:12px}.gmail-direct-note code{font-size:11px;overflow-wrap:anywhere}.lm-mail-sender{font-size:11px;color:#64748b;margin-right:auto}.lm-mail-sender.ok{color:#166534;font-weight:700}
+@media(max-width:700px){.customer-company-grid,.customer-contact-grid,.gmail-direct-grid{grid-template-columns:1fr}}
+</style><style id="lm-mail-window-v5-css">
+#mailModal{padding:10px!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
+#mailModal .mail-ai-modal{width:min(1600px,calc(100vw - 20px))!important;max-width:none!important;height:calc(100vh - 20px)!important;max-height:none!important;margin:0!important;padding:0!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}
+#mailModal .mail-ai-head{flex:0 0 auto!important;padding:14px 18px!important}
+#mailModal .mail-ai-layout{flex:1 1 auto!important;min-height:0!important;height:auto!important;overflow:hidden!important;grid-template-columns:minmax(0,1.65fr) minmax(400px,.85fr)!important}
+#mailModal .mail-compose-pane{min-height:0!important;overflow:auto!important;padding:14px 18px!important}
+#mailModal .mail-ai-pane{min-height:0!important;overflow:hidden!important;padding:12px 14px!important}
+#mailModal .ai-chat{flex:1 1 auto!important;min-height:120px!important;overflow:auto!important}
+#mailModal .ai-prompt-wrap{flex:0 0 auto!important}
+#mailModal .mail-ai-footer{flex:0 0 auto!important;position:relative!important;bottom:auto!important;z-index:3!important;padding:10px 18px!important;background:#fff!important}
+#mailModal #mBody{min-height:300px!important}
+@media(max-width:1100px){#mailModal .mail-ai-layout{grid-template-columns:minmax(0,1.45fr) minmax(360px,.9fr)!important}}
+@media(max-width:860px){#mailModal{padding:6px!important}#mailModal .mail-ai-modal{width:calc(100vw - 12px)!important;height:calc(100vh - 12px)!important}#mailModal .mail-ai-layout{grid-template-columns:1fr!important;overflow:auto!important}#mailModal .mail-compose-pane{overflow:visible!important}#mailModal .mail-ai-pane{overflow:visible!important;min-height:480px!important;border-left:0!important;border-top:1px solid var(--border)!important}#mailModal .mail-ai-footer{position:sticky!important;bottom:0!important}}
+</style></head>
+<body>
+<div id="authScreen" class="auth">
+  <div class="authbox">
+    <h1>Lead Manager</h1>
+    <div class="sub">Klimaeksperten · Pilot</div>
+    <p class="sub" style="margin-top:18px">Log ind med arbejdsmailen. Første gang vælger du et password og bekræfter den mail, Supabase sender til dig.</p>
+    <div class="field"><label>E-mail</label><input id="authEmail" value="js@klimaeksperten.dk" readonly></div>
+    <div class="field"><label>Password</label><input id="authPassword" type="password" minlength="8" autocomplete="current-password"></div>
+    <div class="authactions"><button id="loginBtn" class="btn primary">Log ind</button><button id="signupBtn" class="btn">Opret pilot-login</button></div>
+    <div id="authMessage" class="sub" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div id="appShell" class="app hidden">
+<aside class="side"><div class="brand">Lead Manager<small id="brandClient">Klimaeksperten · Pilot</small></div><div class="nav">
+<button class="active" data-view="dashboard">Dashboard</button><button data-view="leads">Alle leads</button><button data-view="pipeline">Pipeline</button><button data-view="offers">Tilbud</button><button data-view="calendar">Kalender</button><button data-view="mail">Mail</button><button data-view="opportunities">Muligheder</button><button data-view="activity">Aktivitetslog</button><button data-view="approvals">Godkendelser</button><button data-view="leadmanager">Lead Manager</button><button data-view="agents">Agenter</button>
+</div><div class="sidefoot"><span id="userEmail"></span><br><button id="logoutBtn" class="btn small" style="margin-top:8px">Log ud</button></div></aside>
+<main class="main">
+<div class="top"><div><h1 id="title">Dashboard</h1><div class="sub" id="subtitle">Alt omkring leads, opfølgning og aktiviteter samlet ét sted.</div></div><div class="topactions"><span id="syncState" class="pill">● Live CRM</span><button class="btn" id="refreshBtn">Opdatér</button><button class="btn primary" id="newLead">+ Nyt lead</button></div></div>
+<div id="loading" class="loader hidden">Henter CRM-data…</div>
+<section id="dashboard" class="view active"><div class="cards" id="metrics"></div><div class="grid2"><div class="card section"><h2>Det vigtigste nu</h2><div id="todayTasks"></div></div><div class="card section"><h2>Lead Manager anbefaler</h2><div id="recommendation" class="sub"></div><div id="warnings" style="margin-top:12px"></div></div></div><div class="grid3"><div class="card section"><h2>Nye mails</h2><div id="dashMail"></div></div><div class="card section"><h2>Muligheder</h2><div id="dashOpps"></div></div><div class="card section"><h2>Kræver handling</h2><div id="dashApprovals"></div></div></div></section>
+<section id="leads" class="view"><div class="card" style="margin-bottom:12px"><div class="split"><input id="leadSearch" placeholder="Søg virksomhed, status, kontakt…" style="flex:1;min-width:240px;padding:9px;border:1px solid var(--border);border-radius:9px"><select id="statusFilter" class="btn"><option value="">Alle statusser</option></select></div></div><div class="tablewrap"><table><thead><tr><th>Virksomhed</th><th>Status</th><th>Score</th><th>Prioritet</th><th>Næste handling</th><th>Dato</th><th>Kilde</th></tr></thead><tbody id="leadRows"></tbody></table></div></section>
+<section id="pipeline" class="view">
+  <div class="pipeline-toolbar">
+    <div>
+      <strong>Pipeline</strong>
+      <div class="sub">Træk leads mellem kolonner. Boardet ruller automatisk mod højre/venstre, mens du trækker.</div>
+    </div>
+    <div class="pipeline-actions">
+      <button class="btn small" id="pipelineLeft" title="Rul mod venstre">←</button>
+      <button class="btn small" id="pipelineRight" title="Rul mod højre">→</button>
+      <button class="btn small" id="pipelineCompact">Kompakt visning</button>
+    </div>
+  </div>
+  <div class="kanban" id="kanban"></div>
+</section>
+<section id="offers" class="view">
+  <div class="cards offer-summary" id="offerMetrics"></div>
+  <div class="card" style="margin:12px 0"><div class="split"><input id="offerSearch" placeholder="Søg tilbud, kunde, adresse eller kontakt…" style="flex:1;min-width:240px;padding:9px;border:1px solid var(--border);border-radius:9px"><select id="offerStatusFilter" class="btn"><option value="I GANG">Aktive tilbud</option><option value="">Alle statusser</option><option>VUNDET</option><option>TABT</option><option>PÅ PAUSE</option><option>STATUS UKLAR</option></select></div></div>
+  <div class="tablewrap"><table><thead><tr><th>Tilbud</th><th>Kunde</th><th>Adresse</th><th>Status</th><th>Opfølgning</th><th>Kontakt</th><th>Seneste note</th></tr></thead><tbody id="offerRows"></tbody></table></div>
+</section>
+<section id="calendar" class="view"><div class="calendar-head"><div><strong id="weekLabel"></strong><div class="sub">Træk et kort til en anden dag. Tid ændres på leadkortet.</div></div><div><button class="btn small" id="prevWeek">← Uge</button> <button class="btn small" id="thisWeek">Denne uge</button> <button class="btn small" id="nextWeek">Uge →</button></div></div><div class="calendar" id="calendarGrid"></div></section>
+<section id="mail" class="view"><div class="card"><div class="section"><h2>CRM-mailjournal</h2><div class="sub">Synkroniserede mails fra js@klimaeksperten.dk. Pilotens Gmail-sync kører via den forbundne konto.</div></div><div id="mailFeed" style="margin-top:10px"></div></div></section>
+<section id="opportunities" class="view"><div class="tablewrap"><table><thead><tr><th>Virksomhed</th><th>Mulighed</th><th>Status</th><th>Værdi</th><th>Deadline</th><th>Kilde</th></tr></thead><tbody id="oppRows"></tbody></table></div></section>
+<section id="activity" class="view"><div class="card"><h2 style="margin-top:0">Samlet aktivitetsjournal</h2><div id="activityFeed"></div></div></section>
+<section id="approvals" class="view"><div class="card"><h2 style="margin-top:0">Godkendelsescenter</h2><div class="sub">Handlinger der ikke skal udføres blindt af AI, lander her.</div><div id="approvalFeed" style="margin-top:12px"></div></div></section>
+<section id="leadmanager" class="view">
+  <div class="grid2">
+    <div class="card"><h2 style="margin-top:0">Lead Manager</h2><div class="sub">Skriv en kommando til CRM'et. Interne ændringer journalføres; eksterne mails går altid via godkendelsescenteret.</div><div class="field"><textarea id="lmCommand" rows="5" placeholder="Fx: Hvad skal jeg ringe på i dag? · Flyt mine fleksible opfølgninger fra torsdag til fredag · Lav et mailudkast til Hotel Kirstine"></textarea></div><button class="btn primary" id="sendLmCommand">Send til Lead Manager</button></div>
+    <div class="card"><h2 style="margin-top:0">Seneste svar</h2><div id="lmResponses"></div></div>
+  </div>
+  <div class="card section" style="margin-top:14px">
+    <div class="split" style="align-items:flex-start">
+      <div><h2 style="margin:0 0 4px">Minuba-forbindelse</h2><div class="sub">Kobl Lead Manager direkte til Minuba, så tilbudsstatus kan kontrolleres automatisk.</div></div>
+      <div id="minubaStatus" class="pill">Kontrollerer forbindelse…</div>
+    </div>
+    <div class="field" style="margin-top:16px"><label>Minuba Auth-nøgle</label><input id="minubaAuthKey" type="password" autocomplete="new-password" placeholder="Indsæt Minuba Auth-nøglen her"></div>
+    <div class="split"><button class="btn primary" id="saveMinubaKey">Gem sikkert</button><button class="btn" id="checkMinubaStatus">Kontrollér forbindelse</button></div>
+    <div class="sub" style="margin-top:10px">Nøglen sendes direkte til en beskyttet serverfunktion og gemmes krypteret i Supabase Vault. Den bliver ikke vist igen efter gemning.</div>
+    <div id="minubaMessage" class="sub" style="margin-top:10px"></div>
+    <div class="notice" style="margin-top:12px">Når Minuba er forbundet, kontrollerer CRM'et tilbudsnummeret og kan se, om tilbuddet stadig er aktivt, er afsluttet eller er blevet til en ordre.</div>
+  </div>
+  <div class="card section" style="margin-top:14px">
+    <div class="split" style="align-items:flex-start">
+      <div><h2 style="margin:0 0 4px">AI-mailassistent</h2><div class="sub">Gør mailvinduet til en skrivepartner: skriv frit hvad du vil sige, og AI'en bruger CRM-konteksten automatisk.</div></div>
+      <div id="openaiStatus" class="pill">Kontrollerer AI…</div>
+    </div>
+    <div class="field" style="margin-top:16px"><label>OpenAI API-nøgle</label><input id="openaiApiKey" type="password" autocomplete="new-password" placeholder="Indsæt API-nøgle én gang"></div>
+    <div class="split"><button class="btn primary" id="saveOpenAIKey">Gem sikkert</button><button class="btn" id="checkOpenAIStatus">Kontrollér AI</button></div>
+    <div class="sub" style="margin-top:10px">Nøglen gemmes krypteret i Supabase Vault og bruges kun server-side. Den ligger aldrig i browseren og vises ikke igen efter gemning.</div>
+    <div id="openaiMessage" class="sub" style="margin-top:10px"></div>
+  </div>
+</section>
+<section id="agents" class="view"><div class="agentgrid" id="agentCards"></div></section>
+</main></div>
+
+<div class="drawer" id="drawer"><div class="drawer-head"><div><h2 id="dName" style="margin:0"></h2><div id="dMeta" class="sub"></div></div><button class="btn" id="closeDrawer">Luk</button></div>
+<div id="contactBlock" class="card contact-card" style="margin-top:14px;padding:14px"><div class="contact-card-title">Kontaktoplysninger</div><div class="contact-loading">Henter kontaktdata…</div></div><div id="gmailHistoryBlock" class="card" style="margin-top:10px;padding:12px"><div class="sub">Tidligere mailkontakt indlæses…</div></div>
+<div id="intelligenceBlock" class="card" style="margin-top:10px;padding:12px"></div>
+<div class="card" style="margin-top:10px;padding:12px"><div class="sub" style="margin-bottom:8px">Hurtig registrering</div><div class="split"><button class="btn small" id="callNoAnswer">Ingen svar</button><button class="btn small" id="callConnected">Talte med person</button><button class="btn small" id="requestInfoMail">Lav info-mail</button><button class="btn small" id="requestNoContactMail">Lav no-contact mail</button><button class="btn small" id="markMeeting">Møde aftalt</button></div></div>
+<div class="field"><label>Status</label><select id="dStatus"></select></div>
+<div class="row3"><div class="field"><label>Leadscore</label><input id="dScore" type="number" min="0" max="100"></div><div class="field"><label>Prioritet</label><select id="dPriority"><option value="">—</option><option>A</option><option>B</option><option>C</option></select></div><div class="field"><label>Planlægning</label><select id="dPlanning"><option value="flexible">Fleksibel</option><option value="fixed">Fast</option><option value="deadline">Deadline</option></select></div></div>
+<div class="field"><label>Næste handling</label><input id="dNext"></div><div class="row"><div class="field"><label>Dato</label><input id="dDate" type="date"></div><div class="field"><label>Klokkeslæt</label><input id="dTime" type="time"></div></div>
+<div class="row3"><button class="btn" id="minus30">−30 min</button><button class="btn" id="plus30">+30 min</button><button class="btn" id="plusDay">+1 dag</button></div><div class="row"><button class="btn" id="plusWeek">+1 uge</button><label class="pill"><input id="dLock" type="checkbox"> Manuel statuslås</label></div>
+<div id="lossWrap" class="field hidden"><label>Tabsårsag</label><input id="dLoss" placeholder="Fx eksisterende leverandør"></div><div id="wonWrap" class="field hidden"><label>Vundet værdi (kr.)</label><input id="dWon" type="number" min="0" step="1"></div>
+<div class="split" style="margin:12px 0"><button class="btn primary" id="saveLead">Gem ændringer</button><button class="btn" id="queueCalendar">Synk til Google Kalender</button><button class="btn" id="openMailComposer">Skriv mail</button></div>
+<div class="field"><label>Manuel aktivitet / note</label><textarea id="dNote" rows="3" placeholder="Fx: Talte med Peter. Vil have mail om døgnvagt. Ring igen om 14 dage."></textarea></div><div class="split"><select id="activityType" class="btn"><option>Note</option><option>Opkald</option><option>Møde</option><option>Dokument</option><option>Andet</option></select><button class="btn" id="addNote">Gem aktivitet</button></div>
+<div class="timeline"><h3>Historik</h3><div id="timeline"></div></div></div>
+
+<div class="modalback" id="newModal"><div class="modal"><h2>Nyt lead</h2><div class="field"><label>Virksomhed</label><input id="nName"></div><div class="field"><label>Domæne</label><input id="nDomain" placeholder="firma.dk"></div><div class="row"><div class="field"><label>Kontaktperson</label><input id="nContact"></div><div class="field"><label>E-mail</label><input id="nEmail" type="email"></div></div><div class="row"><div class="field"><label>Score</label><input id="nScore" type="number" min="0" max="100"></div><div class="field"><label>Prioritet</label><select id="nPriority"><option value="">—</option><option>A</option><option selected>B</option><option>C</option></select></div></div><div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="cancelNew">Annuller</button><button class="btn primary" id="createNew">Opret</button></div></div></div>
+
+<div class="modalback" id="offerModal"><div class="modal"><h2 id="oTitle">Tilbud</h2><div id="oMeta" class="sub"></div><div class="row"><div class="field"><label>Status</label><select id="oStatus"><option>I GANG</option><option>VUNDET</option><option>TABT</option><option>PÅ PAUSE</option><option>STATUS UKLAR</option></select></div><div class="field"><label>Næste opfølgning</label><input id="oFollow" type="date"></div></div><div class="field"><label>Kontakt</label><textarea id="oContact" rows="2" readonly></textarea></div><div class="field"><label>Seneste note</label><textarea id="oComment" rows="6"></textarea></div><div id="oWarning" class="notice hidden"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" id="cancelOffer">Annuller</button><button class="btn primary" id="saveOffer">Gem tilbud</button></div></div></div>
+
+<div class="modalback" id="mailModal"><div class="modal mail-ai-modal">
+  <div class="mail-ai-head"><div><h2 style="margin:0">Skriv mail</h2><div class="sub">AI hjælper med teksten. Du bestemmer og godkender altid før afsendelse.</div></div><div id="mAiState" class="pill">AI klar</div></div>
+  <div class="mail-ai-layout">
+    <div class="mail-compose-pane">
+      <div class="field"><label>Til</label><input id="mTo" type="email" placeholder="Verificeret modtager"></div>
+      <div class="field"><label>Emne</label><input id="mSubject" placeholder="AI kan foreslå emnet"></div><div class="field" id="lmFollowUpField"><label>Opfølgning i pipeline</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="mFollowUpDate" type="date" style="min-width:180px;flex:1"><div class="split"><button type="button" class="btn small" data-lm-follow-days="3">+3 dage</button><button type="button" class="btn small" data-lm-follow-days="7">+7 dage</button><button type="button" class="btn small" data-lm-follow-days="14">+14 dage</button></div></div><div class="sub" style="margin-top:5px">Standard er 7 dage. Datoen bliver næste opfølgning på leadet og vises i pipeline og kalender.</div></div>
+      <div class="field"><label>Mailtekst</label><textarea id="mBody" rows="15" placeholder="Skriv selv – eller fortæl AI'en til højre hvad mailen skal sige…"></textarea><div class="sub" style="margin-top:5px">Din faste signatur tilføjes automatisk ved afsendelse.</div></div>
+      <div class="ai-rewrite-bar">
+        <button class="btn small" data-ai-command="Gør mailen kortere uden at miste budskabet.">Kortere</button>
+        <button class="btn small" data-ai-command="Gør mailen mere direkte og skarp, men stadig professionel.">Mere direkte</button>
+        <button class="btn small" data-ai-command="Gør mailen lidt varmere og mere personlig.">Varmere</button>
+        <button class="btn small" data-ai-command="Gør mailen mindre sælgende og mere naturlig.">Mindre sælgende</button>
+        <button class="btn small" data-ai-command="Skriv mailen mere som Jesper: ligefrem, menneskelig og uden AI-klicheer.">Mere Jesper</button>
+        <button class="btn small" data-ai-command="Gør afslutningen tydeligere med én naturlig call-to-action.">Skarpere afslutning</button>
+      </div>
+      <div id="mSignaturePreview" class="card signature-preview" style="padding:10px;margin:10px 0"><div class="sub">Signatur tilføjes ved afsendelse</div><div class="mailbody" id="mSignatureText"></div></div>
+    </div>
+    <aside class="mail-ai-pane">
+      <div class="ai-pane-top">
+        <div><strong>AI-skrivepartner</strong><div class="sub">Som en lille ChatGPT til denne mail.</div></div>
+        <select id="mPurpose" class="btn small">
+          <option>Automatisk</option><option>Første kontakt</option><option>Opfølgning</option><option>Efter telefonsamtale</option><option>Svar på seneste mail</option><option>Tilbudsopfølgning</option><option>Send information</option><option>Book møde</option><option>No-contact</option>
+        </select>
+      </div>
+      <div id="mAiContext" class="ai-context">CRM-kontekst: lead · historik · mails · kontakter · tilbud · sales intelligence</div>
+      <div class="ai-quick-actions">
+        <button class="ai-chip" data-ai-preset="Skriv den bedste mail fra bunden ud fra CRM-konteksten og det valgte formål.">Skriv fra bunden</button>
+        <button class="ai-chip" data-ai-preset="Svar på den seneste relevante indgående mail. Hold svaret kort, naturligt og konkret.">Svar på seneste mail</button>
+        <button class="ai-chip" data-ai-preset="Lav en naturlig opfølgning, der gør det let for modtageren at svare.">Lav opfølgning</button>
+      </div>
+      <div id="mAiMessages" class="ai-chat"><div class="ai-chat-empty">Skriv fx: “Skriv til ham at jeg lige følger op efter vores samtale og spørg om han har haft tid til at kigge på det.”</div></div>
+      <div class="ai-prompt-wrap"><textarea id="mAiPrompt" rows="4" placeholder="Fortæl AI'en hvad du vil skrive eller ændre…"></textarea><button class="btn primary" id="mAiSend">Lav mail</button></div>
+      <div id="mAiSuggestion" class="ai-suggestion hidden"></div>
+    </aside>
+  </div>
+  <div class="mail-ai-footer"><div class="sub">AI sender aldrig selv. Du godkender ved at trykke Send.</div><div class="split"><button class="btn" id="cancelMail">Annuller</button><button class="btn primary" id="queueMail">Læg klar til godkendelse</button></div></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL='https://ouqhostcsvdyrkjefiya.supabase.co';
+const SUPABASE_KEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
+
+// Lille indbygget Supabase-klient til piloten. Ingen ekstern CDN er nødvendig.
+function createPilotSupabase(url,key){
+  const STORAGE='lm_supabase_session_v1';
+  const listeners=[];
+  let session=null;
+  try{session=JSON.parse(localStorage.getItem(STORAGE)||'null')}catch(_){session=null}
+  const save=(s,event='SIGNED_IN')=>{session=s||null;if(session)localStorage.setItem(STORAGE,JSON.stringify(session));else localStorage.removeItem(STORAGE);listeners.forEach(fn=>{try{fn(event,session)}catch(e){console.error(e)}})};
+  async function request(path,{method='GET',body=null,auth=true,headers={}}={}){
+    const h={'apikey':key,'Content-Type':'application/json',...headers};
+    const token=session?.access_token;
+    if(auth&&token)h.Authorization='Bearer '+token;
+    else if(auth)h.Authorization='Bearer '+key;
+    const res=await fetch(url+path,{method,headers:h,body:body==null?undefined:JSON.stringify(body)});
+    const text=await res.text();
+    let data=null;try{data=text?JSON.parse(text):null}catch(_){data=text}
+    if(!res.ok){const message=(data&&((data.msg)||(data.message)||(data.error_description)||(data.error)))||`${res.status} ${res.statusText}`;return {data:null,error:{message,status:res.status,details:data}}}
+    return {data,error:null,headers:res.headers,status:res.status};
+  }
+  async function refreshIfNeeded(){
+    if(!session?.refresh_token)return session;
+    const exp=session.expires_at?Number(session.expires_at)*1000:0;
+    if(exp && Date.now()<exp-60000)return session;
+    const r=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token},auth:false});
+    if(r.error){save(null,'SIGNED_OUT');return null}
+    const d=r.data||{};const s={access_token:d.access_token,refresh_token:d.refresh_token||session.refresh_token,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user};save(s,'TOKEN_REFRESHED');return s;
+  }
+  class Query{
+    constructor(table){this.table=table;this.method='GET';this.body=null;this.params=[];this.selectCols=null;this.wantSingle=false;this.returnRepresentation=false;}
+    select(cols='*'){this.selectCols=cols;this.returnRepresentation=true;return this}
+    eq(col,val){this.params.push([col,'eq.'+String(val)]);return this}
+    ilike(col,val){this.params.push([col,'ilike.'+String(val)]);return this}
+    order(col,opt={}){this.params.push(['order',`${col}.${opt.ascending===false?'desc':'asc'}`]);return this}
+    limit(n){this.params.push(['limit',String(n)]);return this}
+    insert(payload){this.method='POST';this.body=payload;return this}
+    update(payload){this.method='PATCH';this.body=payload;return this}
+    single(){this.wantSingle=true;this.returnRepresentation=true;return this}
+    async execute(){
+      await refreshIfNeeded();
+      const qs=new URLSearchParams();
+      if(this.selectCols!=null)qs.set('select',this.selectCols);
+      for(const [k,v] of this.params)qs.append(k,v);
+      const headers={};
+      if(this.returnRepresentation&&['POST','PATCH'].includes(this.method))headers.Prefer='return=representation';
+      if(this.wantSingle)headers.Accept='application/vnd.pgrst.object+json';
+      const r=await request(`/rest/v1/${encodeURIComponent(this.table)}${qs.toString()?'?'+qs.toString():''}`,{method:this.method,body:this.body,headers});
+      return {data:r.data,error:r.error};
+    }
+    then(resolve,reject){return this.execute().then(resolve,reject)}
+  }
+  const auth={
+    async getSession(){await refreshIfNeeded();return {data:{session},error:null}},
+    onAuthStateChange(fn){listeners.push(fn);return {data:{subscription:{unsubscribe(){const i=listeners.indexOf(fn);if(i>=0)listeners.splice(i,1)}}}}},
+    async signUp({email,password}){
+      const r=await request('/auth/v1/signup',{method:'POST',body:{email,password},auth:false});
+      if(r.error)return {data:{user:null,session:null},error:r.error};
+      const d=r.data||{};let s=null;
+      if(d.access_token){s={access_token:d.access_token,refresh_token:d.refresh_token,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user};save(s,'SIGNED_IN')}
+      return {data:{user:d.user||d,session:s},error:null};
+    },
+    async signInWithPassword({email,password}){
+      const r=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password},auth:false});
+      if(r.error)return {data:{user:null,session:null},error:r.error};
+      const d=r.data||{};const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user};save(s,'SIGNED_IN');return {data:{user:d.user,session:s},error:null};
+    },
+    async signOut(){if(session?.access_token){try{await request('/auth/v1/logout',{method:'POST'})}catch(_){}}save(null,'SIGNED_OUT');return {error:null}}
+  };
+  return {auth,from:(table)=>new Query(table)};
+}
+const supabase=createPilotSupabase(SUPABASE_URL,SUPABASE_KEY);
+const STATUSES=['NY','UNDER VURDERING','KLAR TIL KONTAKT','I GANG','DIALOG','MØDE','TILBUD','AFVENTER','PÅ PAUSE','VUNDET','TABT','IKKE RELEVANT'];
+const AGENTS=[['Lead Manager','Prioriterer pipeline og næste handling'],['Opportunity Strategist','Foreslår markeder og fokusområder'],['Autonomous Lead Hunter','Finder relevante virksomheder automatisk'],['Opportunity & Tender Hunter','Finder dokumenterede projekter og udbud'],['Lead Analyst','Vurderer, scorer og prioriterer'],['Lead Enricher','Finder verificerede kontaktdata'],['Info-Mail Agent','Mails efter telefonsamtaler'],['No-Contact Mail Agent','Mails når telefonkontakt ikke lykkes'],['Mail & Conversation Agent','Synkroniserer ind/udgående mail'],['Follow-up & Intelligence','Holder opfølgning og nye signaler levende'],['AI Mail Assistant','Skriver og omskriver mails med CRM-kontekst – sender aldrig selv']];
+let state={session:null,client:null,userMap:null,companies:[],contacts:[],leads:[],activities:[],mail:[],opps:[],offers:[],approvals:[],runs:[],tasks:[],requests:[],intelligence:[],integrations:[]};
+let currentLead=null,currentOffer=null,editingApprovalId=null,weekOffset=0;
+const $=id=>document.getElementById(id); const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}
+function statusClass(s){return String(s||'').replaceAll(' ','-')}
+function localDateTime(iso){if(!iso)return {date:'',time:''};const d=new Date(iso);return {date:[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'),time:[String(d.getHours()).padStart(2,'0'),String(d.getMinutes()).padStart(2,'0')].join(':')}}
+function isoFromInputs(date,time){if(!date)return null;return new Date(`${date}T${time||'09:00'}:00`).toISOString()}
+function fmt(iso){if(!iso)return '—';return new Intl.DateTimeFormat('da-DK',{dateStyle:'short',timeStyle:'short'}).format(new Date(iso))}
+function fmtDate(v){if(!v)return '—';const d=new Date(v+'T12:00:00');return new Intl.DateTimeFormat('da-DK',{dateStyle:'short'}).format(d)}
+function offerById(id){return state.offers.find(x=>x.id===id)}
+function isOfferOverdue(o){return o.status==='I GANG'&&o.follow_up_date&&new Date(o.follow_up_date+'T23:59:59').getTime()<Date.now()}
+function company(id){return state.companies.find(x=>x.id===id)||{};}
+function contactsFor(companyId){return state.contacts.filter(x=>x.company_id===companyId)}
+function contactUseScore(x){let s=0;const role=String([x?.full_name,x?.title,x?.role_relevance].filter(Boolean).join(" ")).toLowerCase(),local=String(x?.email||"").toLowerCase().split("@")[0];if(x?.is_decision_maker)s+=100;if(x?.verified)s+=25;if(x?.full_name&&!/generel kontakt|general contact/i.test(x.full_name))s+=20;if(/hotelchef|direktør|director|general manager|driftschef|driftsleder|drift|facility|facilities|teknisk|technical|maintenance|ejendomschef|property|operations|owner|ejer|manager|leder/i.test(role))s+=80;if(/^(booking|book|reservation|reservations|reception|receptionen|restaurant|job|jobs|career|careers|hr|event|events|konference|conference|meeting|meetings|selskab|selskaber|wedding|spa|takeaway|order|orders)$/i.test(local))s-=180;else if(/^(info|mail|kontakt|contact|office|admin|hotel|hello)$/i.test(local))s-=40;if(x?.email)s+=10;return s}
+function bestEmailContact(cts){return (cts||[]).filter(x=>x?.email).slice().sort((a,b)=>contactUseScore(b)-contactUseScore(a))[0]||null}
+function leadById(id){return state.leads.find(x=>x.id===id)}
+function leadName(l){return company(l.company_id).name||'Ukendt virksomhed'}
+function activeLead(l){return !['VUNDET','TABT','IKKE RELEVANT'].includes(l.status)}
+function clientMailSignature(){return state.client?.settings?.mail_signature_text||''}
+function showAuth(msg=''){ $('authScreen').classList.remove('hidden');$('appShell').classList.add('hidden');$('authMessage').textContent=msg;}
+function showApp(){ $('authScreen').classList.add('hidden');$('appShell').classList.remove('hidden');$('userEmail').textContent=state.session?.user?.email||''; }
+async function authInit(){const {data:{session}}=await supabase.auth.getSession();state.session=session;if(session){await startApp()}else showAuth();supabase.auth.onAuthStateChange(async(_e,s)=>{state.session=s;if(s)await startApp();else showAuth()})}
+$('loginBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){$('authMessage').textContent='Password skal være mindst 8 tegn.';return} $('authMessage').textContent='Logger ind…';const {error}=await supabase.auth.signInWithPassword({email:$('authEmail').value,password:p});if(error)$('authMessage').textContent=error.message;}
+$('signupBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){$('authMessage').textContent='Vælg et password på mindst 8 tegn.';return} $('authMessage').textContent='Opretter login…';const {data,error}=await supabase.auth.signUp({email:$('authEmail').value,password:p});if(error){$('authMessage').textContent=error.message;return}$('authMessage').textContent=data.session?'Login oprettet og du er logget ind.':'Login oprettet. Tjek js@klimaeksperten.dk og bekræft mailen, vend derefter tilbage og log ind.';}
+$('logoutBtn').onclick=()=>supabase.auth.signOut();
+async function startApp(){showApp();$('loading').classList.remove('hidden');const email=state.session.user.email;const {data:maps,error}=await supabase.from('crm_users').select('*').eq('email',email);if(error||!maps?.length){showAuth('Denne konto har ikke adgang til en kundeinstallation.');await supabase.auth.signOut();return}state.userMap=maps[0];const {data:clients,error:ce}=await supabase.from('crm_clients').select('*').eq('id',state.userMap.client_id);if(ce||!clients?.length){toast('Kundeprofil kunne ikke hentes');return}state.client=clients[0];$('brandClient').textContent=state.client.name+' · Pilot';await loadAll();$('loading').classList.add('hidden');}
+async function loadAll(){const cid=state.client.id;const results=await Promise.all([
+ supabase.from('crm_companies').select('*').eq('client_id',cid).order('name'),
+ supabase.from('crm_contacts').select('*').eq('client_id',cid),
+ supabase.from('crm_leads').select('*').eq('client_id',cid).order('updated_at',{ascending:false}),
+ supabase.from('crm_activities').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500),
+ supabase.from('crm_mail_messages').select('*').eq('client_id',cid).order('message_at',{ascending:false}).limit(300),
+ supabase.from('crm_opportunities').select('*').eq('client_id',cid).order('updated_at',{ascending:false}),
+ supabase.from('crm_offers').select('*').eq('client_id',cid).order('follow_up_date',{ascending:true}),
+ supabase.from('crm_approvals').select('*').eq('client_id',cid).order('created_at',{ascending:false}),
+ supabase.from('crm_agent_runs').select('*').eq('client_id',cid).order('started_at',{ascending:false}).limit(100),
+ supabase.from('crm_tasks').select('*').eq('client_id',cid).order('scheduled_at',{ascending:true}),
+ supabase.from('crm_agent_requests').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(100),
+ supabase.from('crm_sales_intelligence').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500),
+ supabase.from('crm_integrations').select('*').eq('client_id',cid)
+]);
+ const keys=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];results.forEach((r,i)=>{if(r.error){console.error(keys[i],r.error);toast(`Fejl ved ${keys[i]}`)}else state[keys[i]]=r.data||[]});render();$('syncState').textContent='● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
+$('refreshBtn').onclick=async()=>{await loadAll();toast('CRM opdateret')};
+
+</script>
+<script>
+function render(){renderMetrics();renderTasks();renderRows();renderKanban();renderOffers();renderCalendar();renderActivity();renderMail();renderOpps();renderApprovals();renderAgents();renderLeadManager();renderIntegrations();renderDashCards();}
+function renderMetrics(){const active=state.leads.filter(activeLead), a=active.filter(x=>x.priority==='A').length, planned=active.filter(x=>x.next_action&&x.next_at).length, won=state.leads.filter(x=>x.status==='VUNDET').length;const pending=state.approvals.filter(x=>x.status==='pending').length, activeOffers=state.offers.filter(x=>x.status==='I GANG').length, overdueOffers=state.offers.filter(isOfferOverdue).length;const vals=[[active.length,'Aktive leads'],[a,'A-leads'],[activeOffers,'Tilbud ude'],[overdueOffers,'Tilbud forfaldne'],[won,'Vundne leads'],[state.mail.length,'Loggede mails'],[pending,'Godkendelser']];$('metrics').innerHTML=vals.map(([v,l])=>`<div class="card"><div class="sub">${esc(l)}</div><div class="metric">${v}</div></div>`).join('');}
+function renderTasks(){const now=Date.now();const offerItems=state.offers.filter(o=>o.status==='I GANG').map(o=>({kind:'offer',id:o.id,name:o.customer_name||company(o.company_id).name||'Kunde',label:`Tilbud ${o.offer_ref}`,at:o.follow_up_date?new Date(o.follow_up_date+'T09:00:00').getTime():9e15,overdue:isOfferOverdue(o)}));const leadItems=state.leads.filter(l=>activeLead(l)&&l.next_action).map(l=>({kind:'lead',id:l.id,name:leadName(l),label:l.next_action,at:l.next_at?new Date(l.next_at).getTime():9e15,overdue:!!(l.next_at&&new Date(l.next_at).getTime()<now),score:l.score||0}));const arr=[...offerItems,...leadItems].sort((a,b)=>(b.overdue-a.overdue)||(a.at-b.at)||((b.score||0)-(a.score||0))).slice(0,10);$('todayTasks').innerHTML=arr.length?arr.map(x=>`<div class="task"><div><strong>${esc(x.name)}</strong><div class="sub">${esc(x.label)} · ${x.at<9e15?new Intl.DateTimeFormat('da-DK',{dateStyle:'short'}).format(new Date(x.at)):'mangler dato'} ${x.overdue?'<span class="badge a">Forfalden</span>':''}</div></div><button class="btn small" ${x.kind==='offer'?`data-open-offer="${x.id}"`:`data-open-lead="${x.id}"`}>Åbn</button></div>`).join(''):'<div class="empty">Ingen åbne handlinger.</div>';const top=[...state.leads].filter(activeLead).sort((a,b)=>(b.score||0)-(a.score||0))[0], topOffer=state.offers.filter(isOfferOverdue)[0];$('recommendation').innerHTML=topOffer?`Start med tilbud <strong>${esc(topOffer.offer_ref)}</strong> til ${esc(topOffer.customer_name||'kunden')}. Opfølgningen er forfalden.`:top?`Start med <strong>${esc(leadName(top))}</strong>. ${top.score!=null?'Score '+top.score+'. ':''}${top.next_action?'Næste handling: '+esc(top.next_action)+'.':''}`:'Ingen aktive leads eller tilbud.';const warnings=[];const missing=state.leads.filter(l=>activeLead(l)&&(!l.next_action||!l.next_at));if(missing.length)warnings.push(`⚠ ${missing.length} aktive leads mangler næste handling eller dato.`);const overdue=state.leads.filter(l=>activeLead(l)&&l.next_at&&new Date(l.next_at).getTime()<now);if(overdue.length)warnings.push(`⚠ ${overdue.length} lead-handlinger er overskredet.`);const overdueOffers=state.offers.filter(isOfferOverdue);if(overdueOffers.length)warnings.push(`⚠ ${overdueOffers.length} tilbud kræver opfølgning.`);$('warnings').innerHTML=warnings.map(x=>`<div class="notice" style="margin-top:7px">${esc(x)}</div>`).join('');wireLeadButtons();wireOfferButtons();}
+function renderRows(){const search=$('leadSearch').value.trim().toLowerCase(),sf=$('statusFilter').value;const rows=state.leads.filter(l=>{const c=company(l.company_id),cts=contactsFor(l.company_id);const hay=[c.name,l.status,l.source,...cts.flatMap(x=>[x.full_name,x.email,x.phone])].join(' ').toLowerCase();return (!search||hay.includes(search))&&(!sf||l.status===sf)});$('leadRows').innerHTML=rows.length?rows.map(l=>{const c=company(l.company_id),dt=localDateTime(l.next_at);return `<tr data-open-lead="${l.id}" style="cursor:pointer"><td><strong>${esc(c.name)}</strong><div class="sub">${esc(contactsFor(c.id).map(x=>x.full_name||x.email).filter(Boolean).join(' · '))}</div></td><td><span class="status ${statusClass(l.status)}">${esc(l.status)}</span></td><td>${l.score??'—'}</td><td>${l.priority?`<span class="badge ${l.priority.toLowerCase()}">${l.priority}</span>`:'—'}</td><td>${esc(l.next_action||'Mangler')}</td><td>${l.next_at?fmt(l.next_at):'—'}</td><td>${esc(l.source||'—')}</td></tr>`}).join(''):'<tr><td colspan="7" class="empty">Ingen leads matcher filtrene.</td></tr>';wireLeadButtons();}
+function renderKanban(){const cols=['NY','UNDER VURDERING','KLAR TIL KONTAKT','I GANG','DIALOG','MØDE','TILBUD','AFVENTER','PÅ PAUSE','VUNDET','TABT','IKKE RELEVANT'];const board=$('kanban');const oldScroll=board.scrollLeft;board.innerHTML=cols.map(s=>`<div class="col pipeline-col" data-pipeline-status="${esc(s)}"><strong>${esc(s)}</strong><div class="sub">${state.leads.filter(x=>x.status===s).length} leads</div>${state.leads.filter(x=>x.status===s).map(l=>`<div class="leadcard pipeline-card" draggable="true" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`).join('')}</div>`).join('');board.scrollLeft=oldScroll;wireLeadButtons();wirePipelineDrag();wirePipelineNavigation();}
+async function movePipelineLead(id,targetStatus){const l=leadById(id);if(!l||l.status===targetStatus)return;const previous=l.status;if(targetStatus==='TABT'&&!l.loss_reason){const reason=window.prompt(`Hvorfor er ${leadName(l)} tabt?`,'');if(!reason||!reason.trim()){toast('Flytning annulleret – TABT kræver en årsag');renderKanban();return}l._pipeline_loss_reason=reason.trim()}const closed=['VUNDET','TABT','IKKE RELEVANT'].includes(targetStatus);const patch={status:targetStatus,manual_lock:true,updated_at:new Date().toISOString()};if(targetStatus==='TABT')patch.loss_reason=l._pipeline_loss_reason||l.loss_reason||null;else if(previous==='TABT')patch.loss_reason=null;if(closed){patch.next_action=null;patch.next_at=null}const {error}=await supabase.from('crm_leads').update(patch).eq('id',id);if(error){toast(error.message);await loadAll();return}if(closed){const openTasks=state.tasks.filter(t=>t.lead_id===id&&t.status==='open');for(const t of openTasks){await supabase.from('crm_tasks').update({status:'closed',calendar_sync_status:t.external_calendar_id?'delete_pending':'none'}).eq('id',t.id)}}await logActivity(l,'Status',`${previous} → ${targetStatus} (drag & drop)`,{previous,next:targetStatus,manual:true,method:'pipeline_drag_drop',loss_reason:patch.loss_reason||null});await loadAll();toast(`${leadName(l)} flyttet til ${targetStatus}`);if(targetStatus==='MØDE'&&!l.next_at){openLead(id);toast('Møde registreret – angiv dato og tid på leadkortet')}}
+function wirePipelineDrag(){const board=$('kanban');document.querySelectorAll('[data-pipeline-lead]').forEach(card=>{card.addEventListener('dragstart',e=>{card.classList.add('dragging');document.body.classList.add('pipeline-drag-active');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/x-pipeline-lead',card.dataset.pipelineLead)});card.addEventListener('dragend',()=>{card.classList.remove('dragging');document.body.classList.remove('pipeline-drag-active');document.querySelectorAll('.pipeline-col.dragover').forEach(x=>x.classList.remove('dragover'));setPipelineEdgeGlow()})});board.ondragover=e=>{if(!e.dataTransfer?.types?.includes('application/x-pipeline-lead'))return;const r=board.getBoundingClientRect(),edge=Math.min(150,r.width*.18),speed=30;if(e.clientX<r.left+edge)board.scrollLeft-=speed;else if(e.clientX>r.right-edge)board.scrollLeft+=speed;setPipelineEdgeGlow(e.clientX)};document.querySelectorAll('.pipeline-col[data-pipeline-status]').forEach(col=>{col.addEventListener('dragover',e=>{if(!e.dataTransfer.types.includes('application/x-pipeline-lead'))return;e.preventDefault();e.dataTransfer.dropEffect='move';col.classList.add('dragover')});col.addEventListener('dragleave',e=>{if(!col.contains(e.relatedTarget))col.classList.remove('dragover')});col.addEventListener('drop',async e=>{const id=e.dataTransfer.getData('application/x-pipeline-lead');if(!id)return;e.preventDefault();e.stopPropagation();col.classList.remove('dragover');await movePipelineLead(id,col.dataset.pipelineStatus)})})}
+function ensurePipelineEdgeGlow(){if(!document.querySelector('.pipeline-autoscroll-left')){const l=document.createElement('div'),r=document.createElement('div');l.className='pipeline-autoscroll-left';r.className='pipeline-autoscroll-right';document.body.append(l,r)}}
+function setPipelineEdgeGlow(x=null){ensurePipelineEdgeGlow();const board=$('kanban'),left=document.querySelector('.pipeline-autoscroll-left'),right=document.querySelector('.pipeline-autoscroll-right');left.classList.remove('active');right.classList.remove('active');if(x==null||!document.body.classList.contains('pipeline-drag-active'))return;const rect=board.getBoundingClientRect(),edge=Math.min(150,rect.width*.18);if(x<rect.left+edge&&board.scrollLeft>0)left.classList.add('active');if(x>rect.right-edge&&board.scrollLeft<board.scrollWidth-board.clientWidth-2)right.classList.add('active')}
+function wirePipelineNavigation(){const board=$('kanban'),left=$('pipelineLeft'),right=$('pipelineRight'),compact=$('pipelineCompact');if(left)left.onclick=()=>board.scrollBy({left:-Math.max(420,board.clientWidth*.72),behavior:'smooth'});if(right)right.onclick=()=>board.scrollBy({left:Math.max(420,board.clientWidth*.72),behavior:'smooth'});if(compact){compact.textContent=document.body.classList.contains('pipeline-compact')?'Normal visning':'Kompakt visning';compact.onclick=()=>{document.body.classList.toggle('pipeline-compact');compact.textContent=document.body.classList.contains('pipeline-compact')?'Normal visning':'Kompakt visning';localStorage.setItem('lm_pipeline_compact',document.body.classList.contains('pipeline-compact')?'1':'0')}}if(localStorage.getItem('lm_pipeline_compact')==='1')document.body.classList.add('pipeline-compact');board.onwheel=e=>{if(Math.abs(e.deltaY)<=Math.abs(e.deltaX)||board.scrollWidth<=board.clientWidth)return;if(e.ctrlKey||e.metaKey)return;e.preventDefault();board.scrollLeft+=e.deltaY},{passive:false};ensurePipelineEdgeGlow()}
+function mondayFor(offset=0){const d=new Date();d.setHours(12,0,0,0);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day+offset*7);return d}
+function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function renderOffers(){const active=state.offers.filter(o=>o.status==='I GANG').length,won=state.offers.filter(o=>o.status==='VUNDET').length,lost=state.offers.filter(o=>o.status==='TABT').length,overdue=state.offers.filter(isOfferOverdue).length;$('offerMetrics').innerHTML=[[active,'Tilbud ude'],[overdue,'Forfaldne'],[won,'Vundet'],[lost,'Tabt']].map(([v,l])=>`<div class="card"><div class="sub">${l}</div><div class="metric">${v}</div></div>`).join('');const q=($('offerSearch')?.value||'').trim().toLowerCase(),sf=$('offerStatusFilter')?.value||'';const rows=state.offers.filter(o=>{const hay=[o.offer_ref,o.customer_name,o.installation_address,o.contact_person,o.contact_details,o.current_comment,o.status].join(' ').toLowerCase();return (!q||hay.includes(q))&&(!sf||o.status===sf)}).sort((a,b)=>{const ao=isOfferOverdue(a),bo=isOfferOverdue(b);if(ao!==bo)return bo-ao;return String(a.follow_up_date||'9999').localeCompare(String(b.follow_up_date||'9999'))});$('offerRows').innerHTML=rows.length?rows.map(o=>`<tr data-open-offer="${o.id}" style="cursor:pointer"><td><strong>${esc(o.offer_ref)}</strong>${o.data_warning?'<div class="badge warn" style="margin-top:4px">Kontrollér data</div>':''}</td><td><strong>${esc(o.customer_name||company(o.company_id).name||'')}</strong></td><td>${esc(o.installation_address||'—')}</td><td><span class="status ${statusClass(o.status)}">${esc(o.status)}</span></td><td>${fmtDate(o.follow_up_date)} ${isOfferOverdue(o)?'<span class="badge a">Forfalden</span>':''}</td><td>${esc([o.contact_person,o.contact_details].filter(Boolean).join(' · ')||'—')}</td><td><div class="mailbody">${esc(o.current_comment||'—')}</div></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Ingen tilbud matcher filtrene.</td></tr>';wireOfferButtons();}
+function wireOfferButtons(){document.querySelectorAll('[data-open-offer]').forEach(el=>el.onclick=()=>openOffer(el.dataset.openOffer));}
+function openOffer(id){const o=offerById(id);if(!o)return;currentOffer=o;$('oTitle').textContent=`Tilbud ${o.offer_ref} – ${o.customer_name||company(o.company_id).name||''}`;$('oMeta').textContent=[o.installation_address,o.sent_date?'Sendt '+fmtDate(o.sent_date):null,o.follow_up_owner?'Ansvarlig '+o.follow_up_owner:null].filter(Boolean).join(' · ');$('oStatus').value=o.status;$('oFollow').value=o.follow_up_date||'';$('oContact').value=[o.contact_person,o.contact_details].filter(Boolean).join('\n');$('oComment').value=o.current_comment||'';$('oWarning').textContent=o.data_warning||'';$('oWarning').classList.toggle('hidden',!o.data_warning);$('offerModal').classList.add('open');}
+function renderCalendar(){const mon=mondayFor(weekOffset),days=[];for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);days.push(d)}$('weekLabel').textContent=`Uge ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(days[0])} – ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',year:'numeric'}).format(days[4])}`;$('calendarGrid').innerHTML=days.map(d=>{const date=ymd(d);const leadItems=state.leads.filter(l=>l.next_at&&localDateTime(l.next_at).date===date).map(l=>({kind:'lead',id:l.id,time:localDateTime(l.next_at).time,name:leadName(l),label:l.next_action||''}));const taskItems=state.tasks.filter(t=>t.offer_id&&t.status==='open'&&t.scheduled_at&&localDateTime(t.scheduled_at).date===date).map(t=>{const o=offerById(t.offer_id);return {kind:'task',id:t.id,time:localDateTime(t.scheduled_at).time,name:o?.customer_name||company(t.company_id).name||'Tilbud',label:`Tilbud ${o?.offer_ref||''}`}});const items=[...leadItems,...taskItems].sort((a,b)=>a.time.localeCompare(b.time));return `<div class="day" data-date="${date}"><strong>${new Intl.DateTimeFormat('da-DK',{weekday:'short',day:'numeric',month:'short'}).format(d)}</strong>${items.map(x=>`<div class="calitem" draggable="true" ${x.kind==='lead'?`data-drag-lead="${x.id}" data-open-lead="${x.id}"`:`data-drag-task="${x.id}" data-open-offer="${state.tasks.find(t=>t.id===x.id)?.offer_id||''}"`}><strong>${x.time}</strong>${esc(x.name)}<div class="sub">${esc(x.label)}</div></div>`).join('')}</div>`}).join('');wireLeadButtons();wireOfferButtons();wireCalendarDrag();}
+function wireCalendarDrag(){document.querySelectorAll('[data-drag-lead]').forEach(el=>el.addEventListener('dragstart',e=>{e.dataTransfer.setData('application/x-lead',el.dataset.dragLead)}));document.querySelectorAll('[data-drag-task]').forEach(el=>el.addEventListener('dragstart',e=>{e.dataTransfer.setData('application/x-task',el.dataset.dragTask)}));document.querySelectorAll('.day[data-date]').forEach(day=>{day.addEventListener('dragover',e=>{e.preventDefault();day.classList.add('dragover')});day.addEventListener('dragleave',()=>day.classList.remove('dragover'));day.addEventListener('drop',async e=>{e.preventDefault();day.classList.remove('dragover');const leadId=e.dataTransfer.getData('application/x-lead'),taskId=e.dataTransfer.getData('application/x-task');if(leadId){const l=leadById(leadId);if(!l)return;const old=localDateTime(l.next_at),next=isoFromInputs(day.dataset.date,old.time||'09:00');const {error}=await supabase.from('crm_leads').update({next_at:next}).eq('id',leadId);if(error){toast(error.message);return}await logActivity(l,'Planlægning',`Næste handling flyttet til ${day.dataset.date} ${old.time||'09:00'}`);await loadAll();toast('Opfølgning flyttet');return}if(taskId){const t=state.tasks.find(x=>x.id===taskId),o=offerById(t?.offer_id);if(!t||!o)return;const old=localDateTime(t.scheduled_at),next=isoFromInputs(day.dataset.date,old.time||'09:00');let r=await supabase.from('crm_tasks').update({scheduled_at:next}).eq('id',taskId);if(r.error){toast(r.error.message);return}r=await supabase.from('crm_offers').update({follow_up_date:day.dataset.date}).eq('id',o.id);if(r.error){toast(r.error.message);return}await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${day.dataset.date}`,{previous:o.follow_up_date,next:day.dataset.date});await loadAll();toast('Tilbudsopfølgning flyttet')}})})}
+function renderActivity(){const arr=state.activities.slice(0,250);$('activityFeed').innerHTML=arr.length?arr.map(a=>`<div class="event ${a.type?.toLowerCase().includes('mail')?'mail':a.actor_type==='agent'?'agent':''}"><strong>${esc(a.type)}</strong> · ${esc(company(a.company_id).name||'System')}<div>${esc(a.summary)}</div><small>${fmt(a.created_at)} · ${esc(a.actor_name||a.actor_type)}</small></div>`).join(''):'<div class="empty">Ingen aktiviteter endnu.</div>';}
+function renderMail(){const arr=state.mail.slice(0,150);$('mailFeed').innerHTML=arr.length?arr.map(m=>`<div class="mailrow"><div><span class="badge mail">${m.direction==='inbound'?'Ind':'Ud'}</span><div class="sub" style="margin-top:5px">${fmt(m.message_at)}</div></div><div><strong>${esc(m.subject||'(uden emne)')}</strong><div class="sub">${esc(company(m.company_id).name||'Ikke koblet')} · ${esc(m.from_email||'')}</div><div class="mailbody">${esc(m.body_text||'')}</div></div><div><button class="btn small" ${m.lead_id?`data-open-lead="${m.lead_id}"`:''}>${m.lead_id?'Åbn lead':'Ikke koblet'}</button></div></div>`).join(''):'<div class="empty">Ingen mails er synkroniseret endnu.</div>';wireLeadButtons();}
+function renderOpps(){$('oppRows').innerHTML=state.opps.length?state.opps.map(o=>`<tr><td>${esc(company(o.company_id).name||'')}</td><td><strong>${esc(o.title)}</strong></td><td>${esc(o.status)}</td><td>${o.value!=null?new Intl.NumberFormat('da-DK',{style:'currency',currency:'DKK',maximumFractionDigits:0}).format(o.value):'—'}</td><td>${fmt(o.deadline_at)}</td><td>${o.source_url?`<a href="${esc(o.source_url)}" target="_blank">Åbn kilde</a>`:esc(o.source_type||'—')}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">Ingen opportunities endnu.</td></tr>';}
+function renderApprovals(){const arr=state.approvals.filter(a=>a.status==='pending'),sig=clientMailSignature();$('approvalFeed').innerHTML=arr.length?arr.map(a=>{const cid=a.payload?.company_id||leadById(a.lead_id)?.company_id;return `<div class="task"><div style="min-width:0;flex:1"><strong>${esc(a.action_type==='send_email'?'Mail klar til gennemsyn':a.action_type)}</strong><div class="sub">${esc(company(cid).name||'')} · ${fmt(a.created_at)}${a.edited_at?' · redigeret '+fmt(a.edited_at):''}</div>${a.action_type==='send_email'?`<div style="margin-top:6px"><strong>${esc(a.payload?.subject||'')}</strong></div><div class="sub">Til: ${esc(a.payload?.to||'')}</div><div class="mailbody">${esc(a.payload?.body||'')}</div>${sig?`<div class="sub" style="margin-top:8px">Signatur tilføjes automatisk:</div><div class="mailbody">${esc(sig)}</div>`:''}`:`<div class="sub">${esc(JSON.stringify(a.payload).slice(0,260))}</div>`}</div><div class="split">${a.action_type==='send_email'?`<button class="btn small" data-edit-approval="${a.id}">Redigér</button>`:''}<button class="btn small primary" data-approve="${a.id}">Godkend</button><button class="btn small danger" data-reject="${a.id}">Afvis</button></div></div>`}).join(''):'<div class="oknotice">Ingen handlinger venter på godkendelse.</div>';wireApprovalButtons();}
+function wireApprovalButtons(){document.querySelectorAll('[data-edit-approval]').forEach(b=>b.onclick=()=>editApproval(b.dataset.editApproval));document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>decideApproval(b.dataset.approve,'approved'));document.querySelectorAll('[data-reject]').forEach(b=>b.onclick=()=>decideApproval(b.dataset.reject,'rejected'));}
+function editApproval(id){const a=state.approvals.find(x=>x.id===id);if(!a||a.action_type!=='send_email'||a.status!=='pending')return;editingApprovalId=id;currentLead=a.lead_id?leadById(a.lead_id):currentLead;$('mTo').value=a.payload?.to||'';$('mSubject').value=a.payload?.subject||'';$('mBody').value=a.payload?.body||'';$('queueMail').textContent='Gem rettelser';prepareMailAiForCurrentLead(true);$('mailModal').classList.add('open');}
+async function decideApproval(id,status){const a=state.approvals.find(x=>x.id===id);if(!a)return;const {error}=await supabase.from('crm_approvals').update({status,decided_at:new Date().toISOString()}).eq('id',id);if(error){toast(error.message);return}if(a.lead_id){const l=leadById(a.lead_id);if(l)await logActivity(l,'Godkendelse',status==='approved'?'Mail godkendt til afsendelse':'Mail afvist',{approval_id:id,action_type:a.action_type});}await loadAll();toast(status==='approved'?'Godkendt':'Afvist');}
+function renderAgents(){$('agentCards').innerHTML=AGENTS.map(([name,desc])=>{const run=state.runs.find(r=>r.agent_name===name);return `<div class="card"><strong>${esc(name)}</strong><div style="margin:8px 0"><span class="badge ${run?.status==='error'?'warn':'ok'}">${run?.status||'Klar'}</span></div><div class="sub">${esc(desc)}</div>${run?`<div class="sub" style="margin-top:8px">Senest: ${fmt(run.started_at)}</div>`:''}</div>`}).join('');}
+function renderLeadManager(){const arr=state.requests.filter(r=>r.request_type==='lead_manager_command').slice(0,12);$('lmResponses').innerHTML=arr.length?arr.map(r=>`<div class="event ${r.status==='error'?'':'agent'}"><strong>${esc(r.status==='queued'?'I kø':r.status==='running'?'Arbejder':r.status==='done'?'Lead Manager':'Fejl')}</strong><div>${esc(r.request_text)}</div>${r.response_text?`<div style="margin-top:6px">${esc(r.response_text)}</div>`:''}${r.error_text?`<div class="notice" style="margin-top:6px">${esc(r.error_text)}</div>`:''}<small>${fmt(r.created_at)}</small></div>`).join(''):'<div class="empty">Ingen kommandoer endnu.</div>'; }
+function renderDashCards(){$('dashMail').innerHTML=state.mail.slice(0,3).map(m=>`<div class="task"><div><strong>${esc(m.subject||'(uden emne)')}</strong><div class="sub">${esc(company(m.company_id).name||m.from_email||'')}</div></div></div>`).join('')||'<div class="sub">Ingen nye mails.</div>';$('dashOpps').innerHTML=state.opps.slice(0,3).map(o=>`<div class="task"><div><strong>${esc(o.title)}</strong><div class="sub">${esc(company(o.company_id).name||'')} · ${esc(o.status)}</div></div></div>`).join('')||'<div class="sub">Ingen muligheder endnu.</div>';$('dashApprovals').innerHTML=state.approvals.filter(a=>a.status==='pending').slice(0,3).map(a=>`<div class="task"><div><strong>${esc(a.action_type)}</strong><div class="sub">${fmt(a.created_at)}</div></div></div>`).join('')||'<div class="sub">Intet afventer.</div>';}
+function wireLeadButtons(){document.querySelectorAll('[data-open-lead]').forEach(el=>{el.onclick=e=>{if(el.dataset.dragLead&&e.detail===0)return;openLead(el.dataset.openLead)}})}
+function openLead(id){const l=leadById(id);if(!l)return;currentLead=l;const c=company(l.company_id),cts=contactsFor(c.id),dt=localDateTime(l.next_at);$('drawer').classList.add('open');$('dName').textContent=c.name||'Lead';$('dMeta').textContent=[c.domain,l.source].filter(Boolean).join(' · ');$('contactBlock').innerHTML=`<div class="sub" style="margin-bottom:8px">Kontaktpersoner</div>`+(cts.length?cts.map(x=>`<div><strong>${esc(x.full_name||x.title||'Kontakt')}</strong><div class="sub">${esc(x.title||'')} ${x.role_relevance?'· '+esc(x.role_relevance):''}</div><div>${x.email?`<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>`:''} ${x.phone?`· <a href="tel:${esc(x.phone)}">${esc(x.phone)}</a>`:''}</div><div class="sub">${x.verified?'✓ verificeret':''}${x.confidence?' · '+esc(x.confidence):''}${x.source_url?` · <a href="${esc(x.source_url)}" target="_blank">kilde</a>`:''}</div></div>`).join('<hr style="border:0;border-top:1px solid var(--border)">'):'<div class="sub">Ingen kontaktperson registreret.</div>');const intel=state.intelligence.filter(x=>x.company_id===c.id||x.lead_id===l.id).slice(0,20);$('intelligenceBlock').innerHTML=`<div class="sub" style="margin-bottom:8px">Sales intelligence</div>`+(intel.length?intel.map(x=>`<div class="intelitem"><div><strong>${esc(x.title||x.signal_type||'Fund')}</strong>${x.verified?' <span class="badge ok">verificeret</span>':''}</div><div>${esc(x.summary||'')}</div>${x.conversation_angle?`<div class="intel-angle"><strong>Åbningsvinkel:</strong> ${esc(x.conversation_angle)}</div>`:''}${x.recommended_action?`<div class="sub"><strong>Næste skridt:</strong> ${esc(x.recommended_action)}</div>`:''}<div class="sub">${esc(x.source_type||'')}${x.source_url?` · <a href="${esc(x.source_url)}" target="_blank">kilde</a>`:''}${x.observed_at?' · '+fmt(x.observed_at):''}</div></div>`).join(''):'<div class="sub">Ingen verificeret sales intelligence endnu. Agenten henter det automatisk.</div>');$('dStatus').innerHTML=STATUSES.map(s=>`<option ${s===l.status?'selected':''}>${esc(s)}</option>`).join('');$('dScore').value=l.score??'';$('dPriority').value=l.priority||'';$('dPlanning').value=l.planning_type||'flexible';$('dNext').value=l.next_action||'';$('dDate').value=dt.date;$('dTime').value=dt.time;$('dLock').checked=!!l.manual_lock;$('dLoss').value=l.loss_reason||'';$('dWon').value=l.won_value??'';$('dNote').value='';statusExtras();const acts=state.activities.filter(a=>a.lead_id===l.id).slice(0,100);const mails=state.mail.filter(m=>m.lead_id===l.id).map(m=>({created_at:m.message_at,type:m.direction==='inbound'?'Indgående mail':'Udgående mail',summary:(m.subject||'')+(m.body_text?' — '+m.body_text:''),actor_name:m.from_email,actor_type:'mail'}));const all=[...acts,...mails].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));$('timeline').innerHTML=all.length?all.map(a=>`<div class="event ${a.actor_type==='mail'?'mail':''}"><strong>${esc(a.type)}</strong><div>${esc(a.summary)}</div><small>${fmt(a.created_at)} · ${esc(a.actor_name||a.actor_type||'')}</small></div>`).join(''):'<div class="sub">Ingen historik endnu.</div>';const firstEmail=bestEmailContact(cts)?.email||'';$('mTo').value=firstEmail;}
+
+</script>
+<script>
+$('closeDrawer').onclick=()=>{$('drawer').classList.remove('open');currentLead=null};$('dStatus').onchange=statusExtras;function statusExtras(){$('lossWrap').classList.toggle('hidden',$('dStatus').value!=='TABT');$('wonWrap').classList.toggle('hidden',$('dStatus').value!=='VUNDET')}
+async function logActivity(l,type,summary,metadata={}){return supabase.from('crm_activities').insert({client_id:state.client.id,company_id:l.company_id,lead_id:l.id,type,actor_type:'user',actor_name:state.session.user.email,summary,metadata})}
+$('saveLead').onclick=async()=>{if(!currentLead)return;const prev=currentLead.status,nextAt=isoFromInputs($('dDate').value,$('dTime').value);const patch={status:$('dStatus').value,score:$('dScore').value===''?null:Math.max(0,Math.min(100,Number($('dScore').value))),priority:$('dPriority').value||null,planning_type:$('dPlanning').value,next_action:$('dNext').value.trim()||null,next_at:nextAt,manual_lock:$('dLock').checked,loss_reason:$('dStatus').value==='TABT'?($('dLoss').value.trim()||null):null,won_value:$('dStatus').value==='VUNDET'&&$('dWon').value!==''?Number($('dWon').value):null};if(prev!==patch.status)patch.manual_lock=true;const {error}=await supabase.from('crm_leads').update(patch).eq('id',currentLead.id);if(error){toast(error.message);return}if(prev!==patch.status)await logActivity(currentLead,'Status',`${prev} → ${patch.status} (manuel ændring)`,{previous:prev,next:patch.status,manual:true});await loadAll();openLead(currentLead.id);toast('Lead gemt i CRM')}
+$('addNote').onclick=async()=>{if(!currentLead||!$('dNote').value.trim())return;const type=$('activityType').value,summary=$('dNote').value.trim();const {error}=await logActivity(currentLead,type,summary,{manual:true});if(error){toast(error.message);return}if(type==='Opkald'&&['NY','KLAR TIL KONTAKT'].includes(currentLead.status)&&!currentLead.manual_lock){await supabase.from('crm_leads').update({status:'I GANG'}).eq('id',currentLead.id)}await loadAll();openLead(currentLead.id);toast('Aktivitet journalført')}
+async function queueAgentRequest(type,text,l=currentLead,payload={}){if(!l)return;const {error}=await supabase.from('crm_agent_requests').insert({client_id:state.client.id,company_id:l.company_id,lead_id:l.id,request_type:type,request_text:text,status:'queued',payload,created_by:state.session.user.email});if(error){toast(error.message);return false}await logActivity(l,'Agentkø',`Anmodning sendt til ${type}`,{request_type:type});return true}
+async function callOutcome(outcome,label){if(!currentLead)return;const {error}=await logActivity(currentLead,'Opkald',label,{outcome,manual:true});if(error){toast(error.message);return}if(!currentLead.manual_lock){let patch={};if(outcome==='no_answer'&&['NY','KLAR TIL KONTAKT'].includes(currentLead.status))patch.status='I GANG';if(outcome==='connected'&&['NY','KLAR TIL KONTAKT','I GANG'].includes(currentLead.status))patch.status='DIALOG';if(Object.keys(patch).length)await supabase.from('crm_leads').update(patch).eq('id',currentLead.id)}await loadAll();openLead(currentLead.id);toast(label+' registreret')}
+$('callNoAnswer').onclick=()=>callOutcome('no_answer','Ingen svar');$('callConnected').onclick=()=>callOutcome('connected','Talte med person');$('requestInfoMail').onclick=async()=>{if(await queueAgentRequest('draft_info_mail','Lav et kort personligt informationsmailudkast på baggrund af hele leadhistorikken. Send ikke uden godkendelse.')){await loadAll();toast('Info-mail sendt til agentkø')}};$('requestNoContactMail').onclick=async()=>{if(await queueAgentRequest('draft_no_contact_mail','Lav et kort no-contact mailudkast med primært mål at finde den rette tekniske/facility/driftsansvarlige. Send ikke uden godkendelse.')){await loadAll();toast('No-contact mail sendt til agentkø')}};$('markMeeting').onclick=async()=>{if(!currentLead)return;const prev=currentLead.status;const {error}=await supabase.from('crm_leads').update({status:'MØDE',manual_lock:true}).eq('id',currentLead.id);if(error){toast(error.message);return}await logActivity(currentLead,'Status',`${prev} → MØDE (manuel handling)`,{previous:prev,next:'MØDE',manual:true});await loadAll();openLead(currentLead.id);toast('Møde registreret')};
+function shiftDate(days){if(!$('dDate').value)return;const d=new Date($('dDate').value+'T12:00:00');d.setDate(d.getDate()+days);$('dDate').value=ymd(d)}$('plusDay').onclick=()=>shiftDate(1);$('plusWeek').onclick=()=>shiftDate(7);function shiftMinutes(min){if(!$('dTime').value)$('dTime').value='09:00';let [h,m]=$('dTime').value.split(':').map(Number);let total=(h*60+m+min+1440)%1440;$('dTime').value=`${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`}$('minus30').onclick=()=>shiftMinutes(-30);$('plus30').onclick=()=>shiftMinutes(30);
+$('queueCalendar').onclick=async()=>{if(!currentLead)return;const scheduled=isoFromInputs($('dDate').value,$('dTime').value);if(!scheduled||!$('dNext').value.trim()){toast('Sæt handling, dato og tid først');return}const existing=state.tasks.find(t=>t.lead_id===currentLead.id&&t.status==='open');const payload={client_id:state.client.id,lead_id:currentLead.id,company_id:currentLead.company_id,title:$('dNext').value.trim(),task_type:'lead_followup',scheduled_at:scheduled,planning_type:$('dPlanning').value,status:'open',priority:$('dPriority').value||null,assigned_to:'Jesper',calendar_sync_status:'pending'};let r;if(existing)r=await supabase.from('crm_tasks').update(payload).eq('id',existing.id);else r=await supabase.from('crm_tasks').insert(payload);if(r.error){toast(r.error.message);return}await logActivity(currentLead,'Kalender','Sat i kø til Google Calendar-synk',{scheduled_at:scheduled});await loadAll();toast('Kalendersynk sat i kø')}
+let mailAiHistory=[],mailAiLastDraft=null,mailAiUsed=false,mailAiModel='';
+function resetMailAi(){
+  mailAiHistory=[];mailAiLastDraft=null;mailAiUsed=false;mailAiModel='';
+  if($('mAiMessages'))$('mAiMessages').innerHTML='<div class="ai-chat-empty">Skriv fx: “Skriv til ham at jeg lige følger op efter vores samtale og spørg om han har haft tid til at kigge på det.”</div>';
+  if($('mAiPrompt'))$('mAiPrompt').value='';
+  if($('mAiSuggestion')){$('mAiSuggestion').classList.add('hidden');$('mAiSuggestion').innerHTML=''}
+}
+function resetMailModal(){editingApprovalId=null;$('queueMail').textContent='Læg klar til godkendelse';$('mailModal').classList.remove('open');resetMailAi()}
+function showMailSignature(){const sig=clientMailSignature();$('mSignatureText').textContent=sig;$('mSignaturePreview').classList.toggle('hidden',!sig)}
+function inferMailPurpose(l){
+  if(!l)return'Automatisk';
+  const recentMails=state.mail.filter(m=>m.lead_id===l.id).sort((a,b)=>new Date(b.message_at)-new Date(a.message_at));
+  if(recentMails[0]?.direction==='inbound')return'Svar på seneste mail';
+  if(state.offers.some(o=>o.company_id===l.company_id&&o.status==='I GANG'))return'Tilbudsopfølgning';
+  const lastCall=state.activities.find(a=>a.lead_id===l.id&&String(a.type).toLowerCase().includes('opkald'));
+  if(lastCall)return'Efter telefonsamtale';
+  if(['NY','UNDER VURDERING','KLAR TIL KONTAKT'].includes(l.status))return'Første kontakt';
+  return'Opfølgning';
+}
+function openaiIntegration(){return state.integrations.find(x=>x.provider==='openai')||null}
+function setMailAiState(text,kind=''){
+  if(!$('mAiState'))return;$('mAiState').textContent=text;$('mAiState').classList.remove('ai-ok','ai-warn');if(kind)$('mAiState').classList.add(kind)
+}
+function prepareMailAiForCurrentLead(keepBody=false){
+  resetMailAi();
+  if(currentLead&&$('mPurpose'))$('mPurpose').value=inferMailPurpose(currentLead);
+  const integ=openaiIntegration();
+  if(integ&&['configured','connected'].includes(integ.status))setMailAiState(integ.status==='connected'?'AI forbundet':'AI klar','ai-ok');
+  else setMailAiState('AI skal forbindes','ai-warn');
+  const c=currentLead?company(currentLead.company_id):{};
+  const cts=currentLead?contactsFor(currentLead.company_id):[];
+  const verified=cts.filter(x=>x.email&&x.verified).length;
+  const offers=currentLead?state.offers.filter(o=>o.company_id===currentLead.company_id).length:0;
+  const intel=currentLead?state.intelligence.filter(x=>x.company_id===currentLead.company_id||x.lead_id===currentLead.id).length:0;
+  if($('mAiContext'))$('mAiContext').textContent=`CRM-kontekst: ${c.name||'lead'} · ${verified} verificeret mailkontakt · ${state.mail.filter(m=>m.lead_id===currentLead?.id).length} mails · ${offers} tilbud · ${intel} intelligence-fund`;
+  if(!keepBody&&currentLead){$('mSubject').value='';$('mBody').value=''}
+  showMailSignature();
+}
+function appendMailAiMessage(role,text){
+  if(!text)return;const box=$('mAiMessages');if(!box)return;
+  const empty=box.querySelector('.ai-chat-empty');if(empty)empty.remove();
+  const div=document.createElement('div');div.className='ai-msg '+role;div.textContent=text;box.appendChild(div);box.scrollTop=box.scrollHeight;
+}
+function renderMailAiSuggestion(draft){
+  const el=$('mAiSuggestion');if(!el)return;
+  const parts=[];
+  if(draft?.next_action)parts.push(`<strong>Forslag efter mail:</strong> ${esc(draft.next_action)}${Number.isInteger(draft.next_action_days)?` · om ${draft.next_action_days} dage`:''}`);
+  if(draft?.status_suggestion)parts.push(`<span class="sub">Statusforslag: ${esc(draft.status_suggestion)}</span>`);
+  if(draft?.warnings?.length)parts.push(`<div class="notice" style="margin-top:7px">${draft.warnings.map(esc).join('<br>')}</div>`);
+  el.innerHTML=parts.join('<br>');el.classList.toggle('hidden',!parts.length);
+}
+async function runMailAi(instruction,forcedMode=null){
+  if(!currentLead){toast('Åbn et lead først');return}
+  instruction=String(instruction||'').trim();
+  if(!instruction&&(!$('mBody').value.trim())){instruction='Skriv den bedst mulige mail fra bunden ud fra CRM-konteksten.'}
+  const mode=forcedMode||($('mBody').value.trim()?'rewrite':'draft');
+  const userText=instruction||'Forbedr den nuværende mail.';
+  appendMailAiMessage('user',userText);mailAiHistory.push({role:'user',content:userText});
+  $('mAiSend').disabled=true;setMailAiState('AI skriver…');
+  const {data,error}=await callProtectedEdge('crm-ai-mail',{
+    client_id:state.client.id,lead_id:currentLead.id,mode,purpose:$('mPurpose').value,
+    instruction:userText,current_to:$('mTo').value.trim(),current_subject:$('mSubject').value.trim(),current_body:$('mBody').value,
+    chat_history:mailAiHistory
+  });
+  $('mAiSend').disabled=false;
+  if(error){appendMailAiMessage('error',error.message);setMailAiState(error.code==='AI_NOT_CONNECTED'?'AI ikke forbundet':'AI-fejl','ai-warn');if(error.code==='AI_NOT_CONNECTED')toast('Forbind AI under Lead Manager-fanen');return}
+  const d=data?.draft||{};mailAiLastDraft=d;mailAiUsed=true;mailAiModel=data?.model||'';
+  if(typeof d.subject==='string'&&d.subject.trim())$('mSubject').value=d.subject.trim();
+  if(typeof d.body==='string'&&d.body.trim())$('mBody').value=d.body.trim();
+  const assistantText=d.assistant_message||'Mailen er opdateret.';appendMailAiMessage('assistant',assistantText);mailAiHistory.push({role:'assistant',content:assistantText});
+  if(mailAiHistory.length>8)mailAiHistory=mailAiHistory.slice(-8);
+  $('mAiPrompt').value='';renderMailAiSuggestion(d);setMailAiState(`AI · ${mailAiModel.replace('gpt-','GPT ')}`,'ai-ok');
+}
+$('openMailComposer').onclick=()=>{
+  if(!currentLead)return;editingApprovalId=null;
+  const cts=contactsFor(currentLead.company_id);$('mTo').value=bestEmailContact(cts)?.email||'';
+  $('queueMail').textContent='Læg klar til godkendelse';prepareMailAiForCurrentLead(false);$('mailModal').classList.add('open')
+};
+$('cancelMail').onclick=resetMailModal;
+$('mAiSend').onclick=()=>runMailAi($('mAiPrompt').value);
+$('mAiPrompt').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();runMailAi($('mAiPrompt').value)}});
+document.querySelectorAll('[data-ai-command]').forEach(b=>b.onclick=()=>runMailAi(b.dataset.aiCommand,'rewrite'));
+document.querySelectorAll('[data-ai-preset]').forEach(b=>b.onclick=()=>runMailAi(b.dataset.aiPreset,$('mBody').value.trim()?'rewrite':'draft'));
+$('queueMail').onclick=async()=>{
+  const to=$('mTo').value.trim(),subject=$('mSubject').value.trim(),body=$('mBody').value.trim();
+  if(!to||!subject||!body){toast('Udfyld til, emne og mail');return}
+  const aiMeta=mailAiLastDraft?{ai_next_action:mailAiLastDraft.next_action||null,ai_next_action_days:Number.isInteger(mailAiLastDraft.next_action_days)?mailAiLastDraft.next_action_days:null,ai_status_suggestion:mailAiLastDraft.status_suggestion||null,ai_confidence:mailAiLastDraft.confidence||null}:{};
+  if(editingApprovalId){
+    const a=state.approvals.find(x=>x.id===editingApprovalId);if(!a||a.status!=='pending'){toast('Udkastet kan ikke længere redigeres');resetMailModal();return}
+    const payload={...(a.payload||{}),to,subject,body,include_signature:true,signature_key:'client_default',...aiMeta};
+    const {error}=await supabase.from('crm_approvals').update({payload,edited_at:new Date().toISOString(),edited_by:state.session.user.email,ai_generated:mailAiUsed||a.ai_generated,ai_model:mailAiUsed?mailAiModel:a.ai_model}).eq('id',a.id);
+    if(error){toast(error.message);return}
+    if(a.lead_id){const l=leadById(a.lead_id);if(l)await logActivity(l,'Mailudkast',`Mailudkast redigeret før godkendelse: ${subject}`,{approval_id:a.id,to,edited:true,ai_generated:mailAiUsed})}
+    else if(payload.company_id){await supabase.from('crm_activities').insert({client_id:state.client.id,company_id:payload.company_id,type:'Mailudkast',actor_type:'user',actor_name:state.session.user.email,summary:`Mailudkast redigeret før godkendelse: ${subject}`,metadata:{approval_id:a.id,to,edited:true,ai_generated:mailAiUsed}})}
+    resetMailModal();await loadAll();toast('Rettelser gemt – mailen afventer godkendelse');return
+  }
+  if(!currentLead)return;
+  const {error}=await supabase.from('crm_approvals').insert({client_id:state.client.id,lead_id:currentLead.id,action_type:'send_email',payload:{to,subject,body,company_id:currentLead.company_id,include_signature:true,signature_key:'client_default',...aiMeta},status:'pending',ai_generated:mailAiUsed,ai_model:mailAiUsed?mailAiModel:null});
+  if(error){toast(error.message);return}
+  await logActivity(currentLead,'Mailudkast',`Mail lagt klar til gennemsyn: ${subject}`,{to,include_signature:true,ai_generated:mailAiUsed,ai_model:mailAiModel||null});
+  resetMailModal();await loadAll();openLead(currentLead.id);toast('Mail lagt i godkendelsescenteret')
+}
+$('sendLmCommand').onclick=async()=>{const text=$('lmCommand').value.trim();if(!text)return;const {error}=await supabase.from('crm_agent_requests').insert({client_id:state.client.id,request_type:'lead_manager_command',request_text:text,status:'queued',payload:{source:'dashboard'},created_by:state.session.user.email});if(error){toast(error.message);return}$('lmCommand').value='';await loadAll();toast('Kommando sendt til Lead Manager')};
+$('newLead').onclick=()=> $('newModal').classList.add('open');$('cancelNew').onclick=()=> $('newModal').classList.remove('open');$('createNew').onclick=async()=>{const name=$('nName').value.trim();if(!name){toast('Skriv virksomhedsnavn');return}let {data:cos,error}=await supabase.from('crm_companies').select('*').eq('client_id',state.client.id).ilike('name',name);if(error){toast(error.message);return}let co=cos?.[0];if(!co){const r=await supabase.from('crm_companies').insert({client_id:state.client.id,name,domain:$('nDomain').value.trim()||null}).select().single();if(r.error){toast(r.error.message);return}co=r.data}const lr=await supabase.from('crm_leads').insert({client_id:state.client.id,company_id:co.id,status:'NY',score:$('nScore').value===''?null:Number($('nScore').value),priority:$('nPriority').value||null,source:'Manuel oprettelse',next_action:'Vurder lead',planning_type:'flexible',owner_name:'Jesper'}).select().single();if(lr.error){toast(lr.error.message);return}if($('nEmail').value.trim()||$('nContact').value.trim()){await supabase.from('crm_contacts').insert({client_id:state.client.id,company_id:co.id,full_name:$('nContact').value.trim()||null,email:$('nEmail').value.trim()||null,verified:false,source_url:'manual'})}await supabase.from('crm_activities').insert({client_id:state.client.id,company_id:co.id,lead_id:lr.data.id,type:'Manuel oprettelse',actor_type:'user',actor_name:state.session.user.email,summary:'Lead oprettet manuelt',metadata:{}});$('newModal').classList.remove('open');['nName','nDomain','nContact','nEmail','nScore'].forEach(id=>$(id).value='');await loadAll();toast('Lead oprettet')}
+async function logOfferActivity(o,type,summary,metadata={}){return supabase.from('crm_activities').insert({client_id:state.client.id,company_id:o.company_id,offer_id:o.id,type,actor_type:'user',actor_name:state.session.user.email,summary,metadata});}
+$('cancelOffer').onclick=()=>{$('offerModal').classList.remove('open');currentOffer=null};
+$('saveOffer').onclick=async()=>{if(!currentOffer)return;const o=currentOffer,prev=o.status,newStatus=$('oStatus').value,newDate=$('oFollow').value||null,newComment=$('oComment').value.trim()||null;let r=await supabase.from('crm_offers').update({status:newStatus,follow_up_date:newDate,current_comment:newComment,status_reason:prev!==newStatus?`Manuelt ændret fra ${prev} til ${newStatus}`:o.status_reason}).eq('id',o.id);if(r.error){toast(r.error.message);return}if(prev!==newStatus)await logOfferActivity(o,'Tilbudsstatus',`${prev} → ${newStatus} (manuel ændring)`,{previous:prev,next:newStatus,manual:true});if(newDate!==o.follow_up_date)await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${newDate||'ingen dato'}`,{previous:o.follow_up_date,next:newDate,manual:true});const openTask=state.tasks.find(t=>t.offer_id===o.id&&t.task_type==='offer_followup'&&t.status==='open');if(newStatus==='I GANG'&&newDate){const scheduled=isoFromInputs(newDate,'09:00');if(openTask)r=await supabase.from('crm_tasks').update({scheduled_at:scheduled,assigned_to:o.follow_up_owner||'JS'}).eq('id',openTask.id);else r=await supabase.from('crm_tasks').insert({client_id:state.client.id,company_id:o.company_id,offer_id:o.id,title:`Følg op på tilbud ${o.offer_ref} – ${o.customer_name||''}`,task_type:'offer_followup',scheduled_at:scheduled,planning_type:'flexible',status:'open',priority:'A',assigned_to:o.follow_up_owner||'JS',calendar_sync_status:'none'});if(r.error){toast(r.error.message);return}}else if(openTask){r=await supabase.from('crm_tasks').update({status:'done'}).eq('id',openTask.id);if(r.error){toast(r.error.message);return}}await loadAll();$('offerModal').classList.remove('open');currentOffer=null;toast('Tilbud opdateret');};
+$('offerSearch').oninput=renderOffers;$('offerStatusFilter').onchange=renderOffers;
+$('leadSearch').oninput=renderRows;$('statusFilter').innerHTML='<option value="">Alle statusser</option>'+STATUSES.map(s=>`<option>${esc(s)}</option>`).join('');$('statusFilter').onchange=renderRows;$('prevWeek').onclick=()=>{weekOffset--;renderCalendar()};$('nextWeek').onclick=()=>{weekOffset++;renderCalendar()};$('thisWeek').onclick=()=>{weekOffset=0;renderCalendar()};
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$(b.dataset.view).classList.add('active');$('title').textContent=b.textContent});
+
+async function callProtectedEdge(name,payload){
+  const {data:{session}}=await supabase.auth.getSession();
+  if(!session?.access_token) return {data:null,error:{message:'Du er ikke logget ind'}};
+  const res=await fetch(`${SUPABASE_URL}/functions/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
+  const text=await res.text();let data=null;try{data=text?JSON.parse(text):null}catch(_){data={error:text}}
+  if(!res.ok)return {data:null,error:{message:data?.error||`${res.status} ${res.statusText}`,code:data?.code||null,status:res.status}};
+  return {data,error:null};
+}
+function minubaIntegration(){return state.integrations.find(x=>x.provider==='minuba')||null}
+function renderIntegrations(){
+  if($('minubaStatus')){const m=minubaIntegration();const status=m?.status||'ikke konfigureret';const stored=m?.config?.auth_storage==='supabase_vault';$('minubaStatus').innerHTML=`Status: <strong>${esc(status)}</strong>${stored?' · 🔒 Auth-nøgle gemt sikkert':''}${m?.last_sync_at?' · Seneste synk '+esc(fmt(m.last_sync_at)):''}${m?.last_error?`<div class="notice" style="margin-top:8px">${esc(m.last_error)}</div>`:''}`;}
+  if($('openaiStatus')){const a=openaiIntegration();const status=a?.status||'ikke konfigureret';const stored=a?.config?.auth_storage==='supabase_vault';$('openaiStatus').innerHTML=`Status: <strong>${esc(status)}</strong>${stored?' · 🔒 nøgle i Vault':''}${a?.config?.model?' · '+esc(a.config.model):''}${a?.last_error?`<div class="notice" style="margin-top:8px">${esc(a.last_error)}</div>`:''}`;}
+}
+async function checkMinubaAuthStatus(){
+  if(!state.client)return;
+  $('minubaMessage').textContent='Kontrollerer…';
+  const {data,error}=await callProtectedEdge('minuba-auth',{action:'status',client_id:state.client.id});
+  if(error){$('minubaMessage').textContent=error.message;return}
+  $('minubaMessage').textContent=data?.stored?'✓ Auth-nøglen ligger sikkert i Vault.':'Der er endnu ikke gemt en Minuba Auth-nøgle.';
+  await loadAll();
+}
+$('saveMinubaKey').onclick=async()=>{
+  const secret=$('minubaAuthKey').value.trim();
+  if(secret.length<10){$('minubaMessage').textContent='Indsæt din Minuba Auth-nøgle først.';return}
+  $('saveMinubaKey').disabled=true;$('minubaMessage').textContent='Gemmer sikkert…';
+  const {data,error}=await callProtectedEdge('minuba-auth',{action:'save',client_id:state.client.id,secret});
+  $('saveMinubaKey').disabled=false;
+  if(error){$('minubaMessage').textContent='Kunne ikke gemme: '+error.message;return}
+  $('minubaAuthKey').value='';
+  $('minubaMessage').textContent=data?.stored?'✓ Nøglen er gemt krypteret.':'Nøglen blev modtaget.';
+  await loadAll();
+};
+$('checkMinubaStatus').onclick=checkMinubaAuthStatus;
+async function checkOpenAIAuthStatus(){
+  if(!state.client)return;$('openaiMessage').textContent='Kontrollerer…';
+  const {data,error}=await callProtectedEdge('openai-auth',{action:'status',client_id:state.client.id});
+  if(error){$('openaiMessage').textContent=error.message;return}
+  $('openaiMessage').textContent=data?.stored?`✓ AI-nøglen ligger sikkert i Vault. Model: ${data.model||'gpt-5.6-terra'}.`:'Der er endnu ikke gemt en OpenAI API-nøgle.';await loadAll();
+}
+$('saveOpenAIKey').onclick=async()=>{
+  const secret=$('openaiApiKey').value.trim();if(secret.length<20){$('openaiMessage').textContent='Indsæt din OpenAI API-nøgle først.';return}
+  $('saveOpenAIKey').disabled=true;$('openaiMessage').textContent='Gemmer sikkert…';
+  const {data,error}=await callProtectedEdge('openai-auth',{action:'save',client_id:state.client.id,secret});$('saveOpenAIKey').disabled=false;
+  if(error){$('openaiMessage').textContent='Kunne ikke gemme: '+error.message;return}
+  $('openaiApiKey').value='';$('openaiMessage').textContent=data?.stored?'✓ AI-nøglen er gemt krypteret.':'Nøglen blev modtaget.';await loadAll();
+};
+$('checkOpenAIStatus').onclick=checkOpenAIAuthStatus;
+
+authInit();
+
+</script>
+<script id="lm-mail-followup-v1">
+(()=>{
+  const pad=n=>String(n).padStart(2,'0');
+  const localYmd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const addDays=n=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+n);return localYmd(d)};
+  const followInput=()=>document.getElementById('mFollowUpDate');
+  function setDefaultFollowUp(){
+    const el=followInput();if(!el)return;
+    if(el.dataset.userTouched==='1'&&el.value)return;
+    let v='';
+    try{const n=typeof mailAiLastDraft!=='undefined'&&Number.isInteger(mailAiLastDraft?.next_action_days)?mailAiLastDraft.next_action_days:null;if(n&&n>0&&n<366)v=addDays(n)}catch{}
+    if(!v)v=addDays(7);
+    el.value=v;
+  }
+  function bindFollowButtons(){
+    document.querySelectorAll('[data-lm-follow-days]').forEach(b=>{if(b.dataset.bound)return;b.dataset.bound='1';b.addEventListener('click',()=>{const el=followInput();if(!el)return;el.value=addDays(Number(b.dataset.lmFollowDays||7));el.dataset.userTouched='1'})});
+    const el=followInput();if(el&&!el.dataset.bound){el.dataset.bound='1';el.addEventListener('change',()=>el.dataset.userTouched='1')}
+  }
+  function ensureToneBadge(){
+    if(document.getElementById('lmToneBadge'))return;
+    const ctx=document.getElementById('mAiContext');if(!ctx)return;
+    const d=document.createElement('div');d.id='lmToneBadge';d.className='pill';d.style.cssText='margin:0 0 10px 0;display:inline-flex;background:#ecfdf5;color:#166534;border-color:#bbf7d0';d.textContent='Tone of voice: Jesper · aktiv';ctx.insertAdjacentElement('afterend',d);
+  }
+  function decoratePipeline(){
+    let leads=[];try{leads=state?.leads||[]}catch{return}
+    document.querySelectorAll('[data-pipeline-lead]').forEach(card=>{
+      const id=card.dataset.pipelineLead,l=leads.find(x=>x.id===id),old=card.querySelector('.lm-pipeline-followup');
+      if(!l?.next_at){old?.remove();return}
+      const d=new Date(l.next_at);if(Number.isNaN(d.getTime()))return;
+      let el=old;if(!el){el=document.createElement('div');el.className='lm-pipeline-followup';el.style.cssText='margin-top:6px;padding-top:6px;border-top:1px solid #eef2f7;font-size:10.5px;font-weight:700;color:#52606a';card.appendChild(el)}
+      const overdue=d.getTime()<Date.now();el.textContent=(overdue?'⚠ ':'◷ ')+'Opfølgning '+new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);el.style.color=overdue?'#b33232':'#52606a';
+    })
+  }
+  const originalFetch=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input?.url||'');
+    const isDirect=/\/functions\/v1\/gmail-direct-send(?:\?|$)/.test(url);
+    let nextInit=init;
+    if(isDirect&&init?.body){
+      try{
+        const payload=typeof init.body==='string'?JSON.parse(init.body):null;
+        if(payload){
+          let date=followInput()?.value||'';if(!date)date=addDays(7);
+          const local=new Date(date+'T09:00:00');
+          payload.follow_up_date=date;
+          payload.follow_up_at=local.toISOString();
+          try{if(typeof mailAiUsed!=='undefined')payload.ai_generated=!!mailAiUsed;if(typeof mailAiModel!=='undefined'&&mailAiModel)payload.ai_model=mailAiModel}catch{}
+          nextInit={...init,body:JSON.stringify(payload)};
+        }
+      }catch(e){console.warn('Kunne ikke tilføje opfølgningsdato til mail',e)}
+    }
+    const res=await originalFetch(input,nextInit);
+    if(isDirect&&res.ok){setTimeout(async()=>{try{if(typeof loadAll==='function')await loadAll();decoratePipeline()}catch(e){console.warn(e)}},500)}
+    return res;
+  };
+  function watchModal(){
+    bindFollowButtons();ensureToneBadge();decoratePipeline();
+    const modal=document.getElementById('mailModal');if(modal?.classList.contains('open')){if(!followInput()?.value)setDefaultFollowUp()}
+  }
+  document.addEventListener('click',()=>setTimeout(watchModal,40),true);
+  new MutationObserver(()=>setTimeout(watchModal,20)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
+  setInterval(()=>{watchModal();try{if(typeof mailAiLastDraft!=='undefined'&&mailAiLastDraft?.next_action_days&&followInput()?.dataset.userTouched!=='1')setDefaultFollowUp()}catch{}},1000);
+  setTimeout(watchModal,300);
+})();
+</script><script id="lm-mail-followup-reset-v2">
+(()=>{
+ const pad=n=>String(n).padStart(2,'0'),ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+ const plus7=()=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+7);return ymd(d)};
+ let wasOpen=false;
+ setInterval(()=>{const modal=document.getElementById('mailModal'),el=document.getElementById('mFollowUpDate'),open=!!modal?.classList.contains('open');if(open&&!wasOpen&&el){el.dataset.userTouched='';el.value=plus7()}wasOpen=open},120);
+})();
+</script><script id="lm-gmail-history-v1">
+(()=>{
+ const API='https://ouqhostcsvdyrkjefiya.supabase.co',APIKEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
+ let lastLeadId='',busy=false,cache=new Map();
+ const txt=v=>v==null?'':String(v).trim(),esc=s=>txt(s).replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
+ const fmt=d=>{try{return new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(d))}catch{return txt(d)}};
+ function session(){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),raw=k&&localStorage.getItem(k);if(!raw)continue;try{const j=JSON.parse(raw),c=[j,j.session,j.currentSession,j.data?.session];for(const x of c){if(x?.access_token)return x}}catch{}}return null}
+ async function edge(name,payload){const s=session();if(!s?.access_token)return {error:'Login-session kunne ikke findes',code:'NO_SESSION'};const r=await fetch(API+'/functions/v1/'+name,{method:'POST',headers:{apikey:APIKEY,Authorization:'Bearer '+s.access_token,'Content-Type':'application/json'},body:JSON.stringify(payload)});const t=await r.text();let d={};try{d=t?JSON.parse(t):{}}catch{d={error:t}}return r.ok?{data:d}:{error:d.error||('HTTP '+r.status),code:d.code||null,status:r.status}}
+ function block(){return document.getElementById('gmailHistoryBlock')}
+ function setHtml(html){const b=block();if(b)b.innerHTML=html}
+ function current(){try{return {lead:currentLead,client:state?.client}}catch{return {lead:null,client:null}}}
+ async function reconnect(){const {client}=current();if(!client?.id)return;setHtml('<div class="sub">Åbner Google-godkendelse…</div>');const r=await edge('gmail-direct-auth',{action:'start',client_id:client.id,return_url:location.origin+'/'});if(r.error){setHtml('<div class="notice">'+esc(r.error)+'</div>');return}location.href=r.data.authorize_url}
+ function renderLoading(){setHtml('<div class="lm-gh-head"><div><strong>Tidligere mailkontakt</strong><div class="sub">Tjekker sendte mails fra js@klimaeksperten.dk…</div></div><span class="lm-gh-badge">Gmail</span></div>')}
+ function renderError(r){if(r.code==='GMAIL_READ_SCOPE_REQUIRED'){setHtml('<div class="lm-gh-head"><div><strong>Tidligere mailkontakt</strong><div class="sub">Lead Manager skal have læseadgang til dine sendte mails for at finde tidligere kontakt.</div></div><span class="lm-gh-badge warn">Kræver adgang</span></div><div class="notice" style="margin-top:9px">Du skal kun forbinde Gmail igen én gang. Afsendelse virker fortsat som før.</div><div class="lm-gh-actions"><button class="btn primary small" id="lmGhReconnect">Giv adgang til mailhistorik</button></div>');document.getElementById('lmGhReconnect')?.addEventListener('click',reconnect);return}
+ if(r.code==='GMAIL_NOT_CONNECTED'){setHtml('<div class="lm-gh-head"><div><strong>Tidligere mailkontakt</strong><div class="sub">Gmail er ikke forbundet endnu.</div></div><span class="lm-gh-badge warn">Ikke forbundet</span></div><div class="lm-gh-actions"><button class="btn primary small" id="lmGhReconnect">Forbind Gmail</button></div>');document.getElementById('lmGhReconnect')?.addEventListener('click',reconnect);return}
+ setHtml('<div class="lm-gh-head"><div><strong>Tidligere mailkontakt</strong><div class="sub">Kunne ikke tjekke Gmail.</div></div><span class="lm-gh-badge warn">Fejl</span></div><div class="notice" style="margin-top:9px">'+esc(r.error||'Ukendt fejl')+'</div><div class="lm-gh-actions"><button class="btn small" id="lmGhRetry">Prøv igen</button></div>');document.getElementById('lmGhRetry')?.addEventListener('click',()=>check(true))}
+ function followPrompt(m){const subject=txt(m.subject).replace(/^(sv|re|fw|fwd):\s*/i,'')||'min tidligere mail';return 'Skriv en kort og naturlig opfølgningsmail i min tone of voice. Henvis naturligt til min tidligere mail fra '+fmt(m.message_at)+' med emnet "'+subject+'". Gentag ikke hele den gamle mail. Gør det nemt for modtageren at svare, og hold den ligefrem og menneskelig.'}
+ function openFollow(m){const {lead}=current();if(!lead?.id)return;try{if(typeof openLead==='function')openLead(lead.id)}catch{}setTimeout(()=>{document.getElementById('openMailComposer')?.click();setTimeout(()=>{const to=document.getElementById('mTo'),purpose=document.getElementById('mPurpose'),subj=document.getElementById('mSubject'),body=document.getElementById('mBody');const recipient=Array.isArray(m.to)?m.to[0]:'';if(to&&recipient)to.value=recipient;if(purpose)purpose.value='Opfølgning';const base=txt(m.subject).replace(/^(sv|re|fw|fwd):\s*/i,'');if(subj&&base)subj.value='Opfølgning: '+base;if(body)body.value='';try{if(typeof runMailAi==='function'){runMailAi(followPrompt(m),'draft')}else if(body){body.value='Hej\n\nJeg følger lige op på min mail fra '+fmt(m.message_at)+(base?' vedr. '+base:'')+'.\n\n'}}catch{if(body)body.value='Hej\n\nJeg følger lige op på min mail fra '+fmt(m.message_at)+(base?' vedr. '+base:'')+'.\n\n'}},100)},50)}
+ function renderResult(data){const msgs=Array.isArray(data?.messages)?data.messages:[];if(!msgs.length){setHtml('<div class="lm-gh-head"><div><strong>Tidligere mailkontakt</strong><div class="sub">Der er ikke fundet en tidligere sendt mail til denne virksomhed.</div></div><span class="lm-gh-badge">Ingen historik</span></div><div class="lm-gh-actions"><button class="btn small" id="lmGhRetry">Tjek igen</button></div>');document.getElementById('lmGhRetry')?.addEventListener('click',()=>check(true));return}
+ const latest=msgs[0];const rows=msgs.slice(0,4).map((m,i)=>'<div class="lm-gh-item"><strong>'+esc(m.subject||'(uden emne)')+'</strong><div class="lm-gh-ref">Reference: '+esc(fmt(m.message_at))+' · til '+esc((m.to||[]).join(', '))+'</div>'+(m.body_text?'<div class="lm-gh-snippet">'+esc(m.body_text)+'</div>':'')+'<div class="lm-gh-actions">'+(i===0?'<button class="btn primary small" data-lm-gh-follow="'+i+'">Skriv opfølgning</button>':'<button class="btn small" data-lm-gh-follow="'+i+'">Brug som reference</button>')+(m.gmail_url?'<a class="btn small" target="_blank" rel="noopener" href="'+esc(m.gmail_url)+'">Åbn tidligere mail</a>':'')+'</div></div>').join('');setHtml('<div class="lm-gh-head"><div><strong>Tidligere mailkontakt</strong><div class="sub">Fundet i dine sendte mails fra js@klimaeksperten.dk.</div></div><span class="lm-gh-badge ok">'+msgs.length+' fundet</span></div><div class="lm-gh-primary" style="margin-top:9px"><strong>Seneste reference:</strong> '+esc(fmt(latest.message_at))+' · '+esc(latest.subject||'(uden emne)')+'</div><div class="lm-gh-list">'+rows+'</div><div class="lm-gh-actions"><button class="btn small" id="lmGhRetry">Tjek Gmail igen</button></div>');document.querySelectorAll('[data-lm-gh-follow]').forEach(b=>b.addEventListener('click',()=>openFollow(msgs[Number(b.getAttribute('data-lm-gh-follow'))||0])));document.getElementById('lmGhRetry')?.addEventListener('click',()=>check(true))}
+ async function check(force=false){const {lead,client}=current();if(!lead?.id||!client?.id)return;if(busy)return;if(!force&&cache.has(lead.id)){renderResult(cache.get(lead.id));return}busy=true;renderLoading();const r=await edge('gmail-history-check',{client_id:client.id,lead_id:lead.id});busy=false;if(r.error){renderError(r);return}cache.set(lead.id,r.data);renderResult(r.data)}
+ function watch(){const d=document.getElementById('drawer'),open=d?.classList.contains('open');const {lead}=current();if(!open||!lead?.id){lastLeadId='';return}if(lead.id!==lastLeadId){lastLeadId=lead.id;setTimeout(()=>check(false),120)}}
+ document.addEventListener('click',()=>setTimeout(watch,30),true);new MutationObserver(watch).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});setInterval(watch,800);setTimeout(watch,800);
+})();
+</script><script>
+(()=>{
+  const API='https://ouqhostcsvdyrkjefiya.supabase.co'; const APIKEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ'; let seq=0; const $=id=>document.getElementById(id); const txt=v=>v==null?'':String(v).trim(); const esc=s=>txt(s).replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m])); const url=u=>{u=txt(u);return !u?'':/^https?:\/\//i.test(u)?u:'https://'+u}; const fmt=d=>{if(!d)return '';try{return new Intl.DateTimeFormat('da-DK',{dateStyle:'medium'}).format(new Date(d))}catch{return txt(d)}};
+  function session(){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),raw=k&&localStorage.getItem(k);if(!raw)continue;try{const j=JSON.parse(raw),c=[j,j.session,j.currentSession,j.data?.session];for(const x of c){if(x?.access_token)return x}}catch{}}return null}
+  async function api(path,opts={}){const s=session();if(!s?.access_token)throw new Error('Login-session kunne ikke findes');const r=await fetch(API+'/rest/v1/'+path,{...opts,headers:{apikey:APIKEY,Authorization:'Bearer '+s.access_token,'Content-Type':'application/json',Prefer:opts.method==='POST'?'return=representation':undefined,...(opts.headers||{})}});if(!r.ok)throw new Error(await r.text()||('HTTP '+r.status));const t=await r.text();return t?JSON.parse(t):null}
+  function item(label,value,html){if(!txt(value))return '';return '<div class="contact-item"><div class="contact-label">'+label+'</div><div class="contact-value">'+(html||esc(value))+'</div></div>'}
+  function phoneLink(v){return '<a href="tel:'+esc(txt(v).replace(/\s/g,''))+'">'+esc(v)+'</a>'} function mailLink(v){return '<a href="mailto:'+esc(v)+'">'+esc(v)+'</a>'}
+  async function loadContact(){const box=$('contactBlock'),drawer=$('drawer'),name=txt($('dName')?.textContent);if(!box||!drawer||!name)return;const my=++seq;box.classList.add('contact-card');box.innerHTML='<div class="contact-card-title">Kontaktoplysninger</div><div class="contact-loading">Henter kontaktdata…</div>';try{const companies=await api('crm_companies?select=*&name=eq.'+encodeURIComponent(name)+'&limit=1');if(my!==seq)return;const company=companies?.[0];if(!company)return;const [contacts,leads]=await Promise.all([api('crm_contacts?select=*&company_id=eq.'+company.id+'&order=is_decision_maker.desc.nullslast,verified.desc.nullslast,created_at.desc'),api('crm_leads?select=id,client_id,source,updated_at&company_id=eq.'+company.id+'&order=updated_at.desc&limit=1')]);if(my!==seq)return;const contact=contacts?.[0]||{},lead=leads?.[0]||{};const rows=[item('Kontaktperson',contact.full_name),item('Stilling',contact.title),item('Direkte telefon',contact.phone,contact.phone?phoneLink(contact.phone):''),item('E-mail',contact.email,contact.email?mailLink(contact.email):''),item('Hovedtelefon',company.phone,company.phone?phoneLink(company.phone):''),item('Adresse',company.address),item('Hjemmeside',company.website_url||company.domain,(company.website_url||company.domain)?'<a target="_blank" rel="noopener" href="'+esc(url(company.website_url||company.domain))+'">'+esc(company.website_url||company.domain)+'</a>':''),item('CVR',company.cvr),item('LinkedIn',contact.linkedin_url,contact.linkedin_url?'<a target="_blank" rel="noopener" href="'+esc(url(contact.linkedin_url))+'">Åbn LinkedIn</a>':'')].join('');const badges=[];if(contact.is_decision_maker)badges.push('<span class="contact-badge">Beslutningstager</span>');if(contact.verified)badges.push('<span class="contact-badge">✓ Verificeret</span>');if(contact.confidence)badges.push('<span class="contact-badge">Sikkerhed: '+esc(contact.confidence)+'</span>');const any=!!(contact.full_name||contact.phone||contact.email||company.phone||company.address||company.website_url||company.domain||company.cvr||contact.linkedin_url);const actions=[];const call=contact.phone||company.phone;if(call)actions.push('<a class="btn small" href="tel:'+esc(txt(call).replace(/\s/g,''))+'">Ring</a>');if(contact.email)actions.push('<a class="btn small" href="mailto:'+esc(contact.email)+'">Send mail</a>');if(company.website_url||company.domain)actions.push('<a class="btn small" target="_blank" rel="noopener" href="'+esc(url(company.website_url||company.domain))+'">Hjemmeside</a>');actions.push('<button class="btn small" type="button" id="copyContactBtn">Kopiér</button>');actions.push('<button class="btn '+(any?'small':'primary small')+'" type="button" id="findContactBtn">'+(any?'Find/opdatér kontaktinfo':'Find kontaktinfo')+'</button>');box.innerHTML='<div class="contact-card-title">Kontaktoplysninger</div>'+(badges.length?'<div class="contact-badges">'+badges.join('')+'</div>':'')+(any?'<div class="contact-grid">'+rows+'</div>':'<div class="contact-missing"><strong>Kontaktperson mangler</strong></div>')+'<div class="contact-actions">'+actions.join('')+'</div>'; $('copyContactBtn')?.addEventListener('click',async()=>{const v=[name,contact.full_name,contact.title,contact.phone,contact.email,company.phone,company.address,company.website_url||company.domain,company.cvr,contact.linkedin_url].filter(Boolean).join('\n');try{await navigator.clipboard.writeText(v);$('copyContactBtn').textContent='Kopieret ✓'}catch{}});$('findContactBtn')?.addEventListener('click',async()=>{const b=$('findContactBtn');if(!b)return;b.disabled=true;b.textContent='Starter søgning…';try{const s=session();let email='';try{email=JSON.parse(atob(s.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).email||''}catch{}const body={client_id:lead.client_id||company.client_id,company_id:company.id,lead_id:lead.id||null,request_type:'lead_manager_command',request_text:'Find og verificér alle relevante kontaktoplysninger for '+name+', herunder rigtig kontaktperson/beslutningstager, stilling, telefon, e-mail, adresse, hjemmeside, CVR og LinkedIn. Gem kun verificerede oplysninger direkte på virksomheden og kontakten i CRM.',status:'queued',created_by:email||'lead_manager_ui',payload:{action:'contact_enrichment',company_name:name,requested_from:'lead_drawer'}};await api('crm_agent_requests',{method:'POST',body:JSON.stringify(body)});b.textContent='Søgning sat i kø ✓'}catch(err){b.disabled=false;b.textContent='Prøv igen';alert('Kunne ikke starte kontaktsøgning: '+(err?.message||err))}})}catch(err){if(my!==seq)return;box.innerHTML='<div class="contact-card-title">Kontaktoplysninger</div><div class="contact-missing"><strong>Kontaktdata kunne ikke hentes</strong><div class="sub" style="margin-top:4px">'+esc(err?.message||err)+'</div></div>'}}
+  let last='';const watch=()=>{const d=$('drawer'),n=txt($('dName')?.textContent),open=d&&(d.classList.contains('open')||getComputedStyle(d).display!=='none');if(open&&n&&n!==last){last=n;setTimeout(loadContact,30)}if(!open)last=''};new MutationObserver(watch).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});document.addEventListener('click',()=>setTimeout(watch,20),true);setInterval(watch,800);
+})();
+</script><script>
+(()=>{const iconMap={dashboard:'⌂',leads:'♙',pipeline:'▤',offers:'▣',offerpipeline:'▥',calendar:'◷',mail:'✉',opportunities:'◇',activity:'≡',approvals:'✓',leadmanager:'✦',agents:'◎'};const subtitleMap={dashboard:'Dagens overblik og næste bedste handling',leads:'Alle virksomheder, kontaktdata og næste handling samlet ét sted.',pipeline:'Flyt leads direkte mellem stadier og arbejd videre uden ekstra klik.',offers:'Alle tilbud og opfølgninger samlet ét sted.',offerpipeline:'Flyt tilbud mellem stadier og følg tydeligt til Vundet eller Tabt.',calendar:'Se og flyt planlagte opfølgninger.',mail:'CRM-mailjournal og samtalehistorik.',opportunities:'Dokumenterede muligheder og projekter.',activity:'Samlet historik over CRM-aktivitet.',approvals:'Handlinger der kræver din godkendelse.',leadmanager:'Kommandoer, integrationer og AI-assistent.',agents:'Status på Lead Managers specialister.'};const $=q=>Array.from(document.querySelectorAll(q));const eh=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));function init(){const b=document.querySelector('.brand');if(b&&!b.dataset.r){b.dataset.r='1';b.innerHTML='<span class="lm-leaf"></span><span>Klimaeksperten<small>Lead Manager</small></span>'}$('.nav button[data-view]').forEach(x=>{if(x.dataset.r)return;x.dataset.r='1';const v=x.dataset.view,l=x.textContent.trim();x.innerHTML='<span class="lm-nav-icon">'+(iconMap[v]||'•')+'</span><span>'+l+'</span>';x.addEventListener('click',()=>setTimeout(()=>{const s=document.getElementById('subtitle');if(s)s.textContent=subtitleMap[v]||''},0))});const a=document.querySelector('.topactions');if(a&&!document.getElementById('lmGlobalSearch')){const box=document.createElement('div');box.className='lm-searchbox';box.innerHTML='<input id="lmGlobalSearch" placeholder="Søg leads, firmaer eller noter...">';a.insertBefore(box,a.firstChild);box.firstChild.addEventListener('input',e=>{if(!e.target.value.trim())return;document.querySelector('.nav button[data-view="leads"]')?.click();setTimeout(()=>{const s=document.getElementById('leadSearch');if(s){s.value=e.target.value;s.dispatchEvent(new Event('input',{bubbles:true}))}},0)})}renderFocus()}function renderFocus(){if(typeof state==='undefined'||!state?.leads)return;const d=document.getElementById('dashboard'),m=document.getElementById('metrics');if(!d||!m)return;let w=document.getElementById('lmFocusWrap');if(!w){w=document.createElement('div');w.id='lmFocusWrap';w.className='lm-focus-wrap';m.parentNode.insertBefore(w,m)}const active=l=>!['VUNDET','TABT','IKKE RELEVANT'].includes(l.status),leads=state.leads||[],offers=state.offers||[],al=leads.filter(active),ny=leads.filter(l=>l.status==='NY').length,end=new Date();end.setHours(23,59,59,999);const due=al.filter(l=>l.next_at&&new Date(l.next_at).getTime()<=end.getTime()),calls=al.filter(l=>/ring|opkald|kontakt/i.test(l.next_action||'')),meet=al.filter(l=>l.status==='MØDE').length,ao=offers.filter(o=>!['VUNDET','TABT'].includes(o.status)).length,next=[...due,...al.filter(l=>!due.includes(l))].sort((a,b)=>{const aa=a.next_at?new Date(a.next_at).getTime():9e15,bb=b.next_at?new Date(b.next_at).getTime():9e15;return aa-bb||(b.score||0)-(a.score||0)})[0],nn=next?(typeof leadName==='function'?leadName(next):'Næste lead'):'Ingen aktive leads';w.innerHTML='<div class="lm-alert '+(ny>=12?'ok':'')+'"><strong>NYE leads: '+ny+'</strong> · '+(ny>=12?'Puljen er klar.':'Der skal hele tiden være mindst 12 nye leads klar.')+'</div><div class="lm-focus"><div class="card lm-focus-card"><div><div class="lm-icon">👤</div><strong>Næste lead</strong><div class="sub">'+eh(nn)+'</div></div><button class="btn primary" id="lmOpenNext">Åbn lead →</button></div><div class="card lm-focus-card"><div><div class="lm-icon">☎</div><strong>Ringeliste</strong><div class="sub">'+calls.length+' virksomheder</div></div><button class="btn" id="lmOpenCalls">Åbn pipeline →</button></div><div class="card lm-focus-card"><div><div class="lm-icon">✓</div><strong>Opfølgninger</strong><div class="sub">'+due.length+' i dag / forfalden</div></div><button class="btn" id="lmOpenDue">Se handlinger →</button></div></div>';m.innerHTML=[[ny,'NYE leads'],[calls.length,'Skal kontaktes'],[due.length,'Opfølgninger'],[ao,'Aktive tilbud'],[meet,'Bookede møder']].map(x=>'<div class="card"><div class="sub">'+x[1]+'</div><div class="metric">'+x[0]+'</div></div>').join('');document.getElementById('lmOpenNext')?.addEventListener('click',()=>{if(next&&typeof openLead==='function')openLead(next.id)});document.getElementById('lmOpenCalls')?.addEventListener('click',()=>document.querySelector('.nav button[data-view="pipeline"]')?.click())}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();setTimeout(init,400);setTimeout(init,1400);setInterval(renderFocus,2500)})();
+</script><script id="lm-customer-v4-script">
+(()=>{
+ const API='https://ouqhostcsvdyrkjefiya.supabase.co',APIKEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';let lastName='',busy=false,refreshTimer=null,historyBusy=new Set(),gmailStatusCache=null,gmailStatusAt=0;
+ const txt=v=>v==null?'':String(v).trim(),esc=s=>txt(s).replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
+ const fmt=d=>{if(!d)return'';try{return new Intl.DateTimeFormat('da-DK',{dateStyle:'medium'}).format(new Date(d))}catch{return txt(d)}};
+ const normUrl=v=>{v=txt(v);return !v?'':/^https?:\/\//i.test(v)?v:'https://'+v},link=(href,label)=>href?'<a href="'+esc(normUrl(href))+'" target="_blank" rel="noopener">'+esc(label||href)+'</a>':'',phone=v=>v?'<a href="tel:'+esc(txt(v).replace(/\s/g,''))+'">'+esc(v)+'</a>':'',mail=v=>v?'<a href="mailto:'+esc(v)+'">'+esc(v)+'</a>':'';
+ function session(){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),raw=k&&localStorage.getItem(k);if(!raw)continue;try{const j=JSON.parse(raw),c=[j,j.session,j.currentSession,j.data?.session];for(const x of c){if(x?.access_token)return x}}catch{}}return null}
+ async function api(path){const s=session();if(!s?.access_token)throw new Error('Login-session kunne ikke findes');const r=await fetch(API+'/rest/v1/'+path,{headers:{apikey:APIKEY,Authorization:'Bearer '+s.access_token,'Content-Type':'application/json'}});if(!r.ok)throw new Error(await r.text()||('HTTP '+r.status));const t=await r.text();return t?JSON.parse(t):null}
+ async function edge(name,payload){const s=session();if(!s?.access_token)return {error:'Login-session kunne ikke findes'};const r=await fetch(API+'/functions/v1/'+name,{method:'POST',headers:{apikey:APIKEY,Authorization:'Bearer '+s.access_token,'Content-Type':'application/json'},body:JSON.stringify(payload)});const t=await r.text();let d={};try{d=t?JSON.parse(t):{}}catch{d={error:t}}return r.ok?{data:d}:{error:d.error||('HTTP '+r.status),code:d.code||null,status:r.status}}
+ function row(label,value,html){if(!txt(value))return'';return '<div class="customer-line"><div class="customer-label">'+esc(label)+'</div><div class="customer-value">'+(html||esc(value))+'</div></div>'}
+ function renderIntel(box,intel){if(!box)return;if(!intel.length){box.innerHTML='<div class="sub" style="margin-bottom:8px">Sales intelligence</div><div class="sub">Ingen verificeret sales intelligence endnu.</div>';return}box.innerHTML='<div class="sub" style="margin-bottom:8px">Sales intelligence</div>'+intel.map(x=>'<div class="intel-v2"><div class="intel-v2-title">'+esc(x.title||x.signal_type||'Fund')+(x.verified?' <span class="badge ok">verificeret</span>':'')+'</div><div>'+esc(x.summary||'')+'</div>'+(x.conversation_angle?'<div class="intel-v2-angle"><strong>Åbningsvinkel:</strong> '+esc(x.conversation_angle)+'</div>':'')+(x.recommended_action?'<div class="intel-v2-action"><strong>Næste skridt:</strong> '+esc(x.recommended_action)+'</div>':'')+'<div class="intel-v2-source">'+esc(x.source_label||x.source_type||'')+(x.source_url?' · '+link(x.source_url,'kilde'):'')+(x.observed_at?' · '+fmt(x.observed_at):'')+'</div></div>').join('')}
+ function minubaBlock(c){const checked=c.minuba_checked_at?fmt(c.minuba_checked_at):'',loc=Array.isArray(c.minuba_related_locations)?c.minuba_related_locations:[];let cls='none',tag='Ingen historik',headline='Ingen tidligere ordre fundet i Minuba',body=c.minuba_relationship_summary||'';if(c.minuba_exact_match){cls='exact';tag='Eksisterende kunde';headline='Vi har kørt for denne afdeling før'}else if(c.minuba_chain_match){cls='chain';tag='Kæderelation';headline='Vi kører allerede for samme kæde'}else if(!c.minuba_checked_at){cls='warn';tag='Kontrollerer';headline='Minuba-historik bliver undersøgt'}const latest=c.minuba_latest_order_number?'<div class="minuba-meta">Seneste match: ordre '+esc(c.minuba_latest_order_number)+(c.minuba_latest_order_date?' · '+esc(fmt(c.minuba_latest_order_date)):'')+(c.minuba_latest_order_address?' · '+esc(c.minuba_latest_order_address):'')+'</div>':'';const locations=loc.length?'<div class="minuba-locations">'+loc.slice(0,6).map(x=>'<div class="minuba-location"><strong>'+esc(x.name||'Afdeling')+'</strong>'+(x.address?' · '+esc(x.address):'')+(x.order_count?' · '+esc(x.order_count)+' ordre'+(x.order_count===1?'':'r'):'')+(x.latest_order_date?' · senest '+esc(fmt(x.latest_order_date)):'')+'</div>').join('')+'</div>':'';return '<div class="customer-section"><div class="customer-section-title">Minuba / eksisterende kundeforhold</div><div class="minuba-rel '+cls+'"><div class="minuba-rel-head"><span class="minuba-tag">'+tag+'</span><strong>'+headline+'</strong></div>'+(body?'<div>'+esc(body)+'</div>':'')+latest+locations+'<div class="minuba-meta">'+(checked?'Kontrolleret '+esc(checked):'Tjekkes automatisk, når leadet åbnes.')+'</div><button class="btn small minuba-refresh" data-minuba-refresh="'+esc(c.id)+'">Tjek Minuba igen</button></div></div>'}
+ async function checkHistory(c,force=false){if(historyBusy.has(c.id))return;const age=c.minuba_checked_at?Date.now()-new Date(c.minuba_checked_at).getTime():Infinity;if(!force&&age<7*86400000)return;historyBusy.add(c.id);const r=await edge('minuba-history',{company_id:c.id});historyBusy.delete(c.id);if(r.error){const box=document.querySelector('[data-minuba-refresh="'+c.id+'"]')?.closest('.minuba-rel');if(box){box.className='minuba-rel warn';box.innerHTML='<div class="minuba-rel-head"><span class="minuba-tag">Minuba</span><strong>Minuba-historik kunne ikke hentes endnu</strong></div><div>'+esc(r.error)+'</div>'+(r.code==='MINUBA_API_MISSING'?'<div class="minuba-meta">Indsæt Minuba API-nøglen under Lead Manager → Minuba-forbindelse.</div>':'')+'<button class="btn small minuba-refresh" data-minuba-refresh="'+esc(c.id)+'">Prøv igen</button>';box.querySelector('[data-minuba-refresh]')?.addEventListener('click',()=>checkHistory(c,true))}return}setTimeout(()=>renderFull(c.name,true),80)}
+ function openInternalMail(leadId,email){try{if(typeof openLead==='function')openLead(leadId)}catch{}setTimeout(()=>{const btn=document.getElementById('openMailComposer');if(btn)btn.click();setTimeout(()=>{const to=document.getElementById('mTo');if(to&&email)to.value=email;refreshMailSendUi(true)},40)},40)}
+ async function renderFull(name,force=false){if(busy&&!force||!name)return;busy=true;const box=document.getElementById('contactBlock'),intelBox=document.getElementById('intelligenceBlock');try{if(!box)return;const companies=await api('crm_companies?select=*&name=eq.'+encodeURIComponent(name)+'&limit=1');const c=companies?.[0];if(!c)return;const [cts,leads,intel,reqs]=await Promise.all([api('crm_contacts?select=*&company_id=eq.'+c.id+'&order=is_decision_maker.desc.nullslast,verified.desc.nullslast,created_at.desc'),api('crm_leads?select=id,source,status,priority,score,next_action,next_at&company_id=eq.'+c.id+'&order=updated_at.desc&limit=1'),api('crm_sales_intelligence?select=*&company_id=eq.'+c.id+'&order=relevance_score.desc.nullslast,created_at.desc&limit=20'),api('crm_agent_requests?select=status,created_at,completed_at,error_text,response_text,payload&company_id=eq.'+c.id+'&order=created_at.desc&limit=12')]);const lead=leads?.[0]||{},requests=(reqs||[]).filter(r=>r.payload?.action==='contact_enrichment'),currentReq=requests[0],pending=currentReq&&['queued','running'].includes(currentReq.status),failed=currentReq?.status==='error';const companyRows=[row('Virksomhed',c.name),row('CVR',c.cvr),row('Branche',c.industry),row('Størrelse',c.employee_size_text),row('Hovedtelefon',c.phone,phone(c.phone)),row('Adresse',c.address),row('Hjemmeside',c.website_url||c.domain,link(c.website_url||c.domain,c.website_url||c.domain)),row('Lead-kilde',lead.source),row('Senest undersøgt',c.research_updated_at,fmt(c.research_updated_at))].join('');const sorted=(cts||[]).slice().sort((a,b)=>contactUseScore(b)-contactUseScore(a));const contacts=sorted.length?sorted.map((x,i)=>{const badges=[];if(x.is_decision_maker)badges.push('<span class="customer-badge">Beslutningstager</span>');if(x.verified)badges.push('<span class="customer-badge ok">✓ Verificeret</span>');if(x.confidence)badges.push('<span class="customer-badge">Sikkerhed: '+esc(x.confidence)+'</span>');return '<div class="customer-contact"><div class="customer-contact-name">'+esc(x.full_name||x.title||('Kontakt '+(i+1)))+'</div><div class="customer-contact-role">'+esc([x.title,x.role_relevance].filter(Boolean).join(' · '))+'</div><div class="customer-contact-grid">'+row('Direkte telefon',x.phone,phone(x.phone))+row('E-mail',x.email,mail(x.email))+row('LinkedIn',x.linkedin_url,link(x.linkedin_url,'Åbn LinkedIn'))+row('Kilde',x.source_type||x.source_url,x.source_url?link(x.source_url,x.source_type||'kilde'):esc(x.source_type||''))+'</div>'+(badges.length?'<div class="customer-badges">'+badges.join('')+'</div>':'')+'</div>'}).join(''):'<div class="customer-warning"><strong>Relevant kontaktperson er ikke verificeret endnu.</strong></div>';const progress=pending?'<div class="customer-progress"><strong>Lead Enricher arbejder nu.</strong><div style="margin-top:4px">Kunde- og kontaktdata bliver opdateret automatisk.</div></div>':failed?'<div class="customer-warning"><strong>Berigelsen fejlede.</strong><div style="margin-top:4px">'+esc(currentReq.error_text||'Ukendt fejl')+'</div></div>':'';const summary=c.company_summary?'<div class="customer-section"><div class="customer-section-title">Om kunden</div><div class="customer-summary">'+esc(c.company_summary)+'</div></div>':'';const actions=[];const call=sorted.find(x=>x.phone)?.phone||c.phone,email=sorted.find(x=>x.email)?.email;if(call)actions.push('<a class="btn small" href="tel:'+esc(txt(call).replace(/\s/g,''))+'">Ring</a>');if(email&&lead.id)actions.push('<button class="btn small" type="button" data-internal-mail="'+esc(email)+'">Send mail</button>');if(c.website_url||c.domain)actions.push('<a class="btn small" target="_blank" rel="noopener" href="'+esc(normUrl(c.website_url||c.domain))+'">Hjemmeside</a>');box.dataset.fullCustomer='v4';box.innerHTML='<div class="contact-card-title">Kunde- og kontaktoplysninger</div><div class="full-customer-overview">'+progress+'<div class="customer-section"><div class="customer-section-title">Virksomhed</div><div class="customer-company-grid">'+companyRows+'</div></div>'+minubaBlock(c)+summary+'<div class="customer-section"><div class="customer-section-title">Kontaktpersoner</div>'+contacts+'</div>'+(actions.length?'<div class="customer-actions">'+actions.join('')+'</div>':'')+'</div>';box.querySelectorAll('[data-minuba-refresh]').forEach(b=>b.addEventListener('click',()=>checkHistory(c,true)));box.querySelectorAll('[data-internal-mail]').forEach(b=>b.addEventListener('click',()=>openInternalMail(lead.id,b.getAttribute('data-internal-mail')||email)));renderIntel(intelBox,intel||[]);if(refreshTimer){clearTimeout(refreshTimer);refreshTimer=null}if(pending)refreshTimer=setTimeout(()=>{busy=false;renderFull(name,true)},5000);checkHistory(c,false)}catch(e){console.warn('full customer overview',e)}finally{busy=false}}
+ function ensureApiKeySetup(){const auth=document.getElementById('minubaAuthKey');if(!auth||document.getElementById('minubaApiKey'))return;const field=auth.closest('.field');if(!field)return;const wrap=document.createElement('div');wrap.className='minuba-api-setup';wrap.innerHTML='<div class="field"><label>Minuba API-nøgle</label><input id="minubaApiKey" type="password" autocomplete="new-password" placeholder="Indsæt Minuba API-nøglen"></div><div class="split"><button class="btn primary" id="saveMinubaApiKey">Gem API-nøgle sikkert</button><button class="btn" id="checkMinubaApiKey">Kontrollér API-nøgle</button></div><div class="sub" id="minubaApiMessage" style="margin-top:8px">API-nøglen bruges sammen med Auth-nøglen til at læse kunder og tidligere ordrer.</div>';field.insertAdjacentElement('afterend',wrap);const msg=document.getElementById('minubaApiMessage');document.getElementById('saveMinubaApiKey').onclick=async()=>{const input=document.getElementById('minubaApiKey'),secret=input.value.trim();if(secret.length<8){msg.textContent='Indsæt Minuba API-nøglen først.';return}msg.textContent='Gemmer sikkert…';const r=await edge('minuba-api-key',{action:'save',client_id:typeof state!=='undefined'?state?.client?.id:null,secret});if(r.error){msg.textContent='Kunne ikke gemme: '+r.error;return}input.value='';msg.textContent='✓ API-nøglen er gemt sikkert i Vault.'};document.getElementById('checkMinubaApiKey').onclick=async()=>{msg.textContent='Kontrollerer…';const r=await edge('minuba-api-key',{action:'status',client_id:typeof state!=='undefined'?state?.client?.id:null});msg.textContent=r.error?r.error:(r.data?.stored?'✓ API-nøglen ligger sikkert i Vault.':'API-nøglen er ikke gemt endnu.')}}
+ async function gmailStatus(force=false){if(!force&&gmailStatusCache&&Date.now()-gmailStatusAt<30000)return gmailStatusCache;const clientId=typeof state!=='undefined'?state?.client?.id:null;if(!clientId)return null;const r=await edge('gmail-direct-auth',{action:'status',client_id:clientId});gmailStatusCache=r.error?{error:r.error}:r.data;gmailStatusAt=Date.now();return gmailStatusCache}
+ function ensureGmailSetup(){const view=document.getElementById('leadmanager');if(!view||document.getElementById('gmailDirectCard'))return;const card=document.createElement('div');card.className='card';card.id='gmailDirectCard';card.innerHTML='<div class="gmail-direct-head"><div><strong>Gmail · direkte afsendelse</strong><div class="sub">Send direkte fra js@klimaeksperten.dk inde fra kunden.</div></div><span class="gmail-direct-status" id="gmailDirectBadge">Kontrollerer…</span></div><div id="gmailDirectBody"><div class="gmail-direct-note">AI skriver og renskriver kun. Du trykker selv <strong>Send</strong>, før noget forlader CRM.</div><div class="gmail-direct-grid"><div class="field"><label>Google OAuth Client ID</label><input id="gmailOauthClientId" autocomplete="off" placeholder="...apps.googleusercontent.com"></div><div class="field"><label>Google OAuth Client Secret</label><input id="gmailOauthClientSecret" type="password" autocomplete="new-password" placeholder="Gemmes sikkert i Vault"></div></div><div class="gmail-direct-note">Godkendt redirect-URI i Google Cloud:<br><code>https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/gmail-oauth-callback</code></div><div class="split" style="margin-top:10px"><button class="btn" id="saveGmailOauth">Gem OAuth-oplysninger</button><button class="btn primary" id="connectGmailDirect">Forbind js@klimaeksperten.dk</button></div><div class="sub" id="gmailDirectMessage" style="margin-top:8px"></div></div>';view.appendChild(card);const msg=document.getElementById('gmailDirectMessage');document.getElementById('saveGmailOauth').onclick=async()=>{const a=document.getElementById('gmailOauthClientId').value.trim(),b=document.getElementById('gmailOauthClientSecret').value.trim();if(!a||!b){msg.textContent='Indsæt både Client ID og Client Secret.';return}msg.textContent='Gemmer sikkert…';const r=await edge('gmail-direct-auth',{action:'save_client',client_id:typeof state!=='undefined'?state?.client?.id:null,google_client_id:a,google_client_secret:b});if(r.error){msg.textContent='Kunne ikke gemme: '+r.error;return}document.getElementById('gmailOauthClientSecret').value='';gmailStatusCache=null;msg.textContent='✓ OAuth-oplysninger gemt sikkert. Klik nu Forbind.';updateGmailCard(true)};document.getElementById('connectGmailDirect').onclick=async()=>{msg.textContent='Åbner Google-godkendelse…';const r=await edge('gmail-direct-auth',{action:'start',client_id:typeof state!=='undefined'?state?.client?.id:null,return_url:location.origin+'/'});if(r.error){msg.textContent=r.error;return}location.href=r.data.authorize_url};updateGmailCard(true)}
+ async function updateGmailCard(force=false){const badge=document.getElementById('gmailDirectBadge'),msg=document.getElementById('gmailDirectMessage');if(!badge)return;const s=await gmailStatus(force);if(!s||s.error){badge.className='gmail-direct-status bad';badge.textContent='Ikke klar';if(msg&&s?.error)msg.textContent=s.error;return}if(s.ready){badge.className='gmail-direct-status ok';badge.textContent='Forbundet';if(msg)msg.textContent='✓ Direkte afsendelse er klar fra '+(s.account||'js@klimaeksperten.dk')+'.'}else{badge.className='gmail-direct-status';badge.textContent=s.oauth_client_stored?'Mangler Google-godkendelse':'Kræver opsætning';if(msg&&!msg.textContent)msg.textContent=s.oauth_client_stored?'OAuth-oplysningerne er gemt. Klik Forbind js@klimaeksperten.dk.':'Indsæt Google OAuth-oplysninger én gang.'}}
+ async function refreshMailSendUi(force=false){const q=document.getElementById('queueMail');if(!q)return;let marker=document.getElementById('lmMailSenderStatus');if(!marker){marker=document.createElement('span');marker.id='lmMailSenderStatus';marker.className='lm-mail-sender';q.parentElement?.insertBefore(marker,q)}const s=await gmailStatus(force);if(s?.ready){marker.className='lm-mail-sender ok';marker.textContent='Afsender: js@klimaeksperten.dk · Gmail forbundet';q.textContent='Send fra js@klimaeksperten.dk';q.classList.add('primary')}else{marker.className='lm-mail-sender';marker.textContent='Direkte Gmail er ikke forbundet endnu';q.textContent='Læg klar til godkendelse'}}
+ function patchDirectSend(){const q=document.getElementById('queueMail');if(!q||q.dataset.directSendPatched)return;q.dataset.directSendPatched='1';const original=q.onclick;q.onclick=async()=>{const s=await gmailStatus(true);if(!s?.ready){if(original)return original.call(q);alert('Direkte Gmail er ikke forbundet endnu. Åbn Lead Manager → Gmail · direkte afsendelse.');return}const to=document.getElementById('mTo')?.value.trim()||'',subject=document.getElementById('mSubject')?.value.trim()||'',body=document.getElementById('mBody')?.value.trim()||'';let lead=null;try{lead=typeof currentLead!=='undefined'?currentLead:null}catch{}if(!lead?.id){alert('Leadet kunne ikke findes. Luk mailvinduet og åbn kunden igen.');return}if(!to||!subject||!body){alert('Udfyld modtager, emne og mailtekst først.');return}if(!confirm('Send mailen nu fra js@klimaeksperten.dk til '+to+'?'))return;const old=q.textContent;q.disabled=true;q.textContent='Sender…';const r=await edge('gmail-direct-send',{client_id:typeof state!=='undefined'?state?.client?.id:null,lead_id:lead.id,to,subject,body,ai_generated:!!(document.getElementById('mailAiStatus')?.dataset?.aiGenerated),ai_model:null});if(r.error){q.disabled=false;q.textContent=old;alert('Mailen blev ikke sendt: '+r.error);return}q.textContent='Sendt ✓';try{if(typeof toast==='function')toast('Mail sendt fra js@klimaeksperten.dk')}catch{}setTimeout(()=>{document.getElementById('mailModal')?.classList.remove('open');q.disabled=false;refreshMailSendUi(true)},700);try{if(typeof loadData==='function')await loadData()}catch{}};const modal=document.getElementById('mailModal');if(modal)new MutationObserver(()=>{if(modal.classList.contains('open'))refreshMailSendUi(true)}).observe(modal,{attributes:true,attributeFilter:['class']});refreshMailSendUi(true)}
+ function watch(){ensureApiKeySetup();ensureGmailSetup();patchDirectSend();const d=document.getElementById('drawer'),name=txt(document.getElementById('dName')?.textContent),open=d?.classList.contains('open');if(!open){lastName='';if(refreshTimer){clearTimeout(refreshTimer);refreshTimer=null}return}if(name&&name!==lastName){lastName=name;setTimeout(()=>renderFull(name),100);setTimeout(()=>renderFull(name,true),800)}if(open&&name&&document.getElementById('contactBlock')?.dataset.fullCustomer!=='v4')setTimeout(()=>renderFull(name,true),150)}
+ document.addEventListener('click',()=>setTimeout(watch,30),true);new MutationObserver(watch).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});setInterval(watch,700);setTimeout(()=>{ensureApiKeySetup();ensureGmailSetup();patchDirectSend();if(new URLSearchParams(location.search).get('gmail')==='connected'){gmailStatusCache=null;setTimeout(()=>{updateGmailCard(true);refreshMailSendUi(true)},1000)}},1200);
+})();
+</script>
+<script id="lm-ai-edit-learning-v1">
+(()=>{
+  const previousFetch=window.fetch.bind(window);
+  function currentLearning(){
+    try{
+      const draft=(typeof mailAiLastDraft!=='undefined'&&mailAiLastDraft)?mailAiLastDraft:null;
+      const lead=(typeof currentLead!=='undefined'&&currentLead)?currentLead:null;
+      const client=(typeof state!=='undefined'&&state?.client)?state.client:null;
+      if(!draft?.body||!lead?.id||!client?.id)return null;
+      return {
+        client_id:client.id,
+        lead_id:lead.id,
+        company_id:lead.company_id||null,
+        purpose:document.getElementById('mPurpose')?.value||'',
+        ai_subject:draft.subject||'',
+        ai_body:draft.body||'',
+        final_subject:document.getElementById('mSubject')?.value.trim()||'',
+        final_body:document.getElementById('mBody')?.value.trim()||'',
+        ai_model:(typeof mailAiModel!=='undefined'?mailAiModel:'')||''
+      };
+    }catch{return null}
+  }
+  function addLearningNote(){
+    const footer=document.querySelector('#mailModal .mail-ai-footer .sub');
+    if(!footer||document.getElementById('lmAiLearningNote'))return;
+    const span=document.createElement('span');
+    span.id='lmAiLearningNote';
+    span.textContent=' · Dine rettelser lærer AI’en af, når du sender.';
+    footer.appendChild(span);
+  }
+  window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input?.url||'');
+    const isDirect=/\/functions\/v1\/gmail-direct-send(?:\?|$)/.test(url);
+    const learning=isDirect?currentLearning():null;
+    const res=await previousFetch(input,init);
+    if(isDirect&&res.ok&&learning&&learning.final_subject&&learning.final_body){
+      try{
+        const sent=await res.clone().json().catch(()=>({}));
+        const headers=new Headers(init?.headers||{});
+        const auth=headers.get('Authorization');
+        const apikey=headers.get('apikey');
+        const learnHeaders={'Content-Type':'application/json'};
+        if(auth)learnHeaders.Authorization=auth;
+        if(apikey)learnHeaders.apikey=apikey;
+        await previousFetch('https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/crm-ai-mail-learn',{
+          method:'POST',headers:learnHeaders,
+          body:JSON.stringify({...learning,gmail_message_id:sent?.id||''})
+        });
+      }catch(e){console.warn('AI style learning failed',e)}
+    }
+    return res;
+  };
+  addLearningNote();
+  new MutationObserver(addLearningNote).observe(document.documentElement,{subtree:true,childList:true});
+  setTimeout(addLearningNote,500);
+})();
+</script>
+
+<script id="lm-startup-autorefresh-v8">\n(()=>{\n  let hiddenAt=Date.now();\n  async function silentRefresh(){\n    try{\n      if(typeof state==="undefined"||!state?.client||typeof loadAll!=="function") return false;\n      await loadAll();\n      return true;\n    }catch(e){console.warn("visibility refresh failed",e);return false}\n  }\n  document.addEventListener("visibilitychange",()=>{\n    if(document.hidden){hiddenAt=Date.now();return}\n    if(Date.now()-hiddenAt>60000)setTimeout(()=>silentRefresh(),100);\n  });\n  window.addEventListener("pageshow",e=>{if(e.persisted)setTimeout(()=>silentRefresh(),100)});\n})();\n</script>
+
+<script id="lm-followup-recipient-v9">
+(()=>{
+  let wasOpen=false;
+  const lowQuality=email=>/^(booking|book|reservation|reservations|reception|receptionen|restaurant|job|jobs|career|careers|hr|event|events|konference|conference|meeting|meetings|selskab|selskaber|wedding|spa|takeaway|order|orders)@/i.test(String(email||'').trim());
+  function best(){
+    try{
+      if(typeof currentLead==='undefined'||!currentLead?.company_id||typeof contactsFor!=='function'||typeof bestEmailContact!=='function')return null;
+      return bestEmailContact(contactsFor(currentLead.company_id));
+    }catch{return null}
+  }
+  function note(text){
+    const field=document.getElementById('mTo')?.closest('.field');if(!field)return;
+    let n=document.getElementById('lmRecipientPriorityNote');
+    if(!n){n=document.createElement('div');n.id='lmRecipientPriorityNote';n.className='sub';n.style.marginTop='5px';field.appendChild(n)}
+    n.textContent=text||'';n.style.display=text?'block':'none';
+  }
+  function correct(){
+    const modal=document.getElementById('mailModal'),to=document.getElementById('mTo');
+    if(!modal?.classList.contains('open')||!to||to.dataset.userTouched==='1')return;
+    const current=String(to.value||'').trim(),b=best();
+    if(!b?.email)return;
+    if(!current||lowQuality(current)){
+      if(current&&current.toLowerCase()!==String(b.email).toLowerCase()){
+        to.value=b.email;
+        note('Tidligere mail var sendt til '+current+'. Lead Manager bruger nu '+(b.full_name||b.title||'den bedste kontakt')+' · '+b.email+'.');
+      }else if(!current){to.value=b.email}
+    }
+  }
+  function bind(){
+    const to=document.getElementById('mTo');
+    if(to&&!to.dataset.priorityBound){to.dataset.priorityBound='1';to.addEventListener('input',e=>{if(e.isTrusted)to.dataset.userTouched='1'})}
+    const open=document.getElementById('mailModal')?.classList.contains('open');
+    if(open&&!wasOpen){if(to)to.dataset.userTouched='';note('');setTimeout(correct,120);setTimeout(correct,350);setTimeout(correct,700)}
+    wasOpen=!!open;
+  }
+  document.addEventListener('click',()=>setTimeout(bind,20),true);
+  new MutationObserver(bind).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
+  setInterval(()=>{bind();correct()},500);
+  setTimeout(bind,500);
+})();
+</script>
+
+<script id="lm-report-lazy-guard-v1">
+(()=>{
+  const previousFetch=window.fetch.bind(window);
+  const reportTables=['crm_activities','crm_mail_messages','crm_leads','crm_offers'];
+  function isReportBootRequest(input){
+    const url=typeof input==='string'?input:(input?.url||'');
+    if(!url.includes('/rest/v1/')||!url.includes('limit=5000'))return false;
+    if(!reportTables.some(t=>url.includes('/rest/v1/'+t+'?')))return false;
+    return url.includes('=gte.')&&url.includes('=lte.');
+  }
+  window.fetch=function(input,init){
+    const report=document.getElementById('activityReport');
+    const active=!!report?.classList.contains('active');
+    if(!active&&isReportBootRequest(input)){
+      return Promise.resolve(new Response('[]',{status:200,headers:{'Content-Type':'application/json'}}));
+    }
+    return previousFetch(input,init);
+  };
+  function bindReportNav(){
+    const btn=document.querySelector('.nav button[data-view="activityReport"]');
+    if(!btn||btn.dataset.lazyReportBound==='1')return;
+    btn.dataset.lazyReportBound='1';
+    btn.addEventListener('click',()=>setTimeout(()=>{
+      const report=document.getElementById('activityReport');
+      const load=document.getElementById('reportLoad');
+      if(report?.classList.contains('active')&&load&&report.dataset.realLoaded!=='1'){
+        report.dataset.realLoaded='1';
+        load.click();
+      }
+    },0),true);
+  }
+  new MutationObserver(bindReportNav).observe(document.documentElement,{subtree:true,childList:true});
+  bindReportNav();
+})();
+</script>
+</body></html>
