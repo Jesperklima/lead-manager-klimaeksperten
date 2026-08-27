@@ -8,5 +8,13 @@
     "lm-report-lazy-guard-v1",
     "lm-followup-recipient-v9",
     "AI sender aldrig selv"
-  ]
+  ],
+  "derived_from": {
+    "bytes": 164375,
+    "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
+    "snapshot": "lead_manager_canonical_baseline_20260827_1242"
+  },
+  "repository_bytes": 176005,
+  "repository_md5": "80ac07680a0abb4cd094f81b63158fbf",
+  "change": "restore missing offer pipeline and activity report views"
 }
