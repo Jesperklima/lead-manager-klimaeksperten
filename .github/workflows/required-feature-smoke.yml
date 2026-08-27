@@ -1,0 +1,21 @@
+name: Required feature smoke
+
+on:
+  push:
+    branches:
+      - test/static-smoke
+    paths:
+      - 'scripts/smoke-required-features.sh'
+      - '.github/workflows/required-feature-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required Lead Manager UI surface
+        run: bash scripts/smoke-required-features.sh
