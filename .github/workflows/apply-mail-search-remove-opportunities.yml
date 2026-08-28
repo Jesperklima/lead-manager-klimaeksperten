@@ -1,0 +1,33 @@
+name: Apply mail search and remove opportunities
+
+on:
+  push:
+    branches:
+      - fix/mail-search-remove-opportunities
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/mail-search-remove-opportunities
+      - name: Apply deterministic UI patch
+        run: python3 scripts/apply-mail-search-remove-opportunities.py
+      - name: Verify required features
+        run: bash scripts/smoke-required-features.sh
+      - name: Commit generated source
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "Jesperklima"
+            git config user.email "js@klimaeksperten.dk"
+            git add index.html baseline/manifest.json scripts/verify-repository-baseline.sh scripts/smoke-required-features.sh
+            git commit -m "fix: add mail search and remove opportunities UI"
+            git push
+          else
+            echo "No generated changes to commit."
+          fi
