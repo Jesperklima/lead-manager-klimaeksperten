@@ -25,7 +25,7 @@ assert not dup, f'duplicate DOM ids: {dup}'
 missing=[v for v in p.views if v not in counts]
 assert not missing, f'navigation targets without DOM views: {missing}'
 
-required_ids=['authScreen','leads','pipeline','offers','offerpipeline','offerPipelineBoard','mail','activity','activityReport','reportLoad','contactBlock']
+required_ids=['authScreen','leads','pipeline','offers','offerpipeline','offerPipelineBoard','mail','mailSearch','activity','activityReport','reportLoad','contactBlock']
 for x in required_ids:
     assert counts[x]==1, f'missing required DOM id: {x}'
 
@@ -47,6 +47,12 @@ for marker in [
 ]:
     assert marker in html, f'missing required marker: {marker}'
 
+assert 'data-view="opportunities"' not in html, 'opportunities navigation returned'
+assert 'id="opportunities"' not in html, 'opportunities view returned'
+assert 'id="dashOpps"' not in html, 'dashboard opportunities card returned'
+assert 'function renderOpps()' not in html, 'opportunities renderer returned'
+assert 'id="mailSearch"' in html, 'mail search input missing'
+assert "$('mailSearch').oninput=renderMail" in html, 'mail search handler missing'
 assert 'Godkendt – sendes automatisk' not in html, 'automatic-send wording returned'
 print('PASS: DOM navigation, offer pipeline, activity report and manual-mail policy')
 PY
