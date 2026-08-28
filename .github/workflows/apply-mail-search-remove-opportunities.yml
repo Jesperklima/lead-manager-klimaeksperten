@@ -17,7 +17,7 @@ jobs:
         with:
           ref: fix/mail-search-remove-opportunities
       - name: Apply deterministic UI patch
-        run: python3 scripts/apply-mail-search-remove-opportunities.py
+        run: python3 scripts/apply-mail-search-remove-opportunities-v2.py
       - name: Verify required features
         run: bash scripts/smoke-required-features.sh
       - name: Commit generated source
