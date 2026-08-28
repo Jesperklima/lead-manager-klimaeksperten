@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: fix/mail-search-remove-opportunities
+      - name: Correct checksum regex in one-time patch
+        run: sed -i 's/{{32}}/{32}/g' scripts/apply-mail-search-remove-opportunities-v2.py
       - name: Apply deterministic UI patch
         run: python3 scripts/apply-mail-search-remove-opportunities-v2.py
       - name: Verify required features
