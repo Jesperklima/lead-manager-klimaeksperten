@@ -67,6 +67,24 @@ Path('/tmp/required-views.js').write_text(m.group(1),encoding='utf-8')
 PY
 node --check /tmp/required-views.js
 
+for js in saas-onboarding-v2.js saas-microsoft-guard.js saas-ui.js saas-package-guard.js saas-generic-guard.js saas-admin-invite.js; do
+  node --check "$js"
+done
+
+test -f supabase/functions/microsoft-oauth-auth/index.ts
+test -f supabase/functions/microsoft-oauth-callback/index.ts
+test -f supabase/functions/microsoft-direct-send/index.ts
+test -f supabase/functions/microsoft-history-check/index.ts
+grep -q "microsoft-oauth-auth" saas-microsoft-guard.js
+grep -q "microsoft-direct-send" saas-microsoft-guard.js
+grep -q "microsoft-history-check" saas-microsoft-guard.js
+if grep -qi "kommer snart" saas-microsoft-guard.js; then
+  echo 'Microsoft guard still contains coming-soon blocker' >&2
+  exit 1
+fi
+
+echo 'PASS: Microsoft OAuth UI syntax and wiring'
+
 bash scripts/verify-repository-baseline.sh
 
 echo 'Required feature smoke passed.'
