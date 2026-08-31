@@ -24,6 +24,7 @@ module.exports = async function handler(req, res) {
 
     const injections = [
       '<script src="/saas-onboarding-v2.js?v=20260831-2"></script>',
+      '<script src="/saas-microsoft-guard.js?v=20260831-1"></script>',
       '<script src="/saas-ui.js?v=20260831-2"></script>',
       '<script src="/saas-package-guard.js?v=20260831-1"></script>',
       '<script src="/saas-generic-guard.js?v=20260831-1"></script>',
