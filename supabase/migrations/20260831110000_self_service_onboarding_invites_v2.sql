@@ -1,6 +1,12 @@
 -- Lead Manager SaaS self-service onboarding v2
 -- Applied to Supabase before this source snapshot.
 
+-- A customer membership exists before the invited user has created a Supabase login.
+-- NULL never grants CRM access; saas-invite-claim binds auth_user_id before login begins.
+alter table public.crm_users alter column auth_user_id drop not null;
+comment on column public.crm_users.auth_user_id is
+  'Supabase auth UID. NULL is allowed only while a SaaS onboarding invitation is pending; it is bound by saas-invite-claim before CRM access begins.';
+
 create table if not exists public.crm_onboarding_invites(
   id uuid primary key default gen_random_uuid(),
   client_id uuid not null references public.crm_clients(id) on delete cascade,
