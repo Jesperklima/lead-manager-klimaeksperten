@@ -20,7 +20,8 @@ module.exports = async function handler(req, res) {
       .replace('Lav et kort no-contact mailudkast med primært mål at finde den rette tekniske/facility/driftsansvarlige. Send ikke uden godkendelse.', 'Lav et kort no-contact mailudkast med primært mål at finde den rette beslutningstager for kundens ydelser og målgruppe. Send ikke uden godkendelse.')
       .replace('Skriv mailen mere som Jesper: ligefrem, menneskelig og uden AI-klicheer.', 'Skriv mailen mere som mig: ligefrem, menneskelig og uden AI-klicheer. Brug kun min kundes toneprofil.')
       .replace('>Mere Jesper</button>', '>Mere som mig</button>')
-      .replace("d.textContent='Tone of voice: Jesper · aktiv'", "d.textContent='Din tone of voice · aktiv'");
+      .replace("d.textContent='Tone of voice: Jesper · aktiv'", "d.textContent='Din tone of voice · aktiv'")
+      .replaceAll('js@klimaeksperten.dk', 'din forbundne mailkonto');
 
     const injections = [
       '<script src="/saas-ui.js?v=20260831-2"></script>',
