@@ -22,6 +22,28 @@ module.exports = async function handler(req, res) {
       .replace("d.textContent='Tone of voice: Jesper · aktiv'", "d.textContent='Din tone of voice · aktiv'")
       .replaceAll('js@klimaeksperten.dk', 'din forbundne mailkonto');
 
+    // Repair a legacy startup script that was stored in index.html with literal escaped
+    // newlines/quotes. Browsers parse that as invalid JavaScript and may leave the page
+    // in a broken loading state even though the Vercel function itself returns 200.
+    const cleanStartupScript = `<script id="lm-startup-autorefresh-v8">
+(()=>{
+  let hiddenAt=Date.now();
+  async function silentRefresh(){
+    try{
+      if(typeof state==='undefined'||!state?.client||typeof loadAll!=='function') return false;
+      await loadAll();
+      return true;
+    }catch(e){console.warn('visibility refresh failed',e);return false}
+  }
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){hiddenAt=Date.now();return}
+    if(Date.now()-hiddenAt>60000)setTimeout(()=>silentRefresh(),100);
+  });
+  window.addEventListener('pageshow',e=>{if(e.persisted)setTimeout(()=>silentRefresh(),100)});
+})();
+</script>`;
+    html = html.replace(/<script id="lm-startup-autorefresh-v8">[\s\S]*?<\/script>/, cleanStartupScript);
+
     const injections = [
       '<script src="/saas-onboarding-v2.js?v=20260831-2"></script>',
       '<script src="/saas-microsoft-guard.js?v=20260831-1"></script>',
