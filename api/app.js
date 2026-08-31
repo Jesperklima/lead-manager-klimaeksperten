@@ -12,7 +12,7 @@ module.exports = async function handler(req, res) {
       .replace('<div class="sub">Klimaeksperten · Pilot</div>', '<div class="sub">Sikker kundelogin</div>')
       .replace('Log ind med arbejdsmailen. Første gang vælger du et password og bekræfter den mail, Supabase sender til dig.', 'Log ind med din Lead Manager-konto. Nye kunder opretter login via deres personlige onboarding-link.')
       .replace('<input id="authEmail" value="js@klimaeksperten.dk" readonly>', '<input id="authEmail" type="email" autocomplete="email" placeholder="din@virksomhed.dk">')
-      .replace('<button id="signupBtn" class="btn">Opret pilot-login</button>', '')
+      .replace('<button id="signupBtn" class="btn">Opret pilot-login</button>', '<button id="signupBtn" class="btn" type="button" style="display:none" aria-hidden="true" tabindex="-1">Invitation kræves</button>')
       .replace('<div class="brand">Lead Manager<small id="brandClient">Klimaeksperten · Pilot</small></div>', '<div class="brand">Lead Manager<small id="brandClient">Kundekonto</small></div>')
       .replace('<span>Klimaeksperten<small>Lead Manager</small></span>', '<span>Lead Manager<small>Kundekonto</small></span>')
       .replace('Fx: Hvad skal jeg ringe på i dag? · Flyt mine fleksible opfølgninger fra torsdag til fredag · Lav et mailudkast til Hotel Kirstine', 'Fx: Hvad skal jeg ringe på i dag? · Flyt mine fleksible opfølgninger fra torsdag til fredag · Hvad er mit næste bedste lead?')
@@ -23,7 +23,7 @@ module.exports = async function handler(req, res) {
       .replaceAll('js@klimaeksperten.dk', 'din forbundne mailkonto');
 
     const injections = [
-      '<script src="/saas-onboarding-v2.js?v=20260831-1"></script>',
+      '<script src="/saas-onboarding-v2.js?v=20260831-2"></script>',
       '<script src="/saas-ui.js?v=20260831-2"></script>',
       '<script src="/saas-package-guard.js?v=20260831-1"></script>',
       '<script src="/saas-generic-guard.js?v=20260831-1"></script>',
