@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Manager · Microsoft OAuth opsætning</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#10203a;background:#f4f7fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.card{width:min(620px,100%);background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:24px;box-shadow:0 18px 50px rgba(30,55,90,.10)}h1{margin:0 0 8px;font-size:26px}.sub{color:#64748b;font-size:14px;line-height:1.5}.field{margin:16px 0}.field label{display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:6px}.field input{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:9px;font:inherit}.row{display:flex;gap:10px;flex-wrap:wrap}.btn{border:1px solid #cbd5e1;background:#fff;color:#10203a;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer}.btn.primary{background:#3157e8;border-color:#3157e8;color:#fff}.btn:disabled{opacity:.55;cursor:wait}.msg{margin-top:14px;padding:10px 12px;border-radius:9px;background:#f8fafc;border:1px solid #e2e8f0;min-height:43px;font-size:13px;white-space:pre-wrap}.msg.ok{background:#ecfdf5;border-color:#a7f3d0;color:#166534}.msg.bad{background:#fff1f2;border-color:#fecdd3;color:#9f1239}.notice{margin-top:16px;padding:11px 12px;border-radius:9px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px}.status{display:inline-flex;margin-top:12px;padding:5px 9px;border-radius:999px;background:#eef2ff;color:#3652a6;font-size:12px;font-weight:800}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Microsoft OAuth · platform</h1>
+  <div class="sub">Isoleret opsætningsside til Lead Manager. Client Secret sendes direkte til Supabase Edge Function og gemmes i Vault. Den vises ikke igen.</div>
+  <div id="status" class="status">Ikke logget ind</div>
+
+  <section id="loginSection">
+    <div class="field"><label>Lead Manager e-mail</label><input id="email" type="email" autocomplete="username" placeholder="din interne Lead Manager-mail"></div>
+    <div class="field"><label>Lead Manager password</label><input id="password" type="password" autocomplete="current-password" minlength="8"></div>
+    <button id="login" class="btn primary" type="button">Log ind</button>
+  </section>
+
+  <section id="setupSection" hidden>
+    <div class="field"><label>Application (client) ID</label><input id="clientId" autocomplete="off" value="b6171c0c-fede-48a5-a0a3-1fa435e48664"></div>
+    <div class="field"><label>Client Secret · VALUE</label><input id="clientSecret" type="password" autocomplete="new-password" placeholder="Indsæt Value fra Microsoft Entra"></div>
+    <div class="row">
+      <button id="save" class="btn primary" type="button">Gem og validér Microsoft-app</button>
+      <button id="check" class="btn" type="button">Kontrollér status</button>
+      <button id="logout" class="btn" type="button">Log ud</button>
+    </div>
+    <div class="notice">Brug <strong>Value</strong> fra Client Secret — ikke Secret ID. Del aldrig secret i chat, mail eller screenshots.</div>
+  </section>
+
+  <div id="msg" class="msg">Siden er klar.</div>
+</main>
+<script>
+(()=>{
+'use strict';
+const SUPABASE_URL='https://ouqhostcsvdyrkjefiya.supabase.co';
+const SUPABASE_KEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
+const INTERNAL_CLIENT_ID='9b6b08bd-e9ce-40c3-8ffa-aa18e859d3af';
+const STORAGE='lm_microsoft_setup_session_v1';
+const $=id=>document.getElementById(id);
+let session=null;
+try{session=JSON.parse(sessionStorage.getItem(STORAGE)||'null')}catch{}
+function setMsg(text,kind=''){const el=$('msg');el.textContent=text;el.className='msg'+(kind?' '+kind:'')}
+function setBusy(button,busy,label){button.disabled=busy;if(label)button.dataset.idle=button.dataset.idle||button.textContent;button.textContent=busy?label:(button.dataset.idle||button.textContent)}
+function showState(){const logged=!!session?.access_token;$('loginSection').hidden=logged;$('setupSection').hidden=!logged;$('status').textContent=logged?'Logget ind som '+(session.user?.email||'bruger'):'Ikke logget ind'}
+async function api(path,{body=null,token=null}={}){const r=await fetch(SUPABASE_URL+path,{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});const raw=await r.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{data={error:raw}};if(!r.ok){const e=new Error(data?.error_description||data?.msg||data?.message||data?.error||('HTTP '+r.status));e.status=r.status;e.data=data;throw e}return data}
+async function signIn(){const b=$('login'),email=$('email').value.trim().toLowerCase(),password=$('password').value;if(!email||password.length<8){setMsg('Udfyld e-mail og password på mindst 8 tegn.','bad');return}setBusy(b,true,'Logger ind…');setMsg('Logger ind…');try{const d=await api('/auth/v1/token?grant_type=password',{body:{email,password}});session={access_token:d.access_token,refresh_token:d.refresh_token,user:d.user,expires_at:d.expires_at};sessionStorage.setItem(STORAGE,JSON.stringify(session));$('password').value='';showState();setMsg('Login lykkedes. Du kan nu gemme Microsoft-oplysningerne.','ok');await platformStatus()}catch(e){if(e.status===429)setMsg('Supabase har midlertidigt rate-limitet loginforsøg. Vent og prøv kun én gang igen senere.','bad');else setMsg('Login fejlede: '+e.message,'bad')}finally{setBusy(b,false)}}
+async function edge(payload){if(!session?.access_token)throw new Error('Ikke logget ind');return api('/functions/v1/microsoft-oauth-auth',{token:session.access_token,body:{client_id:INTERNAL_CLIENT_ID,...payload}})}
+async function platformStatus(){const b=$('check');setBusy(b,true,'Kontrollerer…');try{const d=await edge({action:'platform_status'});setMsg(d.configured?'Microsoft-platformappen er allerede konfigureret. Client ID: '+(d.client_id_hint||'gemt'):'Microsoft-platformappen er endnu ikke konfigureret.',d.configured?'ok':'')}catch(e){if(e.status===401){session=null;sessionStorage.removeItem(STORAGE);showState()}setMsg('Status kunne ikke hentes: '+e.message,'bad')}finally{setBusy(b,false)}}
+async function save(){const b=$('save'),id=$('clientId').value.trim(),secret=$('clientSecret').value.trim();if(!id||secret.length<8){setMsg('Indsæt Application (client) ID og Client Secret Value.','bad');return}setBusy(b,true,'Validerer hos Microsoft…');setMsg('Validerer Application ID og Secret direkte hos Microsoft…');try{const d=await edge({action:'save_platform',microsoft_client_id:id,microsoft_client_secret:secret});$('clientSecret').value='';setMsg(d.validated_by_microsoft?'✓ Microsoft-app gemt og valideret.':'✓ Microsoft-app gemt.','ok')}catch(e){setMsg('Kunne ikke gemme Microsoft-appen: '+e.message,'bad')}finally{setBusy(b,false)}}
+$('login').addEventListener('click',signIn);$('password').addEventListener('keydown',e=>{if(e.key==='Enter')signIn()});$('save').addEventListener('click',save);$('check').addEventListener('click',platformStatus);$('logout').addEventListener('click',()=>{session=null;sessionStorage.removeItem(STORAGE);showState();setMsg('Logget ud.')});showState();if(session?.access_token)platformStatus();
+})();
+</script>
+</body>
+</html>
