@@ -44,6 +44,24 @@ module.exports = async function handler(req, res) {
 </script>`;
     html = html.replace(/<script id="lm-startup-autorefresh-v8">[\s\S]*?<\/script>/, cleanStartupScript);
 
+    // The isolated Microsoft setup page can legitimately rotate the Supabase refresh token.
+    // If that tab still has the newer valid session, copy it back before the main app boots.
+    // This prevents OAuth setup from accidentally logging the user out of Lead Manager.
+    const sessionRecovery = `<script id="lm-session-recovery-v1">
+(()=>{
+  try{
+    const raw=sessionStorage.getItem('lm_microsoft_setup_session_v1');
+    if(!raw)return;
+    const s=JSON.parse(raw);
+    if(!s?.access_token||!s?.refresh_token)return;
+    localStorage.setItem('lm_supabase_session_v1',JSON.stringify(s));
+  }catch(e){console.warn('Lead Manager session recovery skipped',e)}
+})();
+</script>`;
+    if (!html.includes('lm-session-recovery-v1')) {
+      html = html.replace('</head>', sessionRecovery + '</head>');
+    }
+
     const injections = [
       '<script src="/saas-onboarding-v2.js?v=20260831-2"></script>',
       '<script src="/saas-microsoft-guard.js?v=20260831-1"></script>',
