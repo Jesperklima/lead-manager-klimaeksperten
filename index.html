@@ -970,4 +970,131 @@ authInit();
   bindReportNav();
 })();
 </script>
+<style id="lm-lead-quick-status-v1-css">
+#lmLeadQuickStatus{margin-top:12px;padding:11px 12px;border:1px solid var(--border);border-radius:13px;background:#f8fafc;box-shadow:var(--shadow)}
+.lm-lead-quick-status-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,.9fr);gap:12px;align-items:center}
+.lm-lead-quick-status-title{font-size:12px;font-weight:850;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+.lm-lead-quick-status-copy{font-size:11.5px;color:var(--muted);margin-top:2px}
+#lmLeadStatusSlot .field{margin:0}
+#lmLeadStatusSlot .field label{display:none}
+#lmLeadStatusSlot #dStatus{width:100%;font-weight:800;border-color:#cfd7e5!important;background:#fff!important}
+#lmLeadStatusSlot #dStatus:disabled{opacity:.62;cursor:wait}
+@media(max-width:620px){.lm-lead-quick-status-row{grid-template-columns:1fr}}
+</style>
+<script id="lm-lead-quick-status-v1">
+(()=>{
+  const CLOSED_STATUSES=['VUNDET','TABT','IKKE RELEVANT'];
+  let statusBusy=false;
+
+  function current(){
+    try{return typeof currentLead!=='undefined'?currentLead:null}catch{return null}
+  }
+
+  function installQuickStatus(){
+    const drawer=document.getElementById('drawer');
+    const head=drawer?.querySelector('.drawer-head');
+    const select=document.getElementById('dStatus');
+    if(!drawer||!head||!select)return;
+
+    let card=document.getElementById('lmLeadQuickStatus');
+    if(!card){
+      card=document.createElement('div');
+      card.id='lmLeadQuickStatus';
+      card.innerHTML='<div class="lm-lead-quick-status-row"><div><div class="lm-lead-quick-status-title">Status i pipeline</div><div class="lm-lead-quick-status-copy">Skift status her eller træk kortet i pipeline – begge dele opdaterer samme CRM-status.</div></div><div id="lmLeadStatusSlot"></div></div>';
+      head.insertAdjacentElement('afterend',card);
+    }
+
+    const slot=document.getElementById('lmLeadStatusSlot');
+    const field=select.closest('.field');
+    if(slot&&field&&field.parentElement!==slot){
+      field.classList.add('lm-lead-quick-status-field');
+      slot.appendChild(field);
+    }
+
+    if(select.dataset.quickStatusBound!=='1'){
+      select.dataset.quickStatusBound='1';
+      select.onchange=()=>changeStatusFromDrawer(select.value);
+    }
+  }
+
+  async function closeOpenTasks(leadId){
+    let tasks=[];
+    try{tasks=(state?.tasks||[]).filter(t=>t.lead_id===leadId&&t.status==='open')}catch{}
+    for(const task of tasks){
+      const {error}=await supabase.from('crm_tasks').update({status:'closed',calendar_sync_status:task.external_calendar_id?'delete_pending':'none'}).eq('id',task.id);
+      if(error)throw new Error(error.message||'Kunne ikke lukke opfølgningsopgave');
+    }
+  }
+
+  async function changeStatusFromDrawer(targetStatus){
+    if(statusBusy)return;
+    const lead=current();
+    const select=document.getElementById('dStatus');
+    if(!lead?.id||!select)return;
+    const previous=lead.status;
+    if(!targetStatus||targetStatus===previous){
+      try{if(typeof statusExtras==='function')statusExtras()}catch{}
+      return;
+    }
+
+    let lossReason=lead.loss_reason||null;
+    if(targetStatus==='TABT'&&!lossReason){
+      const reason=window.prompt('Hvorfor er '+(typeof leadName==='function'?leadName(lead):'leadet')+' tabt?','');
+      if(!reason||!reason.trim()){
+        select.value=previous;
+        try{if(typeof statusExtras==='function')statusExtras()}catch{}
+        if(typeof toast==='function')toast('Statusændring annulleret – TABT kræver en årsag');
+        return;
+      }
+      lossReason=reason.trim();
+    }
+
+    statusBusy=true;
+    select.disabled=true;
+    try{
+      const closed=CLOSED_STATUSES.includes(targetStatus);
+      const patch={status:targetStatus,manual_lock:true,updated_at:new Date().toISOString()};
+      if(targetStatus==='TABT')patch.loss_reason=lossReason;
+      else if(previous==='TABT')patch.loss_reason=null;
+      if(previous==='VUNDET'&&targetStatus!=='VUNDET')patch.won_value=null;
+      if(closed){patch.next_action=null;patch.next_at=null}
+
+      const {error}=await supabase.from('crm_leads').update(patch).eq('id',lead.id);
+      if(error)throw new Error(error.message||'Status kunne ikke gemmes');
+      if(closed)await closeOpenTasks(lead.id);
+
+      if(typeof logActivity==='function'){
+        await logActivity(lead,'Status',previous+' → '+targetStatus+' (statusmenu)',{
+          previous,
+          next:targetStatus,
+          manual:true,
+          method:'lead_drawer_dropdown',
+          loss_reason:targetStatus==='TABT'?lossReason:null
+        });
+      }
+
+      if(typeof loadAll==='function')await loadAll();
+      if(typeof openLead==='function')openLead(lead.id);
+      if(typeof toast==='function')toast('Status ændret til '+targetStatus);
+      if(targetStatus==='MØDE'&&!lead.next_at&&typeof toast==='function'){
+        setTimeout(()=>toast('Møde registreret – angiv dato og tid på leadet'),450);
+      }
+    }catch(err){
+      console.error('quick lead status',err);
+      select.value=previous;
+      try{if(typeof statusExtras==='function')statusExtras()}catch{}
+      if(typeof toast==='function')toast(err?.message||'Status kunne ikke ændres');
+    }finally{
+      statusBusy=false;
+      const currentSelect=document.getElementById('dStatus');
+      if(currentSelect)currentSelect.disabled=false;
+    }
+  }
+
+  installQuickStatus();
+  new MutationObserver(()=>installQuickStatus()).observe(document.documentElement,{subtree:true,childList:true});
+  document.addEventListener('click',()=>setTimeout(installQuickStatus,0),true);
+  setTimeout(installQuickStatus,300);
+})();
+</script>
 </body></html>
