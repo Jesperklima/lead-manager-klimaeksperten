@@ -67,7 +67,7 @@ module.exports = async function handler(req, res) {
       '<script src="/saas-microsoft-guard.js?v=20260831-1"></script>',
       '<script src="/saas-ui.js?v=20260831-2"></script>',
       '<script src="/saas-package-guard.js?v=20260831-1"></script>',
-      '<script src="/saas-generic-guard.js?v=20260831-1"></script>',
+      '<script src="/saas-generic-guard.js?v=20260901-1"></script>',
       '<script src="/saas-admin-invite.js?v=20260831-1"></script>'
     ].join('');
     if (!html.includes('/saas-onboarding-v2.js')) {
