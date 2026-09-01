@@ -47,6 +47,12 @@ module.exports = async function handler(req, res) {
       "/* stable core: global mail-follow-up MutationObserver disabled; click + interval remain */"
     );
 
+    // Logout must be local-first. A slow /logout request must never trap the user in the CRM UI.
+    html = html.replace(
+      "$('logoutBtn').onclick=()=>supabase.auth.signOut();",
+      "$('logoutBtn').onclick=()=>{const old=state.session;localStorage.removeItem('lm_supabase_session_v1');state.session=null;showAuth('Du er logget ud.');try{if(old?.access_token)fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json',Authorization:'Bearer '+old.access_token},keepalive:true}).catch(()=>{})}catch(_){}setTimeout(()=>location.replace('/?logged_out=1'),0)};"
+    );
+
     // Strip every older SaaS/Microsoft startup layer. Only stable v3 onboarding + event-driven customer controls are allowed.
     html = html.replace(/<script[^>]+src="\/saas-[^"]+"[^>]*><\/script>/g, '');
     html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n</body>');
