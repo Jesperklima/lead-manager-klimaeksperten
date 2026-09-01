@@ -5,73 +5,36 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Minuba-forbindelse · Lead Manager</title>
 <style>
-:root{--bg:#f4f7f9;--panel:#fff;--text:#14202a;--muted:#66737d;--border:#dbe3e8;--accent:#14384c;--danger:#9b2f2f;--ok:#2d6a4f}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text);display:grid;place-items:center;padding:24px}.card{width:min(680px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px;box-shadow:0 12px 30px rgba(15,23,42,.08)}h1{margin:0 0 8px;font-size:26px}.sub{color:var(--muted);line-height:1.55}.field{margin:18px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}.field input{width:100%;padding:12px;border:1px solid var(--border);border-radius:9px;font:inherit}.btn{border:1px solid var(--border);background:#fff;padding:10px 14px;border-radius:9px;color:var(--text);font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}.btn.primary{background:var(--accent);border-color:var(--accent);color:white}.row{display:flex;gap:8px;flex-wrap:wrap}.notice{padding:11px 13px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;margin:14px 0}.ok{padding:11px 13px;border-radius:10px;background:#ecfdf5;border:1px solid #a7f3d0;color:#166534;margin:14px 0}.err{padding:11px 13px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;margin:14px 0}code{word-break:break-all}.hidden{display:none!important}
+:root{--bg:#f4f7f9;--panel:#fff;--text:#14202a;--muted:#66737d;--border:#dbe3e8;--accent:#14384c;--danger:#9b2f2f;--ok:#2d6a4f}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text);display:grid;place-items:center;padding:24px}.card{width:min(680px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px;box-shadow:0 12px 30px rgba(15,23,42,.08)}h1{margin:0 0 8px;font-size:26px}.sub{color:var(--muted);line-height:1.55}.btn{border:1px solid var(--border);background:#fff;padding:10px 14px;border-radius:9px;color:var(--text);font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}.notice,.ok,.err{padding:11px 13px;border-radius:10px;margin:14px 0}.notice{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#166534}.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}.status{margin:18px 0;padding:14px;border:1px solid var(--border);border-radius:12px;background:#f8fafc}.hidden{display:none!important}
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>Minuba OAuth-forbindelse</h1>
-  <div class="sub">Denne side bruges kun til at gemme Minuba Client Secret sikkert og starte den officielle OAuth-godkendelse.</div>
-
+  <h1>Forbind Minuba</h1>
+  <div class="sub">Forbind virksomhedens egen Minuba-konto til Lead Manager. Du skal ikke indtaste Client ID eller Client Secret. Lead Manager bruger den godkendte Minuba-integration og gemmer kun virksomhedens egne OAuth-tokens separat og krypteret.</div>
   <div id="message"></div>
-
-  <div id="setupPanel">
-    <div class="notice">Klik <strong>Se Client Secret</strong> i Minuba, kopiér hele værdien og indsæt den her. Client Secret sendes direkte til Lead Managers beskyttede serverfunktion over HTTPS og vises ikke igen.</div>
-    <div class="field"><label>Client ID</label><input value="clientId_6uD5dnIsEzQhsBACKIdDLgzVIaepWp7t" readonly></div>
-    <div class="field"><label>Client Secret</label><input id="secret" type="password" autocomplete="new-password" placeholder="Indsæt hele Client Secret"></div>
-    <div class="row">
-      <button class="btn primary" id="saveConnect">Gem Client Secret og forbind</button>
-      <a class="btn" href="/">Tilbage til Lead Manager</a>
-    </div>
-    <div class="sub" style="margin-top:14px">Registreret redirect URL:<br><code>https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/minuba-oauth-callback</code></div>
+  <div id="status" class="status">Kontrollerer forbindelse…</div>
+  <div class="row">
+    <button class="btn primary" id="connectBtn">Forbind Minuba</button>
+    <a class="btn" href="/">Tilbage til Lead Manager</a>
   </div>
 </div>
 <script>
 const SUPABASE_URL='https://ouqhostcsvdyrkjefiya.supabase.co';
 const SUPABASE_KEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const STORAGE='lm_supabase_session_v1';
-const START_URL=SUPABASE_URL+'/functions/v1/minuba-oauth-start';
-const msg=document.getElementById('message');
-const panel=document.getElementById('setupPanel');
+const ENDPOINT=SUPABASE_URL+'/functions/v1/minuba-oauth-start';
+const msg=document.getElementById('message'),statusBox=document.getElementById('status'),btn=document.getElementById('connectBtn');
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function readSession(){try{return JSON.parse(localStorage.getItem(STORAGE)||'null')}catch{return null}}
 function saveSession(s){if(s)localStorage.setItem(STORAGE,JSON.stringify(s));else localStorage.removeItem(STORAGE)}
-async function ensureSession(){
-  let s=readSession();
-  if(!s?.access_token)return null;
-  const exp=Number(s.expires_at||0)*1000;
-  if(!exp||Date.now()<exp-60000)return s;
-  if(!s.refresh_token)return null;
-  const r=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});
-  if(!r.ok){saveSession(null);return null}
-  const d=await r.json();
-  s={access_token:d.access_token,refresh_token:d.refresh_token||s.refresh_token,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user||s.user};
-  saveSession(s);return s;
-}
+async function ensureSession(){let s=readSession();if(!s?.access_token)return null;const exp=Number(s.expires_at||0)*1000;if(!exp||Date.now()<exp-60000)return s;if(!s.refresh_token)return null;const r=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});if(!r.ok){saveSession(null);return null}const d=await r.json();s={access_token:d.access_token,refresh_token:d.refresh_token||s.refresh_token,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user||s.user};saveSession(s);return s}
 function setMessage(type,text){msg.innerHTML='<div class="'+type+'">'+text+'</div>'}
-const q=new URLSearchParams(location.search);
-if(q.get('minuba')==='connected'){
-  setMessage('ok','✓ <strong>Minuba er forbundet til Lead Manager.</strong> OAuth-token er modtaget og gemt sikkert.');
-  panel.classList.add('hidden');
-}else if(q.get('minuba')==='error'){
-  const reason=q.get('reason')||'ukendt_fejl';
-  if(reason==='invalid_client')setMessage('err','Minuba afviste Client ID/Client Secret under token-udvekslingen. Kopiér Client Secret direkte fra Minuba igen og prøv én gang mere.');
-  else setMessage('err','Minuba-forbindelsen fejlede: <strong>'+reason.replace(/[&<>"']/g,'')+'</strong>.');
-}
-document.getElementById('saveConnect').onclick=async()=>{
-  const secret=document.getElementById('secret').value.trim();
-  if(secret.length<8){setMessage('err','Indsæt hele Client Secret fra Minuba først.');return}
-  const session=await ensureSession();
-  if(!session?.access_token){setMessage('err','Din Lead Manager-login er udløbet. Gå tilbage til Lead Manager, log ind og åbn denne side igen.');return}
-  const b=document.getElementById('saveConnect');b.disabled=true;b.textContent='Gemmer sikkert…';
-  try{
-    const r=await fetch(SUPABASE_URL+'/functions/v1/minuba-api-key',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body:JSON.stringify({action:'save',secret})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
-    document.getElementById('secret').value='';
-    setMessage('ok','Client Secret er gemt sikkert. Åbner Minuba-godkendelsen…');
-    location.href=START_URL;
-  }catch(e){setMessage('err','Kunne ikke gemme Client Secret: '+String(e.message||e).replace(/[&<>"']/g,''));b.disabled=false;b.textContent='Gem Client Secret og forbind'}
-};
+async function call(action){const session=await ensureSession();if(!session?.access_token)throw new Error('Din Lead Manager-login er udløbet. Gå tilbage og log ind igen.');const r=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_KEY,Authorization:'Bearer '+session.access_token},body:JSON.stringify({action})});const d=await r.json().catch(()=>({}));if(!r.ok){const e=new Error(d.error||('HTTP '+r.status));e.code=d.code;e.data=d;throw e}return d}
+async function refreshStatus(){try{const d=await call('status');if(!d.available){statusBox.innerHTML='<strong>Minuba er ikke inkluderet i denne pakke.</strong><div class="sub">Opgrader pakken eller kontakt administrator, hvis Minuba skal aktiveres.</div>';btn.disabled=true;return}if(d.connected){statusBox.innerHTML='<strong style="color:var(--ok)">✓ Minuba er forbundet</strong>'+(d.last_sync_at?'<div class="sub">Seneste forbindelse/synk: '+esc(new Date(d.last_sync_at).toLocaleString('da-DK'))+'</div>':'');btn.textContent='Forbind Minuba igen';btn.disabled=!d.can_manage}else{statusBox.innerHTML='<strong>Minuba er ikke forbundet</strong>'+(d.last_error?'<div class="sub">Seneste fejl: '+esc(d.last_error)+'</div>':'');btn.disabled=!d.can_manage;if(!d.can_manage)statusBox.innerHTML+='<div class="sub">Kun ejer/admin kan forbinde Minuba.</div>'}}catch(e){statusBox.innerHTML='<strong>Kunne ikke kontrollere Minuba-status</strong>';setMessage('err',esc(e.message||e));btn.disabled=true}}
+const q=new URLSearchParams(location.search);if(q.get('minuba')==='connected')setMessage('ok','✓ Minuba blev forbundet korrekt.');else if(q.get('minuba')==='error')setMessage('err','Minuba-forbindelsen fejlede: '+esc(q.get('reason')||'ukendt fejl'));
+btn.onclick=async()=>{btn.disabled=true;const old=btn.textContent;btn.textContent='Åbner Minuba…';try{const d=await call('connect');if(!d.authorize_url)throw new Error('Minuba returnerede ingen godkendelsesadresse');location.href=d.authorize_url}catch(e){setMessage('err',esc(e.message||e));btn.disabled=false;btn.textContent=old}};
+refreshStatus();
 </script>
 </body>
 </html>
