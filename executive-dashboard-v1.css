@@ -13,6 +13,14 @@
 .nav button.active{background:#fff!important;color:var(--executive-navy)!important;box-shadow:0 6px 18px rgba(0,0,0,.13)!important}
 .nav button .lm-nav-icon{color:#91a9b7!important}.nav button.active .lm-nav-icon{color:var(--executive-blue)!important}
 .sidefoot .btn{background:transparent!important;border-color:rgba(255,255,255,.24)!important;color:#fff!important}
+/* Sidebar flow guard: account controls follow the navigation instead of covering it. */
+@media(min-width:1001px){
+  .side{display:flex!important;flex-direction:column!important;overflow-y:auto!important;overscroll-behavior:contain!important}
+  .brand,.nav{flex:0 0 auto!important}
+  .nav{padding-bottom:14px!important}
+  .sidefoot{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;margin-top:auto!important;padding:16px 8px 4px!important;border-top:1px solid rgba(255,255,255,.14)!important;flex:0 0 auto!important}
+  .sidefoot #userEmail{display:block!important;line-height:1.35!important;overflow-wrap:anywhere!important}
+}
 .main{background:#f3f6f8!important}.top{padding-bottom:18px!important;border-bottom:1px solid #dfe6eb!important}
 .top h1{font-size:1.75rem!important;letter-spacing:-.025em!important}.card{box-shadow:0 8px 24px rgba(16,40,59,.055)!important}
 #lmFocusWrap,.executive-legacy{display:none!important}

@@ -77,6 +77,7 @@ PY
 node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
 node scripts/test-executive-dashboard-clock.js
+node scripts/test-layout-overlaps.js
 test -s executive-dashboard-v1.css
 grep -q "function dashboardNow" executive-dashboard-v1.js
 grep -q "method:'HEAD'" executive-dashboard-v1.js
