@@ -42,13 +42,21 @@ module.exports = async function handler(req, res) {
 </script>`;
     html = html.replace(/<script id="lm-startup-autorefresh-v8">[\s\S]*?<\/script>/, cleanStartupScript);
 
+    // Verified loop: the mail-follow-up script observes all DOM child/class changes while
+    // decoratePipeline() itself rewrites child text. That can retrigger the same observer.
+    // Click + 1s safety refresh remain active, so functionality is preserved without recursion.
+    html = html.replace(
+      "new MutationObserver(()=>setTimeout(watchModal,20)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});",
+      "/* safe mode: global mail-follow-up MutationObserver disabled; click + interval remain */"
+    );
+
     // Explicitly strip optional startup layers if they ever appear in the source HTML.
     html = html.replace(/<script[^>]+src="\/saas-[^"]+"[^>]*><\/script>/g, '');
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Lead-Manager-Safe-Mode', '1');
+    res.setHeader('X-Lead-Manager-Safe-Mode', '2');
     res.status(200).send(html);
   } catch (error) {
     console.error(error);
