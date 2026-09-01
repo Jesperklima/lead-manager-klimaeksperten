@@ -8,18 +8,24 @@
   const mail=()=>text(client()?.settings?.mail)||text(session()?.user?.email)||'din forbundne mailkonto';
   const owner=()=>text(client()?.settings?.contact_name)||text(session()?.user?.email)||'Kundeejer';
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  let scheduled=false;
 
   function patchBrand(){
     const c=client(),p=plan(),brand=document.querySelector('.brand');
     if(!c||!p||!brand)return;
+    let wantedHtml,wantedTitle;
     if(p.plan_code==='internal'){
-      brand.innerHTML='<span class="lm-leaf"></span><span>Klimaeksperten<small>Lead Manager</small></span>';
-      document.title='Lead Manager – Klimaeksperten';
+      wantedHtml='<span class="lm-leaf"></span><span>Klimaeksperten<small>Lead Manager</small></span>';
+      wantedTitle='Lead Manager – Klimaeksperten';
     }else{
       const name=text(c.name)||'Lead Manager';
-      brand.innerHTML=`<span class="lm-leaf"></span><span>${esc(name)}<small>Lead Manager</small></span>`;
-      document.title=`Lead Manager – ${name}`;
+      wantedHtml=`<span class="lm-leaf"></span><span>${esc(name)}<small>Lead Manager</small></span>`;
+      wantedTitle=`Lead Manager – ${name}`;
     }
+    // Critical: do not rewrite identical DOM. Rewriting brand.innerHTML triggers the
+    // MutationObserver below; doing it unconditionally creates a self-triggering loop.
+    if(brand.innerHTML!==wantedHtml)brand.innerHTML=wantedHtml;
+    if(document.title!==wantedTitle)document.title=wantedTitle;
   }
 
   function replaceVisibleText(){
@@ -92,8 +98,16 @@
     patchNoContact();
     patchAssignmentsInInputs();
   }
-  new MutationObserver(()=>setTimeout(apply,0)).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
-  document.addEventListener('click',()=>setTimeout(apply,0),true);
-  setInterval(apply,500);
+
+  function scheduleApply(){
+    if(scheduled)return;
+    scheduled=true;
+    setTimeout(()=>{scheduled=false;apply()},25);
+  }
+
+  new MutationObserver(scheduleApply).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+  document.addEventListener('click',scheduleApply,true);
+  // Low-frequency safety pass only. Dynamic DOM changes are handled by the observer.
+  setInterval(apply,5000);
   setTimeout(apply,100);
 })();
