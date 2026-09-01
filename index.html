@@ -114,7 +114,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
 #reportMetrics{margin-top:12px}#activityReport .tablewrap{max-height:65vh}#activityReport tbody td{vertical-align:top}
 @media(max-width:620px){#offerPipelineBoard .offer-pipe-col{flex-basis:82vw;min-width:82vw}}
 </style>
-<link rel="stylesheet" href="/executive-dashboard-v1.css?v=20260901-1">
+<link rel="stylesheet" href="/executive-dashboard-v1.css?v=20260901-2">
 </head>
 <body>
 <div id="authScreen" class="auth">
@@ -423,7 +423,33 @@ async function authInit(){const {data:{session}}=await supabase.auth.getSession(
 $('loginBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){$('authMessage').textContent='Password skal være mindst 8 tegn.';return} $('authMessage').textContent='Logger ind…';const {error}=await supabase.auth.signInWithPassword({email:$('authEmail').value,password:p});if(error)$('authMessage').textContent=error.message;}
 $('signupBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){$('authMessage').textContent='Vælg et password på mindst 8 tegn.';return} $('authMessage').textContent='Opretter login…';const {data,error}=await supabase.auth.signUp({email:$('authEmail').value,password:p});if(error){$('authMessage').textContent=error.message;return}$('authMessage').textContent=data.session?'Login oprettet og du er logget ind.':'Login oprettet. Tjek js@klimaeksperten.dk og bekræft mailen, vend derefter tilbage og log ind.';}
 $('logoutBtn').onclick=()=>supabase.auth.signOut();
-async function startApp(){showApp();$('loading').classList.remove('hidden');const email=state.session.user.email;const {data:maps,error}=await supabase.from('crm_users').select('*').eq('email',email);if(error||!maps?.length){showAuth('Denne konto har ikke adgang til en kundeinstallation.');await supabase.auth.signOut();return}state.userMap=maps[0];const {data:clients,error:ce}=await supabase.from('crm_clients').select('*').eq('id',state.userMap.client_id);if(ce||!clients?.length){toast('Kundeprofil kunne ikke hentes');return}state.client=clients[0];$('brandClient').textContent=state.client.name+' · Pilot';await loadAll();$('loading').classList.add('hidden');}
+let startAppPromise=null;
+async function startApp(){
+  showApp();
+  if(startAppPromise)return startAppPromise;
+  $('loading').classList.remove('hidden');
+  startAppPromise=(async()=>{
+    try{
+      const email=state.session?.user?.email;
+      if(!email)throw new Error('Login-session mangler');
+      const {data:maps,error}=await supabase.from('crm_users').select('*').eq('email',email);
+      if(error||!maps?.length){showAuth('Denne konto har ikke adgang til en kundeinstallation.');await supabase.auth.signOut();return}
+      state.userMap=maps[0];
+      const {data:clients,error:ce}=await supabase.from('crm_clients').select('*').eq('id',state.userMap.client_id);
+      if(ce||!clients?.length)throw new Error(ce?.message||'Kundeprofil kunne ikke hentes');
+      state.client=clients[0];
+      $('brandClient').textContent=state.client.name+' · Pilot';
+      await loadAll();
+    }catch(error){
+      console.error('Lead Manager opstart fejlede',error);
+      toast(error?.message||'CRM-data kunne ikke hentes');
+    }finally{
+      $('loading').classList.add('hidden');
+      startAppPromise=null;
+    }
+  })();
+  return startAppPromise;
+}
 async function loadAll(){const cid=state.client.id;const results=await Promise.all([
  supabase.from('crm_companies').select('*').eq('client_id',cid).order('name'),
  supabase.from('crm_contacts').select('*').eq('client_id',cid),
@@ -1154,5 +1180,5 @@ authInit();
   setTimeout(installQuickStatus,300);
 })();
 </script>
-<script src="/executive-dashboard-v1.js?v=20260901-1"></script>
+<script src="/executive-dashboard-v1.js?v=20260901-2"></script>
 </body></html>

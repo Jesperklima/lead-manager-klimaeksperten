@@ -51,6 +51,8 @@ for marker in [
     'id="executiveActivity"',
     'executive-dashboard-v1.css',
     'executive-dashboard-v1.js',
+    'let startAppPromise=null',
+    "$('loading').classList.add('hidden')",
 ]:
     assert marker in html, f'missing required marker: {marker}'
 
@@ -74,7 +76,11 @@ Path('/tmp/required-views.js').write_text(m.group(1),encoding='utf-8')
 PY
 node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
+node scripts/test-executive-dashboard-clock.js
 test -s executive-dashboard-v1.css
+grep -q "function dashboardNow" executive-dashboard-v1.js
+grep -q "method:'HEAD'" executive-dashboard-v1.js
+grep -q "serverClockMs" executive-dashboard-v1.js
 
 bash scripts/verify-repository-baseline.sh
 
