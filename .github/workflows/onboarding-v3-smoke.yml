@@ -1,0 +1,41 @@
+name: Onboarding v3 stability smoke
+
+on:
+  push:
+    branches:
+      - onboarding-v3-stable
+      - main
+  pull_request:
+
+jobs:
+  onboarding-v3-stability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax
+        run: node --check saas-onboarding-v3.js
+      - name: No self-triggering onboarding loops
+        shell: bash
+        run: |
+          if grep -nE 'MutationObserver|setInterval\s*\(' saas-onboarding-v3.js; then
+            echo 'Onboarding v3 must remain event-driven: polling/MutationObserver found.' >&2
+            exit 1
+          fi
+      - name: Microsoft OAuth must stay outside onboarding startup
+        shell: bash
+        run: |
+          if grep -nE 'microsoft-oauth-(auth|callback)|microsoft-direct-send|microsoft-history-check' saas-onboarding-v3.js; then
+            echo 'Microsoft OAuth/Graph may not run inside onboarding v3.' >&2
+            exit 1
+          fi
+      - name: App loads only onboarding v3 SaaS layer
+        shell: bash
+        run: |
+          grep -q 'saas-onboarding-v3.js' api/app.js
+          if grep -nE '<script[^>]+src="/saas-(onboarding-v2|generic-guard|package-guard|microsoft|admin-invite)' api/app.js; then
+            echo 'Old SaaS/Microsoft startup layer reintroduced.' >&2
+            exit 1
+          fi
+      - name: Safe core observer repair remains
+        shell: bash
+        run: grep -q 'global mail-follow-up MutationObserver disabled' api/app.js
