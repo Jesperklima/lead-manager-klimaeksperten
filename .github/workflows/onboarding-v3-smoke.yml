@@ -13,7 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: JavaScript syntax
-        run: node --check saas-onboarding-v3.js
+        run: |
+          node --check saas-onboarding-v3.js
+          node --check saas-microsoft-v1.js
       - name: No self-triggering onboarding loops
         shell: bash
         run: |
@@ -28,11 +30,12 @@ jobs:
             echo 'Microsoft OAuth/Graph may not run inside onboarding v3.' >&2
             exit 1
           fi
-      - name: App loads only onboarding v3 SaaS layer
+      - name: App loads stable SaaS layers only
         shell: bash
         run: |
           grep -q 'saas-onboarding-v3.js' api/app.js
-          if grep -nE '<script[^>]+src="/saas-(onboarding-v2|generic-guard|package-guard|microsoft|admin-invite)' api/app.js; then
+          grep -q 'saas-microsoft-v1.js' api/app.js
+          if grep -nE '<script[^>]+src="/saas-(onboarding-v2|generic-guard|package-guard|admin-invite|microsoft-guard)' api/app.js; then
             echo 'Old SaaS/Microsoft startup layer reintroduced.' >&2
             exit 1
           fi
