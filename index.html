@@ -114,6 +114,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
 #reportMetrics{margin-top:12px}#activityReport .tablewrap{max-height:65vh}#activityReport tbody td{vertical-align:top}
 @media(max-width:620px){#offerPipelineBoard .offer-pipe-col{flex-basis:82vw;min-width:82vw}}
 </style>
+<link rel="stylesheet" href="/executive-dashboard-v1.css?v=20260901-1">
 </head>
 <body>
 <div id="authScreen" class="auth">
@@ -135,7 +136,63 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
 <main class="main">
 <div class="top"><div><h1 id="title">Dashboard</h1><div class="sub" id="subtitle">Alt omkring leads, opfølgning og aktiviteter samlet ét sted.</div></div><div class="topactions"><span id="syncState" class="pill">● Live CRM</span><button class="btn" id="refreshBtn">Opdatér</button><button class="btn primary" id="newLead">+ Nyt lead</button></div></div>
 <div id="loading" class="loader hidden">Henter CRM-data…</div>
-<section id="dashboard" class="view active"><div class="cards" id="metrics"></div><div class="grid2"><div class="card section"><h2>Det vigtigste nu</h2><div id="todayTasks"></div></div><div class="card section"><h2>Lead Manager anbefaler</h2><div id="recommendation" class="sub"></div><div id="warnings" style="margin-top:12px"></div></div></div><div class="grid2"><div class="card section"><h2>Nye mails</h2><div id="dashMail"></div></div><div class="card section"><h2>Kræver handling</h2><div id="dashApprovals"></div></div></div></section>
+<section id="dashboard" class="view active">
+  <div class="executive-heading">
+    <div>
+      <div class="executive-kicker">SALGSOVERBLIK</div>
+      <h2 id="executivePeriodTitle">Denne uge</h2>
+      <div class="sub" id="executivePeriodText">Nøgletal og handlinger fra den aktuelle uge.</div>
+    </div>
+    <div class="executive-period" role="group" aria-label="Vælg periode">
+      <button class="btn small active" type="button" data-executive-period="week">Denne uge</button>
+      <button class="btn small" type="button" data-executive-period="month">Denne måned</button>
+      <button class="btn small" type="button" data-executive-period="all">Samlet</button>
+    </div>
+  </div>
+
+  <div class="executive-metrics" id="executiveMetrics" aria-live="polite"></div>
+
+  <div class="executive-primary-grid">
+    <article class="card executive-panel executive-attention-panel">
+      <div class="executive-panel-head">
+        <div><div class="executive-kicker">PRIORITERING</div><h2>Kræver din opmærksomhed</h2></div>
+        <button class="executive-text-link" type="button" data-executive-view="pipeline">Åbn pipeline <span aria-hidden="true">→</span></button>
+      </div>
+      <div id="executiveAttention"></div>
+    </article>
+
+    <article class="card executive-panel executive-performance-panel">
+      <div class="executive-panel-head">
+        <div><div class="executive-kicker">FREMDRIFT</div><h2>Salgsresultat</h2></div>
+      </div>
+      <div id="executivePerformance"></div>
+    </article>
+  </div>
+
+  <div class="executive-secondary-grid">
+    <article class="card executive-panel">
+      <div class="executive-panel-head">
+        <div><div class="executive-kicker">STATUS LIGE NU</div><h2>Pipelineoverblik</h2></div>
+        <button class="executive-text-link" type="button" data-executive-view="pipeline">Se alle stadier <span aria-hidden="true">→</span></button>
+      </div>
+      <div id="executivePipeline"></div>
+    </article>
+
+    <article class="card executive-panel">
+      <div class="executive-panel-head">
+        <div><div class="executive-kicker">SENESTE NYT</div><h2>Aktivitet</h2></div>
+        <button class="executive-text-link" type="button" data-executive-view="activity">Se aktivitetslog <span aria-hidden="true">→</span></button>
+      </div>
+      <div id="executiveActivity"></div>
+    </article>
+  </div>
+
+  <div class="executive-legacy" aria-hidden="true">
+    <div class="cards" id="metrics"></div>
+    <div id="todayTasks"></div><div id="recommendation"></div><div id="warnings"></div>
+    <div id="dashMail"></div><div id="dashApprovals"></div>
+  </div>
+</section>
 <section id="leads" class="view"><div class="card" style="margin-bottom:12px"><div class="split"><input id="leadSearch" placeholder="Søg virksomhed, status, kontakt…" style="flex:1;min-width:240px;padding:9px;border:1px solid var(--border);border-radius:9px"><select id="statusFilter" class="btn"><option value="">Alle statusser</option></select></div></div><div class="tablewrap"><table><thead><tr><th>Virksomhed</th><th>Status</th><th>Score</th><th>Prioritet</th><th>Næste handling</th><th>Dato</th><th>Kilde</th></tr></thead><tbody id="leadRows"></tbody></table></div></section>
 <section id="pipeline" class="view">
   <div class="pipeline-toolbar">
@@ -387,7 +444,7 @@ $('refreshBtn').onclick=async()=>{await loadAll();toast('CRM opdateret')};
 
 </script>
 <script>
-function render(){renderMetrics();renderTasks();renderRows();renderKanban();renderOffers();renderCalendar();renderActivity();renderMail();renderApprovals();renderAgents();renderLeadManager();renderIntegrations();renderDashCards();}
+function render(){renderMetrics();renderTasks();renderRows();renderKanban();renderOffers();renderCalendar();renderActivity();renderMail();renderApprovals();renderAgents();renderLeadManager();renderIntegrations();renderDashCards();if(typeof renderExecutiveDashboard==='function')renderExecutiveDashboard();}
 function renderMetrics(){const active=state.leads.filter(activeLead), a=active.filter(x=>x.priority==='A').length, planned=active.filter(x=>x.next_action&&x.next_at).length, won=state.leads.filter(x=>x.status==='VUNDET').length;const pending=state.approvals.filter(x=>x.status==='pending').length, activeOffers=state.offers.filter(x=>x.status==='I GANG').length, overdueOffers=state.offers.filter(isOfferOverdue).length;const vals=[[active.length,'Aktive leads'],[a,'A-leads'],[activeOffers,'Tilbud ude'],[overdueOffers,'Tilbud forfaldne'],[won,'Vundne leads'],[state.mail.length,'Loggede mails'],[pending,'Godkendelser']];$('metrics').innerHTML=vals.map(([v,l])=>`<div class="card"><div class="sub">${esc(l)}</div><div class="metric">${v}</div></div>`).join('');}
 function renderTasks(){const now=Date.now();const offerItems=state.offers.filter(o=>o.status==='I GANG').map(o=>({kind:'offer',id:o.id,name:o.customer_name||company(o.company_id).name||'Kunde',label:`Tilbud ${o.offer_ref}`,at:o.follow_up_date?new Date(o.follow_up_date+'T09:00:00').getTime():9e15,overdue:isOfferOverdue(o)}));const leadItems=state.leads.filter(l=>activeLead(l)&&l.next_action).map(l=>({kind:'lead',id:l.id,name:leadName(l),label:l.next_action,at:l.next_at?new Date(l.next_at).getTime():9e15,overdue:!!(l.next_at&&new Date(l.next_at).getTime()<now),score:l.score||0}));const arr=[...offerItems,...leadItems].sort((a,b)=>(b.overdue-a.overdue)||(a.at-b.at)||((b.score||0)-(a.score||0))).slice(0,10);$('todayTasks').innerHTML=arr.length?arr.map(x=>`<div class="task"><div><strong>${esc(x.name)}</strong><div class="sub">${esc(x.label)} · ${x.at<9e15?new Intl.DateTimeFormat('da-DK',{dateStyle:'short'}).format(new Date(x.at)):'mangler dato'} ${x.overdue?'<span class="badge a">Forfalden</span>':''}</div></div><button class="btn small" ${x.kind==='offer'?`data-open-offer="${x.id}"`:`data-open-lead="${x.id}"`}>Åbn</button></div>`).join(''):'<div class="empty">Ingen åbne handlinger.</div>';const top=[...state.leads].filter(activeLead).sort((a,b)=>(b.score||0)-(a.score||0))[0], topOffer=state.offers.filter(isOfferOverdue)[0];$('recommendation').innerHTML=topOffer?`Start med tilbud <strong>${esc(topOffer.offer_ref)}</strong> til ${esc(topOffer.customer_name||'kunden')}. Opfølgningen er forfalden.`:top?`Start med <strong>${esc(leadName(top))}</strong>. ${top.score!=null?'Score '+top.score+'. ':''}${top.next_action?'Næste handling: '+esc(top.next_action)+'.':''}`:'Ingen aktive leads eller tilbud.';const warnings=[];const missing=state.leads.filter(l=>activeLead(l)&&(!l.next_action||!l.next_at));if(missing.length)warnings.push(`⚠ ${missing.length} aktive leads mangler næste handling eller dato.`);const overdue=state.leads.filter(l=>activeLead(l)&&l.next_at&&new Date(l.next_at).getTime()<now);if(overdue.length)warnings.push(`⚠ ${overdue.length} lead-handlinger er overskredet.`);const overdueOffers=state.offers.filter(isOfferOverdue);if(overdueOffers.length)warnings.push(`⚠ ${overdueOffers.length} tilbud kræver opfølgning.`);$('warnings').innerHTML=warnings.map(x=>`<div class="notice" style="margin-top:7px">${esc(x)}</div>`).join('');wireLeadButtons();wireOfferButtons();}
 function renderRows(){const search=$('leadSearch').value.trim().toLowerCase(),sf=$('statusFilter').value;const rows=state.leads.filter(l=>{const c=company(l.company_id),cts=contactsFor(l.company_id);const hay=[c.name,l.status,l.source,...cts.flatMap(x=>[x.full_name,x.email,x.phone])].join(' ').toLowerCase();return (!search||hay.includes(search))&&(!sf||l.status===sf)});$('leadRows').innerHTML=rows.length?rows.map(l=>{const c=company(l.company_id),dt=localDateTime(l.next_at);return `<tr data-open-lead="${l.id}" style="cursor:pointer"><td><strong>${esc(c.name)}</strong><div class="sub">${esc(contactsFor(c.id).map(x=>x.full_name||x.email).filter(Boolean).join(' · '))}</div></td><td><span class="status ${statusClass(l.status)}">${esc(l.status)}</span></td><td>${l.score??'—'}</td><td>${l.priority?`<span class="badge ${l.priority.toLowerCase()}">${l.priority}</span>`:'—'}</td><td>${esc(l.next_action||'Mangler')}</td><td>${l.next_at?fmt(l.next_at):'—'}</td><td>${esc(l.source||'—')}</td></tr>`}).join(''):'<tr><td colspan="7" class="empty">Ingen leads matcher filtrene.</td></tr>';wireLeadButtons();}
@@ -1097,4 +1154,5 @@ authInit();
   setTimeout(installQuickStatus,300);
 })();
 </script>
+<script src="/executive-dashboard-v1.js?v=20260901-1"></script>
 </body></html>

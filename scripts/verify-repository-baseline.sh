@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_BYTES="180851"
-EXPECTED_MD5="6c47755b72e8d1155cdc4c47a8d9fa9b"
+EXPECTED_BYTES="183145"
+EXPECTED_MD5="139eccca9ea1f1e19bd250c598c80a31"
 
 [[ -f index.html ]] || { echo "ERROR: index.html missing" >&2; exit 1; }
 ACTUAL_BYTES="$(wc -c < index.html | tr -d ' ')"
@@ -28,8 +28,8 @@ with open('vercel.json', encoding='utf-8') as f:
     json.load(f)
 with open('baseline/manifest.json', encoding='utf-8') as f:
     m=json.load(f)
-assert m['repository_bytes']==180851
-assert m['repository_md5']=='6c47755b72e8d1155cdc4c47a8d9fa9b'
+assert m['repository_bytes']==183145
+assert m['repository_md5']=='139eccca9ea1f1e19bd250c598c80a31'
 PY
 
-echo "Repository source verified: 180851 bytes / 6c47755b72e8d1155cdc4c47a8d9fa9b"
+echo "Repository source verified: 183145 bytes / 139eccca9ea1f1e19bd250c598c80a31"
