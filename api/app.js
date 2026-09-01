@@ -6,8 +6,7 @@ module.exports = async function handler(req, res) {
     const file = path.join(process.cwd(), 'index.html');
     let html = fs.readFileSync(file, 'utf8');
 
-    // Production safe mode: keep the proven CRM core and generic login shell,
-    // but do not load any optional SaaS/onboarding/Microsoft startup layers.
+    // Keep the proven CRM core and generic login shell.
     html = html
       .replace('<title>Lead Manager – Klimaeksperten</title>', '<title>Lead Manager</title>')
       .replace('<div class="sub">Klimaeksperten · Pilot</div>', '<div class="sub">Sikker kundelogin</div>')
@@ -42,21 +41,20 @@ module.exports = async function handler(req, res) {
 </script>`;
     html = html.replace(/<script id="lm-startup-autorefresh-v8">[\s\S]*?<\/script>/, cleanStartupScript);
 
-    // Verified loop: the mail-follow-up script observes all DOM child/class changes while
-    // decoratePipeline() itself rewrites child text. That can retrigger the same observer.
-    // Click + 1s safety refresh remain active, so functionality is preserved without recursion.
+    // Keep the verified fix for the core self-triggering follow-up observer.
     html = html.replace(
       "new MutationObserver(()=>setTimeout(watchModal,20)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});",
-      "/* safe mode: global mail-follow-up MutationObserver disabled; click + interval remain */"
+      "/* stable core: global mail-follow-up MutationObserver disabled; click + interval remain */"
     );
 
-    // Explicitly strip optional startup layers if they ever appear in the source HTML.
+    // Strip every older SaaS/Microsoft startup layer. V3 is the only optional layer allowed.
     html = html.replace(/<script[^>]+src="\/saas-[^"]+"[^>]*><\/script>/g, '');
+    html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n</body>');
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Lead-Manager-Safe-Mode', '2');
+    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3');
     res.status(200).send(html);
   } catch (error) {
     console.error(error);
