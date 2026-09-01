@@ -82,11 +82,14 @@
     target.innerHTML=items.length?items.slice(0,5).map(attentionItem).join(''):'<div class="executive-empty"><div class="executive-empty-mark">✓</div><strong>Alt er fulgt op</strong><div class="sub" style="margin-top:4px">Der er ingen forfaldne handlinger lige nu.</div></div>';
   }
 
-  function renderPerformance(periodLeads,periodOffers){
+  function renderPerformance(periodActivities,periodOffers){
     const target=byId('executivePerformance');
     if(!target)return;
-    const won=periodLeads.filter(lead=>lead.status==='VUNDET').length;
-    const closed=periodLeads.filter(lead=>['VUNDET','TABT'].includes(lead.status)).length;
+    const statusEvents=periodActivities.filter(item=>String(item.type||'').toLowerCase()==='status'&&item.metadata?.next);
+    const closedIds=new Set(statusEvents.filter(item=>['VUNDET','TABT'].includes(item.metadata.next)).map(item=>item.lead_id||item.company_id).filter(Boolean));
+    const wonIds=new Set(statusEvents.filter(item=>item.metadata.next==='VUNDET').map(item=>item.lead_id||item.company_id).filter(Boolean));
+    const closed=closedIds.size;
+    const won=wonIds.size;
     const rate=closed?Math.round((won/closed)*100):0;
     const offerWon=periodOffers.filter(offer=>offer.status==='VUNDET').length;
     target.innerHTML=`<div class="executive-performance"><div class="executive-performance-number">${rate}%</div><div class="executive-performance-caption">Vundet af afsluttede leads i perioden</div><div class="executive-progress" aria-label="Vinderate ${rate} procent"><span style="width:${Math.min(100,rate)}%"></span></div><div class="executive-performance-row"><span>Afsluttede leads</span><strong>${closed}</strong></div><div class="executive-performance-row"><span>Vundne leads</span><strong>${won}</strong></div><div class="executive-performance-row"><span>Vundne tilbud</span><strong>${offerWon}</strong></div></div>`;
@@ -127,30 +130,30 @@
   function renderExecutiveDashboard(){
     if(typeof state==='undefined'||!state?.leads)return;
     const leads=state.leads||[],offers=state.offers||[],approvals=state.approvals||[],activities=state.activities||[];
-    const periodLeads=leads.filter(lead=>inSelectedPeriod(lead,['created_at','updated_at']));
-    const periodOffers=offers.filter(offer=>inSelectedPeriod(offer,['sent_date','created_at','updated_at','follow_up_date']));
+    const periodOffers=offers.filter(offer=>inSelectedPeriod(offer,['updated_at','sent_date','created_at','follow_up_date']));
     const periodActivities=activities.filter(item=>inSelectedPeriod(item,['created_at']));
-    const found=leads.filter(lead=>inSelectedPeriod(lead,['created_at'])).length;
-    const approved=periodLeads.filter(lead=>!['NY','UNDER VURDERING','IKKE RELEVANT'].includes(lead.status)).length;
-    const dialogue=periodLeads.filter(lead=>['DIALOG','MØDE'].includes(lead.status)).length;
-    const activeOffers=periodOffers.filter(offer=>offer.status==='I GANG').length;
-    const won=periodLeads.filter(lead=>lead.status==='VUNDET').length;
+    const found=leads.filter(lead=>['NY','UNDER VURDERING'].includes(lead.status)).length;
+    const approvedStatuses=new Set(['KLAR TIL KONTAKT','I GANG','DIALOG','MØDE','TILBUD','AFVENTER','PÅ PAUSE']);
+    const approved=leads.filter(lead=>approvedStatuses.has(lead.status)).length;
+    const dialogue=leads.filter(lead=>['DIALOG','MØDE'].includes(lead.status)).length;
+    const activeOffers=offers.filter(offer=>offer.status==='I GANG').length;
+    const won=leads.filter(lead=>lead.status==='VUNDET').length;
     const metrics=byId('executiveMetrics');
     if(metrics)metrics.innerHTML=[
       metric(found,'FUNDET','◎','#2f67d8','Nye leads'),
-      metric(approved,'GODKENDT','✓','#158267','Leads videre fra vurdering'),
+      metric(approved,'GODKENDT','✓','#158267','Aktive leads videre fra vurdering'),
       metric(dialogue,'I DIALOG','↔','#8066cc','Aktive dialoger og møder'),
       metric(activeOffers,'TILBUD','▣','#c47b12','Aktive tilbud'),
       metric(won,'VUNDET','◆','#158267','Vundne leads')
     ].join('');
 
-    const labels={week:['Denne uge','Nøgletal og handlinger fra den aktuelle uge.'],month:['Denne måned','Nøgletal og handlinger fra den aktuelle måned.'],all:['Samlet overblik','Nøgletal for hele den nuværende pipeline.']};
+    const labels={week:['Denne uge','Aktuel salgsstatus samt handlinger og aktivitet fra denne uge.'],month:['Denne måned','Aktuel salgsstatus samt handlinger og aktivitet fra denne måned.'],all:['Samlet overblik','Aktuel salgsstatus og hele aktivitetshistorikken.']};
     const label=labels[selectedPeriod];
     if(byId('executivePeriodTitle'))byId('executivePeriodTitle').textContent=label[0];
     if(byId('executivePeriodText'))byId('executivePeriodText').textContent=label[1];
     document.querySelectorAll('[data-executive-period]').forEach(button=>button.classList.toggle('active',button.dataset.executivePeriod===selectedPeriod));
     renderAttention(leads,offers,approvals);
-    renderPerformance(periodLeads,periodOffers);
+    renderPerformance(periodActivities,periodOffers);
     renderPipeline(leads);
     renderActivityList(periodActivities);
     if(state.client)byId('loading')?.classList.add('hidden');

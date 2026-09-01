@@ -18,6 +18,18 @@ function element(){
 const ids={};
 for(const id of ['executiveMetrics','executiveAttention','executivePerformance','executivePipeline','executiveActivity','executivePeriodTitle','executivePeriodText','loading'])ids[id]=element();
 
+const leadCounts={NY:17,AFVENTER:3,DIALOG:2,'I GANG':8,'KLAR TIL KONTAKT':1,'IKKE RELEVANT':3,TABT:3};
+const leads=Object.entries(leadCounts).flatMap(([status,count])=>Array.from({length:count},(_,index)=>({
+  id:`${status}-${index}`,
+  company_id:`company-${status}-${index}`,
+  status,
+  created_at:'2026-08-24T08:00:00Z',
+  updated_at:'2026-08-28T09:00:00Z',
+  next_at:null,
+  next_action:'Følg op'
+})));
+const offers=Array.from({length:14},(_,index)=>({id:`offer-${index}`,company_id:`offer-company-${index}`,status:'I GANG',sent_date:'2026-08-24',updated_at:'2026-08-28T09:00:00Z',follow_up_date:'2026-09-02'}));
+
 const context={
   Date:FakeDate,
   setInterval:()=>0,
@@ -33,8 +45,8 @@ const context={
   },
   state:{
     client:{id:'client-1'},
-    leads:[{id:'lead-1',company_id:'company-1',status:'DIALOG',created_at:'2026-09-01T08:00:00Z',updated_at:'2026-09-01T09:00:00Z',next_at:'2026-09-01T10:00:00Z',next_action:'Ring tilbage'}],
-    offers:[{id:'offer-1',company_id:'company-1',status:'I GANG',sent_date:'2026-09-01',follow_up_date:'2026-09-02'}],
+    leads,
+    offers,
     approvals:[],
     activities:[{id:'activity-1',company_id:'company-1',type:'Opkald',summary:'Talte med kunden',created_at:'2026-09-01T09:30:00Z'}]
   },
@@ -49,8 +61,8 @@ vm.runInNewContext(fs.readFileSync('executive-dashboard-v1.js','utf8'),context,{
 
 setTimeout(()=>{
   const values=[...ids.executiveMetrics.innerHTML.matchAll(/executive-metric-value">(\d+)/g)].map(match=>Number(match[1]));
-  if(values.join(',')!=='1,1,1,1,0')throw new Error(`Forkerte nøgletal ved skæv computerklokke: ${values.join(',')}`);
+  if(values.join(',')!=='17,14,2,14,0')throw new Error(`Dashboardet afspejler ikke den aktuelle CRM-status: ${values.join(',')}`);
   if(!ids.loading.hasClass('hidden'))throw new Error('Indlæsningsbeskeden blev ikke skjult efter rendering');
   if(!ids.executiveActivity.innerHTML.includes('Talte med kunden'))throw new Error('Aktiviteter fra serverens aktuelle dag mangler');
-  console.log('PASS: server clock overrides incorrect device date and loading closes');
+  console.log('PASS: current CRM status survives old record dates, incorrect device date and loading closes');
 },0);
