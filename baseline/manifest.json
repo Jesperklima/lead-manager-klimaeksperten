@@ -14,12 +14,12 @@
     "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
     "snapshot": "lead_manager_canonical_baseline_20260827_1242"
   },
-  "repository_bytes": 183145,
-  "repository_md5": "139eccca9ea1f1e19bd250c598c80a31",
-  "change": "add Executive Dashboard design",
+  "repository_bytes": 183626,
+  "repository_md5": "4614b97efcca22f8d72640b2b6d1e9e6",
+  "change": "fix Executive Dashboard clock and loading state",
   "previous_repository": {
-    "bytes": 180851,
-    "md5": "6c47755b72e8d1155cdc4c47a8d9fa9b",
-    "change": "add quick lead status dropdown in lead drawer"
+    "bytes": 183145,
+    "md5": "139eccca9ea1f1e19bd250c598c80a31",
+    "change": "add Executive Dashboard design"
   }
 }

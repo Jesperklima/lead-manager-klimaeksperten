@@ -2,13 +2,33 @@
   'use strict';
 
   let selectedPeriod='week';
+  let serverClockMs=null;
+  let serverClockMeasuredAt=null;
   const byId=id=>document.getElementById(id);
   const safe=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const closedStatuses=new Set(['VUNDET','TABT','IKKE RELEVANT']);
 
+  function dashboardNow(){
+    if(serverClockMs!==null&&serverClockMeasuredAt!==null&&typeof performance!=='undefined')return serverClockMs+(performance.now()-serverClockMeasuredAt);
+    return Date.now();
+  }
+
+  async function syncServerClock(){
+    try{
+      const response=await fetch(location.origin+'/',{method:'HEAD',cache:'no-store'});
+      const parsed=Date.parse(response.headers.get('date')||'');
+      if(!Number.isFinite(parsed))throw new Error('Serveren returnerede ikke et gyldigt tidsstempel');
+      serverClockMs=parsed;
+      serverClockMeasuredAt=typeof performance!=='undefined'?performance.now():0;
+      renderExecutiveDashboard();
+    }catch(error){
+      console.warn('Executive Dashboard kunne ikke synkronisere servertid',error);
+    }
+  }
+
   function startOfPeriod(period){
     if(period==='all')return null;
-    const start=new Date();
+    const start=new Date(dashboardNow());
     start.setHours(0,0,0,0);
     if(period==='month')start.setDate(1);
     else start.setDate(start.getDate()-((start.getDay()+6)%7));
@@ -29,7 +49,7 @@
     const start=startOfPeriod(selectedPeriod);
     if(start===null)return true;
     const time=recordTime(record,fields);
-    return time!==null&&time>=start&&time<=Date.now();
+    return time!==null&&time>=start&&time<=dashboardNow();
   }
 
   function clickButton(label,attrs=''){
@@ -47,9 +67,9 @@
   function renderAttention(leads,offers,approvals){
     const target=byId('executiveAttention');
     if(!target)return;
-    const now=Date.now();
+    const now=dashboardNow();
     const items=[];
-    offers.filter(offer=>typeof isOfferOverdue==='function'&&isOfferOverdue(offer)).slice(0,2).forEach(offer=>{
+    offers.filter(offer=>offer.status==='I GANG'&&offer.follow_up_date&&new Date(offer.follow_up_date+'T23:59:59').getTime()<now).slice(0,2).forEach(offer=>{
       items.push({color:'#c44141',title:`Tilbud ${offer.offer_ref||''} er forfaldent`,copy:offer.customer_name||company(offer.company_id).name||'Kunde',button:'Åbn tilbud',attrs:`data-executive-offer="${safe(offer.id)}"`});
     });
     leads.filter(lead=>!closedStatuses.has(lead.status)&&lead.next_at&&new Date(lead.next_at).getTime()<now).slice(0,3).forEach(lead=>{
@@ -133,6 +153,7 @@
     renderPerformance(periodLeads,periodOffers);
     renderPipeline(leads);
     renderActivityList(periodActivities);
+    if(state.client)byId('loading')?.classList.add('hidden');
   }
 
   function openView(view){document.querySelector(`.nav button[data-view="${view}"]`)?.click()}
@@ -153,4 +174,6 @@
   window.renderExecutiveDashboard=renderExecutiveDashboard;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderExecutiveDashboard);
   else renderExecutiveDashboard();
+  syncServerClock();
+  setInterval(syncServerClock,30*60*1000);
 })();
