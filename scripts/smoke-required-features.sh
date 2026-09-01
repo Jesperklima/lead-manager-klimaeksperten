@@ -44,6 +44,13 @@ for marker in [
     'data-report-range="week"',
     'data-report-range="month"',
     'data-report-range="30"',
+    'id="executiveMetrics"',
+    'id="executiveAttention"',
+    'id="executivePerformance"',
+    'id="executivePipeline"',
+    'id="executiveActivity"',
+    'executive-dashboard-v1.css',
+    'executive-dashboard-v1.js',
 ]:
     assert marker in html, f'missing required marker: {marker}'
 
@@ -66,6 +73,8 @@ assert m, 'required views JS missing'
 Path('/tmp/required-views.js').write_text(m.group(1),encoding='utf-8')
 PY
 node --check /tmp/required-views.js
+node --check executive-dashboard-v1.js
+test -s executive-dashboard-v1.css
 
 bash scripts/verify-repository-baseline.sh
 
