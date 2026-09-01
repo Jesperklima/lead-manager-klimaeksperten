@@ -55,12 +55,12 @@ module.exports = async function handler(req, res) {
 
     // Strip every older SaaS/Microsoft startup layer. Only stable customer modules are allowed.
     html = html.replace(/<script[^>]+src="\/saas-[^"]+"[^>]*><\/script>/g, '');
-    html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-lead-intake-v1.js?v=20260901-1"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n<script src="/saas-feedback-v1.js?v=20260901-1"></script>\n<script src="/saas-microsoft-v1.js?v=20260901-1"></script>\n</body>');
+    html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-lead-intake-v1.js?v=20260901-1"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n<script src="/saas-feedback-v1.js?v=20260901-1"></script>\n<script src="/saas-irrelevant-learning-v1.js?v=20260901-1"></script>\n<script src="/saas-microsoft-v1.js?v=20260901-1"></script>\n</body>');
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+lead-intake-v1+response-panel-v1+feedback-v1+microsoft-v1');
+    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+lead-intake-v1+response-panel-v1+feedback-v1+irrelevant-learning-v1+microsoft-v1');
     res.status(200).send(html);
   } catch (error) {
     console.error(error);
