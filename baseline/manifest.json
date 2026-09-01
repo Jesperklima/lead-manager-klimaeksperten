@@ -15,11 +15,11 @@
     "snapshot": "lead_manager_canonical_baseline_20260827_1242"
   },
   "repository_bytes": 183626,
-  "repository_md5": "4614b97efcca22f8d72640b2b6d1e9e6",
-  "change": "fix Executive Dashboard clock and loading state",
+  "repository_md5": "c605fff63247951469a217d4875b2d9f",
+  "change": "show current CRM status in Executive Dashboard metrics",
   "previous_repository": {
-    "bytes": 183145,
-    "md5": "139eccca9ea1f1e19bd250c598c80a31",
-    "change": "add Executive Dashboard design"
+    "bytes": 183626,
+    "md5": "4614b97efcca22f8d72640b2b6d1e9e6",
+    "change": "fix Executive Dashboard clock and loading state"
   }
 }
