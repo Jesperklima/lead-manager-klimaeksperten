@@ -53,14 +53,14 @@ module.exports = async function handler(req, res) {
       "$('logoutBtn').onclick=()=>{const old=state.session;localStorage.removeItem('lm_supabase_session_v1');state.session=null;showAuth('Du er logget ud.');try{if(old?.access_token)fetch(SUPABASE_URL+'/auth/v1/logout',{method:'POST',headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json',Authorization:'Bearer '+old.access_token},keepalive:true}).catch(()=>{})}catch(_){}setTimeout(()=>location.replace('/?logged_out=1'),0)};"
     );
 
-    // Strip every older SaaS/Microsoft startup layer. Only stable v3 onboarding + event-driven customer controls are allowed.
+    // Strip every older SaaS/Microsoft startup layer. Only stable customer modules are allowed.
     html = html.replace(/<script[^>]+src="\/saas-[^"]+"[^>]*><\/script>/g, '');
-    html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n</body>');
+    html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n<script src="/saas-feedback-v1.js?v=20260901-1"></script>\n</body>');
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+response-panel-v1');
+    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+response-panel-v1+feedback-v1');
     res.status(200).send(html);
   } catch (error) {
     console.error(error);
