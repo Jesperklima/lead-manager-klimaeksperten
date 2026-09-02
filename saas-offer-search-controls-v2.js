@@ -45,18 +45,23 @@
     };
   }
 
+  async function firstOfferFollowupTask(o){
+    const q=await supabase.from('crm_tasks').select('*').eq('client_id',state.client.id).eq('offer_id',o.id).eq('task_type','offer_followup').limit(1);
+    if(q.error)throw q.error;
+    return q.data?.[0]||null;
+  }
+
   async function ensureOfferFollowupTask(o,newStatus,newDate){
-    const {data:existing,error:qerr}=await supabase.from('crm_tasks').select('*').eq('client_id',state.client.id).eq('offer_id',o.id).eq('task_type','offer_followup').limit(1).maybeSingle();
-    if(qerr)throw qerr;
+    let existing=await firstOfferFollowupTask(o);
     if(newStatus==='I GANG'&&newDate){
       const scheduled=isoFromInputs(newDate,'09:00');
       const patch={scheduled_at:scheduled,status:'open',assigned_to:o.follow_up_owner||state.session.user.email||'JS',updated_at:new Date().toISOString(),title:`Følg op på tilbud ${o.offer_ref} – ${o.customer_name||''}`,planning_type:'flexible',priority:'A'};
       if(existing){const r=await supabase.from('crm_tasks').update(patch).eq('id',existing.id);if(r.error)throw r.error;return;}
       let r=await supabase.from('crm_tasks').insert({client_id:state.client.id,company_id:o.company_id,lead_id:o.lead_id||null,offer_id:o.id,...patch,task_type:'offer_followup',calendar_sync_status:'none'});
       if(r.error&&r.error.code==='23505'){
-        const q=await supabase.from('crm_tasks').select('id').eq('client_id',state.client.id).eq('offer_id',o.id).eq('task_type','offer_followup').limit(1).maybeSingle();
-        if(q.error||!q.data)throw r.error;
-        r=await supabase.from('crm_tasks').update(patch).eq('id',q.data.id);
+        existing=await firstOfferFollowupTask(o);
+        if(!existing)throw r.error;
+        r=await supabase.from('crm_tasks').update(patch).eq('id',existing.id);
       }
       if(r.error)throw r.error;
     }else if(existing){
@@ -85,7 +90,7 @@
 
   function wire(){
     const a=document.getElementById('offerSearch');if(a){a.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';a.oninput=()=>window.renderOffers();}
-    const b=document.getElementById('offerPipelineSearch');if(b){b.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';b.addEventListener('input',()=>window.renderOfferPipeline?.());}
+    const b=document.getElementById('offerPipelineSearch');if(b&&b.dataset.offerSearchV2!=='1'){b.dataset.offerSearchV2='1';b.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';b.addEventListener('input',()=>window.renderOfferPipeline?.());}
     wireSafeOfferSave();
   }
   wire();
