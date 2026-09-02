@@ -1,0 +1,93 @@
+(()=>{
+  const norm=v=>String(v??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9@.+-]+/g,' ').replace(/\s+/g,' ').trim();
+  const tokens=q=>norm(q).split(' ').filter(Boolean);
+  const matches=(hay,q)=>{const ts=tokens(q);if(!ts.length)return true;const h=norm(hay);return ts.every(t=>h.includes(t));};
+
+  function offerSearchText(o){
+    const c=typeof company==='function'?company(o.company_id)||{}:{};
+    const contacts=typeof contactsFor==='function'?(contactsFor(o.company_id)||[]):[];
+    const mails=(typeof state!=='undefined'&&Array.isArray(state.mail)?state.mail:[]).filter(m=>m.offer_id===o.id||(!m.offer_id&&o.company_id&&m.company_id===o.company_id));
+    return [
+      o.offer_ref,o.customer_name,o.installation_address,o.contact_person,o.contact_details,
+      o.current_comment,o.status,o.status_reason,o.source_file,o.data_warning,
+      o.minuba_status,o.minuba_record_type,o.minuba_order_number,
+      c.name,c.cvr,c.domain,c.website_url,c.phone,c.address,
+      ...contacts.flatMap(x=>[x.full_name,x.title,x.email,x.phone]),
+      ...mails.flatMap(m=>[m.subject,m.body_text,m.from_email,JSON.stringify(m.to_emails||[]),JSON.stringify(m.cc_emails||[])])
+    ].filter(Boolean).join(' ');
+  }
+
+  const originalRenderOffers=typeof window.renderOffers==='function'?window.renderOffers:null;
+  window.renderOffers=function(){
+    if(typeof state==='undefined'||typeof $!=='function'||typeof esc!=='function'||typeof isOfferOverdue!=='function'||typeof statusClass!=='function')return originalRenderOffers?.();
+    const active=state.offers.filter(o=>o.status==='I GANG').length;
+    const won=state.offers.filter(o=>o.status==='VUNDET').length;
+    const lost=state.offers.filter(o=>o.status==='TABT').length;
+    const overdue=state.offers.filter(isOfferOverdue).length;
+    const metrics=$('offerMetrics');
+    if(metrics)metrics.innerHTML=[[active,'Tilbud ude'],[overdue,'Forfaldne'],[won,'Vundet'],[lost,'Tabt']].map(([v,l])=>`<div class="card"><div class="sub">${l}</div><div class="metric">${v}</div></div>`).join('');
+    const q=($('offerSearch')?.value||'').trim(),sf=$('offerStatusFilter')?.value||'';
+    const rows=state.offers.filter(o=>matches(offerSearchText(o),q)&&(!sf||o.status===sf)).sort((a,b)=>{const ao=isOfferOverdue(a),bo=isOfferOverdue(b);if(ao!==bo)return bo-ao;return String(a.follow_up_date||'9999').localeCompare(String(b.follow_up_date||'9999'));});
+    const target=$('offerRows');if(!target)return;
+    target.innerHTML=rows.length?rows.map(o=>`<tr data-open-offer="${o.id}" style="cursor:pointer"><td><strong>${esc(o.offer_ref)}</strong>${o.data_warning?'<div class="badge warn" style="margin-top:4px">Kontrollér data</div>':''}</td><td><strong>${esc(o.customer_name||company(o.company_id).name||'')}</strong></td><td>${esc(o.installation_address||'—')}</td><td><span class="status ${statusClass(o.status)}">${esc(o.status)}</span></td><td>${fmtDate(o.follow_up_date)} ${isOfferOverdue(o)?'<span class="badge a">Forfalden</span>':''}</td><td>${esc([o.contact_person,o.contact_details].filter(Boolean).join(' · ')||'—')}</td><td><div class="mailbody">${esc(o.current_comment||'—')}</div></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Ingen tilbud matcher filtrene.</td></tr>';
+    if(typeof wireOfferButtons==='function')wireOfferButtons();
+  };
+
+  const originalPipeline=typeof window.renderOfferPipeline==='function'?window.renderOfferPipeline:null;
+  if(originalPipeline){
+    window.renderOfferPipeline=function(){
+      if(typeof state==='undefined')return originalPipeline();
+      const input=document.getElementById('offerPipelineSearch'),q=(input?.value||'').trim();
+      if(!q)return originalPipeline();
+      const original=state.offers,old=input.value;
+      try{state.offers=original.filter(o=>matches(offerSearchText(o),q));input.value='';return originalPipeline();}
+      finally{state.offers=original;input.value=old;}
+    };
+  }
+
+  async function ensureOfferFollowupTask(o,newStatus,newDate){
+    const {data:existing,error:qerr}=await supabase.from('crm_tasks').select('*').eq('client_id',state.client.id).eq('offer_id',o.id).eq('task_type','offer_followup').limit(1).maybeSingle();
+    if(qerr)throw qerr;
+    if(newStatus==='I GANG'&&newDate){
+      const scheduled=isoFromInputs(newDate,'09:00');
+      const patch={scheduled_at:scheduled,status:'open',assigned_to:o.follow_up_owner||state.session.user.email||'JS',updated_at:new Date().toISOString(),title:`Følg op på tilbud ${o.offer_ref} – ${o.customer_name||''}`,planning_type:'flexible',priority:'A'};
+      if(existing){const r=await supabase.from('crm_tasks').update(patch).eq('id',existing.id);if(r.error)throw r.error;return;}
+      let r=await supabase.from('crm_tasks').insert({client_id:state.client.id,company_id:o.company_id,lead_id:o.lead_id||null,offer_id:o.id,...patch,task_type:'offer_followup',calendar_sync_status:'none'});
+      if(r.error&&r.error.code==='23505'){
+        const q=await supabase.from('crm_tasks').select('id').eq('client_id',state.client.id).eq('offer_id',o.id).eq('task_type','offer_followup').limit(1).maybeSingle();
+        if(q.error||!q.data)throw r.error;
+        r=await supabase.from('crm_tasks').update(patch).eq('id',q.data.id);
+      }
+      if(r.error)throw r.error;
+    }else if(existing){
+      const r=await supabase.from('crm_tasks').update({status:'done',updated_at:new Date().toISOString()}).eq('id',existing.id);if(r.error)throw r.error;
+    }
+  }
+
+  function wireSafeOfferSave(){
+    const old=document.getElementById('saveOffer');if(!old||old.dataset.safeOfferSave==='1')return;
+    const btn=old.cloneNode(true);btn.dataset.safeOfferSave='1';old.replaceWith(btn);
+    btn.onclick=async()=>{
+      if(typeof currentOffer==='undefined'||!currentOffer)return;
+      const o=currentOffer,prev=o.status,newStatus=$('oStatus').value,newDate=$('oFollow').value||null,newComment=$('oComment').value.trim()||null,now=new Date().toISOString();
+      btn.disabled=true;
+      try{
+        const r=await supabase.from('crm_offers').update({status:newStatus,follow_up_date:newDate,current_comment:newComment,status_reason:prev!==newStatus?`Manuelt ændret fra ${prev} til ${newStatus}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id);
+        if(r.error)throw r.error;
+        await ensureOfferFollowupTask(o,newStatus,newDate);
+        if(prev!==newStatus&&typeof logOfferActivity==='function')await logOfferActivity(o,'Tilbudsstatus',`${prev} → ${newStatus} (manuel ændring)`,{previous:prev,next:newStatus,manual:true});
+        if(newDate!==o.follow_up_date&&typeof logOfferActivity==='function')await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${newDate||'ingen dato'}`,{previous:o.follow_up_date,next:newDate,manual:true});
+        await loadAll();$('offerModal').classList.remove('open');currentOffer=null;toast('Tilbud opdateret');
+      }catch(e){console.error('safe offer save failed',e);toast(e?.message||'Tilbuddet kunne ikke gemmes');}
+      finally{btn.disabled=false;}
+    };
+  }
+
+  function wire(){
+    const a=document.getElementById('offerSearch');if(a){a.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';a.oninput=()=>window.renderOffers();}
+    const b=document.getElementById('offerPipelineSearch');if(b){b.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';b.addEventListener('input',()=>window.renderOfferPipeline?.());}
+    wireSafeOfferSave();
+  }
+  wire();
+  new MutationObserver(()=>wire()).observe(document.documentElement,{subtree:true,childList:true});
+})();
