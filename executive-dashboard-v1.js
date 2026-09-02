@@ -179,4 +179,9 @@
   else renderExecutiveDashboard();
   syncServerClock();
   setInterval(syncServerClock,30*60*1000);
+
+  const approvalScript=document.createElement('script');
+  approvalScript.src='/approval-center-v2.js?v=20260902-1';
+  approvalScript.defer=true;
+  document.head.appendChild(approvalScript);
 })();
