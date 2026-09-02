@@ -76,12 +76,21 @@ Path('/tmp/required-views.js').write_text(m.group(1),encoding='utf-8')
 PY
 node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
+node --check saas-credit-check-v1.js
 node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 test -s executive-dashboard-v1.css
 grep -q "function dashboardNow" executive-dashboard-v1.js
 grep -q "method:'HEAD'" executive-dashboard-v1.js
 grep -q "serverClockMs" executive-dashboard-v1.js
+grep -q "saas-credit-check-v1.js?v=20260902-1" api/app.js
+grep -q "functions/v1/credit-check" saas-credit-check-v1.js
+grep -q "Tjekket opretter ikke et lead" saas-credit-check-v1.js
+grep -q "ikke RKI" saas-credit-check-v1.js
+grep -q "crm_credit_checks" supabase/migrations/20260902070000_credit_checks.sql
+grep -q "enable row level security" supabase/migrations/20260902070000_credit_checks.sql
+grep -q "APICVR.dk / CVR" supabase/functions/credit-check/index.ts
+grep -q "AbortSignal.timeout" supabase/functions/credit-check/index.ts
 
 bash scripts/verify-repository-baseline.sh
 
