@@ -50,6 +50,7 @@
     if(q.error)throw q.error;
     return q.data?.[0]||null;
   }
+  const isUniqueError=e=>e?.code==='23505'||e?.details?.code==='23505'||/duplicate key|crm_tasks_one_offer_followup/i.test(String(e?.message||''));
 
   async function ensureOfferFollowupTask(o,newStatus,newDate){
     let existing=await firstOfferFollowupTask(o);
@@ -58,7 +59,7 @@
       const patch={scheduled_at:scheduled,status:'open',assigned_to:o.follow_up_owner||state.session.user.email||'JS',updated_at:new Date().toISOString(),title:`Følg op på tilbud ${o.offer_ref} – ${o.customer_name||''}`,planning_type:'flexible',priority:'A'};
       if(existing){const r=await supabase.from('crm_tasks').update(patch).eq('id',existing.id);if(r.error)throw r.error;return;}
       let r=await supabase.from('crm_tasks').insert({client_id:state.client.id,company_id:o.company_id,lead_id:o.lead_id||null,offer_id:o.id,...patch,task_type:'offer_followup',calendar_sync_status:'none'});
-      if(r.error&&r.error.code==='23505'){
+      if(r.error&&isUniqueError(r.error)){
         existing=await firstOfferFollowupTask(o);
         if(!existing)throw r.error;
         r=await supabase.from('crm_tasks').update(patch).eq('id',existing.id);
@@ -69,29 +70,54 @@
     }
   }
 
+  async function saveManualOffer(o,newStatus,newDate,newComment,method){
+    const prev=o.status,now=new Date().toISOString();
+    const patch={status:newStatus,follow_up_date:newDate,current_comment:newComment,status_reason:prev!==newStatus?`Manuelt ændret fra ${prev} til ${newStatus}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now};
+    const r=await supabase.from('crm_offers').update(patch).eq('id',o.id);if(r.error)throw r.error;
+    await ensureOfferFollowupTask(o,newStatus,newDate);
+    if(prev!==newStatus&&typeof logOfferActivity==='function')await logOfferActivity(o,'Tilbudsstatus',`${prev} → ${newStatus} (${method})`,{previous:prev,next:newStatus,manual:true,method});
+    if(newDate!==o.follow_up_date&&typeof logOfferActivity==='function')await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${newDate||'ingen dato'}`,{previous:o.follow_up_date,next:newDate,manual:true,method});
+  }
+
   function wireSafeOfferSave(){
     const old=document.getElementById('saveOffer');if(!old||old.dataset.safeOfferSave==='1')return;
     const btn=old.cloneNode(true);btn.dataset.safeOfferSave='1';old.replaceWith(btn);
     btn.onclick=async()=>{
       if(typeof currentOffer==='undefined'||!currentOffer)return;
-      const o=currentOffer,prev=o.status,newStatus=$('oStatus').value,newDate=$('oFollow').value||null,newComment=$('oComment').value.trim()||null,now=new Date().toISOString();
+      const o=currentOffer,newStatus=$('oStatus').value,newDate=$('oFollow').value||null,newComment=$('oComment').value.trim()||null;
       btn.disabled=true;
       try{
-        const r=await supabase.from('crm_offers').update({status:newStatus,follow_up_date:newDate,current_comment:newComment,status_reason:prev!==newStatus?`Manuelt ændret fra ${prev} til ${newStatus}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id);
-        if(r.error)throw r.error;
-        await ensureOfferFollowupTask(o,newStatus,newDate);
-        if(prev!==newStatus&&typeof logOfferActivity==='function')await logOfferActivity(o,'Tilbudsstatus',`${prev} → ${newStatus} (manuel ændring)`,{previous:prev,next:newStatus,manual:true});
-        if(newDate!==o.follow_up_date&&typeof logOfferActivity==='function')await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${newDate||'ingen dato'}`,{previous:o.follow_up_date,next:newDate,manual:true});
+        await saveManualOffer(o,newStatus,newDate,newComment,'manuel gem');
         await loadAll();$('offerModal').classList.remove('open');currentOffer=null;toast('Tilbud opdateret');
       }catch(e){console.error('safe offer save failed',e);toast(e?.message||'Tilbuddet kunne ikke gemmes');}
       finally{btn.disabled=false;}
     };
   }
 
+  async function safePipelineMove(id,targetStatus){
+    const o=typeof offerById==='function'?offerById(id):state.offers?.find(x=>x.id===id);if(!o||!targetStatus||o.status===targetStatus)return;
+    try{
+      await saveManualOffer(o,targetStatus,o.follow_up_date||null,o.current_comment||null,'pipeline drag & drop');
+      await loadAll();toast(`Tilbud ${o.offer_ref||''} flyttet til ${targetStatus}`);
+    }catch(e){console.error('safe offer pipeline move failed',e);toast(e?.message||'Tilbuddet kunne ikke flyttes');await loadAll();}
+  }
+
+  function wireSafePipelineDrop(){
+    const board=document.getElementById('offerPipelineBoard');if(!board||board.dataset.safeOfferDrop==='1')return;
+    board.dataset.safeOfferDrop='1';
+    board.addEventListener('drop',e=>{
+      if(!e.dataTransfer?.types?.includes('application/x-offer-pipe'))return;
+      const col=e.target?.closest?.('[data-offer-pipe-status]');if(!col)return;
+      const id=e.dataTransfer.getData('application/x-offer-pipe');if(!id)return;
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      col.classList.remove('dragover');void safePipelineMove(id,col.dataset.offerPipeStatus);
+    },true);
+  }
+
   function wire(){
     const a=document.getElementById('offerSearch');if(a){a.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';a.oninput=()=>window.renderOffers();}
     const b=document.getElementById('offerPipelineSearch');if(b&&b.dataset.offerSearchV2!=='1'){b.dataset.offerSearchV2='1';b.placeholder='Søg tilbud, kunde, kontakt, mail, telefon, adresse eller note…';b.addEventListener('input',()=>window.renderOfferPipeline?.());}
-    wireSafeOfferSave();
+    wireSafeOfferSave();wireSafePipelineDrop();
   }
   wire();
   new MutationObserver(()=>wire()).observe(document.documentElement,{subtree:true,childList:true});
