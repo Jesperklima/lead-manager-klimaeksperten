@@ -47,6 +47,12 @@ module.exports = async function handler(req, res) {
       "/* stable core: global mail-follow-up MutationObserver disabled; click + interval remain */"
     );
 
+    // Add RPC support to the tiny built-in Supabase client used by stable modules.
+    html = html.replace(
+      "return {auth,from:(table)=>new Query(table)};",
+      "const rpc=async(fn,args={})=>{await refreshIfNeeded();const r=await request('/rest/v1/rpc/'+encodeURIComponent(fn),{method:'POST',body:args});return {data:r.data,error:r.error}};return {auth,from:(table)=>new Query(table),rpc};"
+    );
+
     // Logout must be local-first. A slow /logout request must never trap the user in the CRM UI.
     html = html.replace(
       "$('logoutBtn').onclick=()=>supabase.auth.signOut();",
