@@ -184,4 +184,9 @@
   approvalScript.src='/approval-center-v2.js?v=20260902-1';
   approvalScript.defer=true;
   document.head.appendChild(approvalScript);
+
+  const offerMailScript=document.createElement('script');
+  offerMailScript.src='/offer-mail-v1.js?v=20260903-1';
+  offerMailScript.defer=true;
+  document.head.appendChild(offerMailScript);
 })();
