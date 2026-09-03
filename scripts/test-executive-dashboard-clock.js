@@ -9,7 +9,7 @@ class FakeDate extends Date{
 function element(){
   const classes=new Set();
   return {
-    innerHTML:'',textContent:'',dataset:{},
+    innerHTML:'',textContent:'',dataset:{},src:'',defer:false,
     classList:{add:value=>classes.add(value),remove:value=>classes.delete(value),toggle:()=>{}},
     hasClass:value=>classes.has(value)
   };
@@ -38,6 +38,8 @@ const context={
   fetch:async()=>({headers:{get:name=>name==='date'?'Tue, 01 Sep 2026 12:00:00 GMT':null}}),
   document:{
     readyState:'complete',
+    head:{appendChild:()=>{}},
+    createElement:()=>element(),
     getElementById:id=>ids[id]||null,
     querySelectorAll:()=>[],
     querySelector:()=>null,
