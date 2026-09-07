@@ -18,7 +18,7 @@
   }
   function greeting(o){
     const name=String(o?.contact_person||'').trim();
-    return name?`Hej ${name.split(/\s+/)[0]}`:'Til rette vedkomme';
+    return name?`Hej ${name.split(/\s+/)[0]}`:'Hej';
   }
   function sender(){
     try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}
@@ -31,6 +31,7 @@
     modal.innerHTML=`<div class="modal" style="width:min(720px,94vw)">
       <h2 style="margin-top:0">Send mail om tilbud</h2>
       <div id="offerMailMeta" class="sub"></div>
+      <div id="offerMailContactSource" class="sub" style="margin-top:6px"></div>
       <div class="field"><label>Til</label><input id="offerMailTo" type="email" placeholder="kunde@firma.dk" autocomplete="email"><div class="sub" id="offerMailRecipientNote" style="margin-top:5px"></div></div>
       <div class="field"><label>Emne</label><input id="offerMailSubject"></div>
       <div class="field"><label>Mailtekst</label><textarea id="offerMailBody" rows="10"></textarea></div>
@@ -53,6 +54,48 @@
     button.onclick=openMail;
   }
 
+  function updateComposerFromOffer(o,contactSource=''){
+    const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
+    byId('offerMailTo').value=to;
+    if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=contactSource||(o.contact_person?`Kontaktperson: ${o.contact_person}`:'Kontaktperson mangler i Lead Manager. Minuba kontrolleres automatisk.');
+    byId('offerMailRecipientNote').textContent=to?'Modtageren er hentet fra kundens/tilbuddets kontaktoplysninger.':'Der er ingen mailadresse gemt på tilbuddet endnu. Skriv kundens mailadresse her; den gemmes på kunden ved afsendelse.';
+    document.dispatchEvent(new CustomEvent('lm:offer-contact-updated',{detail:{offer_id:o.id,contact_person:o.contact_person||'',contact_details:o.contact_details||''}}));
+  }
+
+  async function enrichFromMinuba(o){
+    const ref=String(o?.offer_ref||'').trim();
+    if(!ref||typeof callProtectedEdge!=='function'||!state?.client?.id)return;
+    if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=`Henter kontaktperson fra Minuba på tilbud ${ref}…`;
+    try{
+      const response=await callProtectedEdge('minuba-offer-lookup',{client_id:state.client.id,offer_ref:ref});
+      if(response?.error)throw new Error(response.error.message||String(response.error));
+      const data=response?.data??response;
+      if(!data?.found){
+        if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:`Ingen kontaktperson fundet i Minuba på tilbud ${ref}.`;
+        return;
+      }
+      const person=String(data.contact_person||'').trim(),details=String(data.contact_details||'').trim();
+      if(person)o.contact_person=person;
+      if(details)o.contact_details=details;
+      o.minuba_raw=data.raw||o.minuba_raw||{};
+      o.minuba_record_type=data.record_type||o.minuba_record_type||null;
+      o.minuba_order_number=data.order_number||o.minuba_order_number||null;
+      o.minuba_status=data.status_raw||o.minuba_status||null;
+      o.minuba_last_checked_at=new Date().toISOString();
+      const patch={minuba_raw:o.minuba_raw,minuba_record_type:o.minuba_record_type,minuba_order_number:o.minuba_order_number,minuba_status:o.minuba_status,minuba_last_checked_at:o.minuba_last_checked_at,updated_at:new Date().toISOString()};
+      if(person)patch.contact_person=person;
+      if(details)patch.contact_details=details;
+      if(typeof supabase!=='undefined'){
+        const {error}=await supabase.from('crm_offers').update(patch).eq('id',o.id);
+        if(error)console.warn('Kunne ikke gemme Minuba-kontakt på tilbud',error);
+      }
+      updateComposerFromOffer(o,person?`Kontaktperson hentet fra Minuba: ${person}`:`Minuba fandt tilbuddet, men ingen kontaktperson var angivet.`);
+    }catch(error){
+      console.warn('Minuba kontaktopslag fejlede',error);
+      if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:'Minuba kunne ikke hente kontaktpersonen lige nu.';
+    }
+  }
+
   function openMail(){
     ensureModal();
     const o=offer();
@@ -64,8 +107,9 @@
     byId('offerMailBody').value=`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`;
     byId('offerMailFollow').value=byId('oFollow')?.value||o.follow_up_date||plusDays(7);
     byId('offerMailSender').textContent=`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`;
-    byId('offerMailRecipientNote').textContent=to?'Modtageren er hentet fra kundens/tilbuddets kontaktoplysninger.':'Der er ingen mailadresse gemt på tilbuddet endnu. Skriv kundens mailadresse her; den gemmes på kunden ved afsendelse.';
+    updateComposerFromOffer(o);
     byId('offerMailModal').classList.add('open');
+    enrichFromMinuba(o);
     setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
   }
 
