@@ -55,11 +55,13 @@
   }
 
   function updateComposerFromOffer(o,contactSource=''){
-    const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
+    const to=recipientFor(o);
     byId('offerMailTo').value=to;
     if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=contactSource||(o.contact_person?`Kontaktperson: ${o.contact_person}`:'Kontaktperson mangler i Lead Manager. Minuba kontrolleres automatisk.');
     byId('offerMailRecipientNote').textContent=to?'Modtageren er hentet fra kundens/tilbuddets kontaktoplysninger.':'Der er ingen mailadresse gemt på tilbuddet endnu. Skriv kundens mailadresse her; den gemmes på kunden ved afsendelse.';
     document.dispatchEvent(new CustomEvent('lm:offer-contact-updated',{detail:{offer_id:o.id,contact_person:o.contact_person||'',contact_details:o.contact_details||''}}));
+    const selectedTemplate=byId('offerTemplateSelect');
+    if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
   }
 
   async function enrichFromMinuba(o){
