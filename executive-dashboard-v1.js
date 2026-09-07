@@ -189,4 +189,9 @@
   offerMailScript.src='/offer-mail-v1.js?v=20260903-1';
   offerMailScript.defer=true;
   document.head.appendChild(offerMailScript);
+
+  const mailTemplatesScript=document.createElement('script');
+  mailTemplatesScript.src='/mail-templates-v1.js?v=20260907-1';
+  mailTemplatesScript.defer=true;
+  document.head.appendChild(mailTemplatesScript);
 })();
