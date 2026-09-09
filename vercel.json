@@ -5,7 +5,15 @@
   "routes": [
     {
       "src": "^/$",
-      "dest": "/api/app",
+      "dest": "/login.html",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "src": "^/login$",
+      "dest": "/login.html",
       "headers": {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         "X-Content-Type-Options": "nosniff"
