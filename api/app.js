@@ -21,6 +21,11 @@ module.exports = async function handler(req, res) {
       .replace('>Mere Jesper</button>', '>Mere som mig</button>')
       .replace("d.textContent='Tone of voice: Jesper · aktiv'", "d.textContent='Din tone of voice · aktiv'");
 
+    // LUKKET is a first-class offer state for offers closed in the source system without a verified win/loss outcome.
+    html = html.replaceAll('<option>STATUS UKLAR</option></select>', '<option>STATUS UKLAR</option><option>LUKKET</option></select>');
+    html = html.replace("const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','STATUS UKLAR'];", "const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','LUKKET','STATUS UKLAR'];");
+    html = html.replace('.status.STATUS-UKLAR{color:#64748b}.status.I-GANG{color:#075985}', '.status.STATUS-UKLAR{color:#64748b}.status.LUKKET{color:#64748b}.status.I-GANG{color:#075985}');
+
     // Repair the verified malformed legacy startup block before sending HTML.
     const cleanStartupScript = `<script id="lm-startup-autorefresh-v8">
 (()=>{
@@ -66,7 +71,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+admin-client-switcher-v1+lead-intake-v1+offer-intake-v1+offer-search-controls-v2+response-panel-v1+feedback-v1+irrelevant-learning-v1+microsoft-v1+mail-providers-v1+mail-sender-name-v1+minuba-v1+credit-check-v1+marketing-leads-v1+marketing-connections-v1+offer-date-save-v1+date-picker-click-v2+offer-mail-pdf-v1');
+    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+admin-client-switcher-v1+lead-intake-v1+offer-search-controls-v2+closed-offer-status+response-panel-v1+feedback-v1+irrelevant-learning-v1+microsoft-v1+mail-providers-v1+mail-sender-name-v1+minuba-v1+credit-check-v1+marketing-leads-v1+marketing-connections-v1+offer-date-save-v1+date-picker-click-v2+offer-mail-pdf-v1');
     res.status(200).send(html);
   } catch (error) {
     console.error(error);
