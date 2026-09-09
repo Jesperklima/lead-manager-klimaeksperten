@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Manager – Log ind</title>
+<style>
+:root{--bg:#102632;--panel:#fff;--text:#14202a;--muted:#66737d;--border:#dbe3e8;--accent:#14384c;--danger:#9b2f2f;--ok:#166534;--soft:#f4f7f9}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px}.box{width:min(460px,100%);background:var(--panel);border-radius:18px;padding:26px;box-shadow:0 24px 70px rgba(0,0,0,.22)}
+h1{margin:0 0 6px;font-size:29px}.sub{color:var(--muted);font-size:14px}.lead{margin:18px 0 20px;line-height:1.5}.field{margin:12px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:9px;background:#fff;font:inherit;outline:none}input:focus{border-color:#8aa5b4;box-shadow:0 0 0 3px rgba(20,56,76,.08)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.btn{border:1px solid var(--border);background:#fff;padding:10px 13px;border-radius:9px;color:var(--text);font:inherit;cursor:pointer}.btn:hover{background:#f7fafb}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn:disabled{opacity:.55;cursor:wait}
+.link{border:0;background:transparent;padding:8px 0;color:var(--accent);font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.message{margin-top:14px;padding:10px 12px;border-radius:9px;background:var(--soft);font-size:13px;line-height:1.45;display:none}.message.show{display:block}.message.error{background:#fff1f2;color:var(--danger)}.message.ok{background:#ecfdf5;color:var(--ok)}
+.mode-title{margin:0 0 6px;font-size:19px}.hidden{display:none!important}.foot{margin-top:18px;padding-top:15px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="auth">
+  <main class="box">
+    <div id="loginMode">
+      <h1>Lead Manager</h1>
+      <div class="sub">Sikker kundelogin</div>
+      <p class="sub lead">Log ind med den arbejdsmail, der er knyttet til din Lead Manager-konto.</p>
+      <div class="field"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" placeholder="din@virksomhed.dk"></div>
+      <div class="field"><label for="password">Adgangskode</label><input id="password" type="password" minlength="8" autocomplete="current-password"></div>
+      <div class="actions"><button id="login" class="btn primary">Log ind</button></div>
+      <button id="forgot" class="link" type="button">Glemt adgangskode?</button>
+    </div>
+
+    <div id="recoveryMode" class="hidden">
+      <h1>Ny adgangskode</h1>
+      <div class="sub">Vælg en ny adgangskode til din Lead Manager-konto.</div>
+      <div class="field"><label for="newPassword">Ny adgangskode</label><input id="newPassword" type="password" minlength="8" autocomplete="new-password"></div>
+      <div class="field"><label for="newPasswordAgain">Gentag adgangskode</label><input id="newPasswordAgain" type="password" minlength="8" autocomplete="new-password"></div>
+      <div class="actions"><button id="savePassword" class="btn primary">Gem ny adgangskode</button></div>
+    </div>
+
+    <div id="message" class="message"></div>
+    <div class="foot">Lead Manager · Adgang gives kun til inviterede brugere.</div>
+  </main>
+</div>
+<script>
+(()=>{
+  const SB_URL='https://ouqhostcsvdyrkjefiya.supabase.co';
+  const SB_KEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
+  const STORAGE='lm_supabase_session_v1';
+  const LAST_EMAIL='lm_last_email_v1';
+  const $=id=>document.getElementById(id);
+  const hash=new URLSearchParams(location.hash.replace(/^#/,''));
+  const recoveryToken=hash.get('access_token')||'';
+  const recoveryRefresh=hash.get('refresh_token')||'';
+  const recoveryType=hash.get('type')||'';
+
+  function appTarget(){
+    const q=new URLSearchParams(location.search);q.delete('logged_out');
+    return '/api/app'+(q.toString()?'?'+q.toString():'');
+  }
+  function showMessage(text,type=''){
+    const el=$('message');el.textContent=text;el.className='message show'+(type?' '+type:'');
+  }
+  function clearMessage(){const el=$('message');el.textContent='';el.className='message'}
+  function friendlyError(data,status){
+    const raw=String(data?.msg||data?.message||data?.error_description||data?.error||'').trim();
+    if(/invalid login credentials/i.test(raw))return 'E-mail eller adgangskode er forkert. Brug “Glemt adgangskode?” hvis du er i tvivl.';
+    if(/email not confirmed/i.test(raw))return 'Din e-mail er endnu ikke bekræftet. Tjek din indbakke.';
+    if(/rate|too many|429/i.test(raw)||status===429)return 'Der har været for mange forsøg. Prøv igen lidt senere.';
+    if(/same password/i.test(raw))return 'Den nye adgangskode skal være forskellig fra den nuværende.';
+    return raw||('Login kunne ikke gennemføres'+(status?' ('+status+')':''));
+  }
+  async function request(path,{method='GET',body,token}={}){
+    const headers={apikey:SB_KEY,'Content-Type':'application/json'};
+    if(token)headers.Authorization='Bearer '+token;
+    const res=await fetch(SB_URL+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+    const text=await res.text();let data=null;try{data=text?JSON.parse(text):null}catch{data={message:text}}
+    if(!res.ok)throw new Error(friendlyError(data,res.status));
+    return data;
+  }
+  function sessionFrom(data,oldRefresh=''){
+    return {access_token:data.access_token,refresh_token:data.refresh_token||oldRefresh,expires_in:data.expires_in,expires_at:data.expires_at||Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600),token_type:data.token_type||'bearer',user:data.user};
+  }
+  function saveSession(s){localStorage.setItem(STORAGE,JSON.stringify(s))}
+  async function validateExisting(){
+    if(recoveryType==='recovery'&&recoveryToken)return;
+    if(new URLSearchParams(location.search).get('logged_out')==='1'){localStorage.removeItem(STORAGE);return}
+    let s=null;try{s=JSON.parse(localStorage.getItem(STORAGE)||'null')}catch{localStorage.removeItem(STORAGE)}
+    if(!s?.access_token)return;
+    try{
+      const exp=Number(s.expires_at||0)*1000;
+      if(s.refresh_token&&(!exp||Date.now()>exp-60000)){
+        const d=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:s.refresh_token}});
+        s=sessionFrom(d,s.refresh_token);saveSession(s);
+      }
+      const user=await request('/auth/v1/user',{token:s.access_token});
+      if(user?.email){s.user=user;saveSession(s);location.replace(appTarget())}
+    }catch{localStorage.removeItem(STORAGE)}
+  }
+  async function login(){
+    clearMessage();const email=$('email').value.trim().toLowerCase(),password=$('password').value;
+    if(!email){showMessage('Skriv din e-mail.','error');return}
+    if(password.length<8){showMessage('Adgangskoden skal være mindst 8 tegn.','error');return}
+    const btn=$('login');btn.disabled=true;btn.textContent='Logger ind…';
+    try{
+      const d=await request('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password}});
+      saveSession(sessionFrom(d));localStorage.setItem(LAST_EMAIL,email);location.replace(appTarget());
+    }catch(e){showMessage(e.message,'error');btn.disabled=false;btn.textContent='Log ind'}
+  }
+  async function sendRecovery(){
+    clearMessage();const email=$('email').value.trim().toLowerCase();
+    if(!email){showMessage('Skriv først din e-mail, så sender jeg nulstillingslinket dertil.','error');return}
+    const btn=$('forgot');btn.disabled=true;btn.textContent='Sender…';
+    try{
+      const redirect=location.origin+'/';
+      await request('/auth/v1/recover?redirect_to='+encodeURIComponent(redirect),{method:'POST',body:{email}});
+      localStorage.setItem(LAST_EMAIL,email);showMessage('Nulstillingsmail sendt. Åbn mailen og tryk på linket for at vælge en ny adgangskode.','ok');
+    }catch(e){showMessage(e.message,'error')}
+    finally{btn.disabled=false;btn.textContent='Glemt adgangskode?'}
+  }
+  async function saveNewPassword(){
+    clearMessage();const p=$('newPassword').value,p2=$('newPasswordAgain').value;
+    if(!recoveryToken){showMessage('Nulstillingslinket mangler eller er udløbet. Bed om et nyt link.','error');return}
+    if(p.length<8){showMessage('Den nye adgangskode skal være mindst 8 tegn.','error');return}
+    if(p!==p2){showMessage('De to adgangskoder er ikke ens.','error');return}
+    const btn=$('savePassword');btn.disabled=true;btn.textContent='Gemmer…';
+    try{
+      const user=await request('/auth/v1/user',{method:'PUT',token:recoveryToken,body:{password:p}});
+      const s={access_token:recoveryToken,refresh_token:recoveryRefresh,expires_in:Number(hash.get('expires_in')||3600),expires_at:Math.floor(Date.now()/1000)+Number(hash.get('expires_in')||3600),token_type:hash.get('token_type')||'bearer',user};
+      saveSession(s);if(user?.email)localStorage.setItem(LAST_EMAIL,user.email);
+      history.replaceState(null,'',location.pathname+location.search);showMessage('Adgangskoden er ændret. Åbner Lead Manager…','ok');
+      setTimeout(()=>location.replace(appTarget()),350);
+    }catch(e){showMessage(e.message,'error');btn.disabled=false;btn.textContent='Gem ny adgangskode'}
+  }
+
+  $('email').value=localStorage.getItem(LAST_EMAIL)||'';
+  $('login').addEventListener('click',login);
+  $('forgot').addEventListener('click',sendRecovery);
+  $('savePassword').addEventListener('click',saveNewPassword);
+  $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+  $('newPasswordAgain').addEventListener('keydown',e=>{if(e.key==='Enter')saveNewPassword()});
+  if(recoveryType==='recovery'&&recoveryToken){$('loginMode').classList.add('hidden');$('recoveryMode').classList.remove('hidden');showMessage('Nulstillingslinket er godkendt. Vælg din nye adgangskode.','ok')}
+  else validateExisting();
+})();
+</script>
+</body>
+</html>
