@@ -1,10 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
+let cachedBaseHtml = null;
+
 module.exports = async function handler(req, res) {
   try {
     const file = path.join(process.cwd(), 'index.html');
-    let html = fs.readFileSync(file, 'utf8');
+    if (cachedBaseHtml == null) cachedBaseHtml = fs.readFileSync(file, 'utf8');
+    let html = cachedBaseHtml;
 
     // Keep the proven CRM core and generic login shell.
     html = html
@@ -52,6 +55,32 @@ module.exports = async function handler(req, res) {
       "/* stable core: global mail-follow-up MutationObserver disabled; click + interval remain */"
     );
 
+    // Performance: replace whole-document observers/pollers with narrow event-driven observers.
+    html = html.replace(
+      "document.addEventListener('click',()=>setTimeout(watch,30),true);new MutationObserver(watch).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});setInterval(watch,800);setTimeout(watch,800);",
+      "document.addEventListener('click',()=>setTimeout(watch,30),true);const lmGhDrawer=document.getElementById('drawer');if(lmGhDrawer)new MutationObserver(watch).observe(lmGhDrawer,{attributes:true,attributeFilter:['class']});setTimeout(watch,400);"
+    );
+    html = html.replace(
+      "new MutationObserver(watch).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});document.addEventListener('click',()=>setTimeout(watch,20),true);setInterval(watch,800);",
+      "const lmContactDrawer=document.getElementById('drawer');if(lmContactDrawer)new MutationObserver(watch).observe(lmContactDrawer,{attributes:true,attributeFilter:['class']});document.addEventListener('click',()=>setTimeout(watch,20),true);"
+    );
+    html = html.replace(
+      "document.addEventListener('click',()=>setTimeout(watch,30),true);new MutationObserver(watch).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});setInterval(watch,700);",
+      "document.addEventListener('click',()=>setTimeout(watch,30),true);const lmCustomerDrawer=document.getElementById('drawer');if(lmCustomerDrawer)new MutationObserver(watch).observe(lmCustomerDrawer,{attributes:true,attributeFilter:['class']});"
+    );
+    html = html.replace(
+      "new MutationObserver(()=>installQuickStatus()).observe(document.documentElement,{subtree:true,childList:true});",
+      "/* performance: quick status is installed by initial load + click events; global DOM observer removed */"
+    );
+    html = html.replace(
+      "new MutationObserver(bind).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});\n  setInterval(()=>{bind();correct()},500);\n  setTimeout(bind,500);",
+      "const lmCorrectionModal=document.getElementById('mailModal');if(lmCorrectionModal)new MutationObserver(()=>{bind();correct()}).observe(lmCorrectionModal,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});\n  setTimeout(()=>{bind();correct()},300);"
+    );
+    html = html.replace(
+      "setInterval(renderFocus,2500)",
+      "window.addEventListener('lm:data-refreshed',renderFocus)"
+    );
+
     // Add RPC support to the tiny built-in Supabase client used by stable modules.
     html = html.replace(
       "return {auth,from:(table)=>new Query(table)};",
@@ -66,12 +95,12 @@ module.exports = async function handler(req, res) {
 
     // Strip every older SaaS/Microsoft startup layer. Only stable customer modules are allowed.
     html = html.replace(/<script[^>]+src="\/saas-[^"]+"[^>]*><\/script>/g, '');
-    html = html.replace('</body>', '<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-admin-client-switcher-v1.js?v=20260903-1"></script>\n<script src="/saas-lead-intake-v1.js?v=20260901-1"></script>\n<script src="/saas-offer-intake-v1.js?v=20260902-1"></script>\n<script src="/saas-offer-search-controls-v2.js?v=20260902-2"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n<script src="/saas-feedback-v1.js?v=20260901-1"></script>\n<script src="/saas-regression-center-v1.js?v=20260909-1"></script>\n<script src="/saas-irrelevant-learning-v1.js?v=20260901-1"></script>\n<script src="/saas-microsoft-v1.js?v=20260901-1"></script>\n<script src="/saas-mail-providers-v1.js?v=20260902-1"></script>\n<script src="/saas-mail-sender-name-v1.js?v=20260903-1"></script>\n<script src="/saas-minuba-v1.js?v=20260901-1"></script>\n<script src="/saas-credit-check-v1.js?v=20260902-1"></script>\n<script src="/saas-marketing-leads-v1.js?v=20260903-1"></script>\n<script src="/saas-marketing-connections-v1.js?v=20260903-1"></script>\n<script src="/offer-date-save-v1.js?v=20260909-1"></script>\n<script src="/date-picker-click-v1.js?v=20260909-2"></script>\n<script src="/offer-mail-pdf-v1.js?v=20260909-1"></script>\n</body>');
+    html = html.replace('</body>', '<script src="/performance-v1.js?v=20260909-2"></script>\n<script src="/saas-onboarding-v3.js?v=20260901-1"></script>\n<script src="/saas-customer-controls-v1.js?v=20260901-1"></script>\n<script src="/saas-admin-client-switcher-v1.js?v=20260903-1"></script>\n<script src="/saas-lead-intake-v1.js?v=20260901-1"></script>\n<script src="/saas-offer-intake-v1.js?v=20260902-1"></script>\n<script src="/saas-offer-search-controls-v2.js?v=20260902-2"></script>\n<script src="/saas-response-panel-v1.js?v=20260901-1"></script>\n<script src="/saas-feedback-v1.js?v=20260901-1"></script>\n<script src="/saas-regression-center-v1.js?v=20260909-1"></script>\n<script src="/saas-irrelevant-learning-v1.js?v=20260901-1"></script>\n<script src="/saas-microsoft-v1.js?v=20260901-1"></script>\n<script src="/saas-mail-providers-v1.js?v=20260902-1"></script>\n<script src="/saas-mail-sender-name-v1.js?v=20260903-1"></script>\n<script src="/saas-minuba-v1.js?v=20260901-1"></script>\n<script src="/saas-credit-check-v1.js?v=20260902-1"></script>\n<script src="/saas-marketing-leads-v1.js?v=20260903-1"></script>\n<script src="/saas-marketing-connections-v1.js?v=20260903-1"></script>\n<script src="/offer-date-save-v1.js?v=20260909-1"></script>\n<script src="/date-picker-click-v1.js?v=20260909-2"></script>\n<script src="/offer-mail-pdf-v1.js?v=20260909-1"></script>\n</body>');
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Lead-Manager-Mode', 'stable-core+onboarding-v3+customer-controls-v1+admin-client-switcher-v1+lead-intake-v1+offer-search-controls-v2+closed-offer-status+response-panel-v1+feedback-v1+regression-center-v1+irrelevant-learning-v1+microsoft-v1+mail-providers-v1+mail-sender-name-v1+minuba-v1+credit-check-v1+marketing-leads-v1+marketing-connections-v1+offer-date-save-v1+date-picker-click-v2+offer-mail-pdf-v1');
+    res.setHeader('X-Lead-Manager-Mode', 'stable-core+performance-v1+event-driven-ui+onboarding-v3+customer-controls-v1+admin-client-switcher-v1+lead-intake-v1+offer-search-controls-v2+closed-offer-status+response-panel-v1+feedback-v1+regression-center-v1+irrelevant-learning-v1+microsoft-v1+mail-providers-v1+mail-sender-name-v1+minuba-v1+credit-check-v1+marketing-leads-v1+marketing-connections-v1+offer-date-save-v1+date-picker-click-v2+offer-mail-pdf-v1');
     res.status(200).send(html);
   } catch (error) {
     console.error(error);
