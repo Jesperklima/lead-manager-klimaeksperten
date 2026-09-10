@@ -28,6 +28,7 @@ const viewRefreshKeys={
 };
 let fullLoaded=false;
 let refreshInFlight=null;
+let refreshClientId=null;
 let pendingRefresh=false;
 let pendingFull=false;
 let lastRefreshAt=0;
@@ -85,7 +86,7 @@ function refreshOpenSurface(changedKeys){
 }
 function updateSyncLabel(queryCount,ms){
   const el=document.getElementById('syncState');if(el)el.textContent='● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
-  window.__LM_PERF_STATS={last_refresh_at:new Date().toISOString(),queries:queryCount,duration_ms:Math.round(ms),dirty_tables:[...dirtyTables]};
+  window.__LM_PERF_STATS={last_refresh_at:new Date().toISOString(),queries:queryCount,duration_ms:Math.round(ms),dirty_tables:[...dirtyTables],client_id:state?.client?.id||null};
 }
 function installWriteTracker(){
   if(typeof supabase==='undefined'||typeof supabase.from!=='function'||supabase.from.__lmPerfWrapped)return;
@@ -103,12 +104,27 @@ function installSmartLoader(){
   fullLoaded=!!(state?.client?.id&&['companies','contacts','leads','offers','tasks'].some(k=>Array.isArray(state?.[k])&&state[k].length));
   if(fullLoaded)lastRefreshAt=Date.now();
   const smartLoad=async function(options={}){
+    const requestedClientId=state?.client?.id||null;
     const forceFull=options===true||options?.full===true||!fullLoaded;
-    if(refreshInFlight){pendingRefresh=true;pendingFull=pendingFull||forceFull;return refreshInFlight}
+    if(refreshInFlight){
+      if(requestedClientId&&refreshClientId&&requestedClientId!==refreshClientId){
+        const previous=refreshInFlight;
+        return previous.catch(()=>{}).then(()=>new Promise(resolve=>setTimeout(resolve,0))).then(()=>{
+          if(state?.client?.id!==requestedClientId)return;
+          return smartLoad(options);
+        });
+      }
+      pendingRefresh=true;pendingFull=pendingFull||forceFull;return refreshInFlight;
+    }
     const started=performance.now();
-    refreshInFlight=(async()=>{
-      if(forceFull){const out=await originalLoadAll();fullLoaded=true;dirtyTables.clear();lastRefreshAt=Date.now();updateSyncLabel(13,performance.now()-started);return out}
-      const cid=state?.client?.id;if(!cid)return;
+    const cid=requestedClientId;if(!cid)return;
+    refreshClientId=cid;
+    const thisRefresh=(async()=>{
+      if(forceFull){
+        const out=await originalLoadAll();
+        if(state?.client?.id!==cid)return out;
+        fullLoaded=true;dirtyTables.clear();lastRefreshAt=Date.now();updateSyncLabel(13,performance.now()-started);return out
+      }
       let keys=[...new Set([...dirtyTables].map(t=>tableToKey[t]).filter(Boolean))];dirtyTables.clear();
       if(!keys.length)keys=keysForActiveView();
       if(Array.isArray(options?.keys)&&options.keys.length)keys=[...new Set(options.keys.filter(k=>keyToTable[k]))];
@@ -118,7 +134,11 @@ function installSmartLoader(){
       lastRefreshAt=Date.now();renderView();refreshOpenSurface(keys);if(keys.includes('offers'))safeCall('renderOfferPipeline');updateSyncLabel(keys.length,performance.now()-started);
       window.dispatchEvent(new CustomEvent('lm:data-refreshed',{detail:{keys,duration_ms:Math.round(performance.now()-started),client_id:cid}}));
     })();
-    try{return await refreshInFlight}finally{refreshInFlight=null;if(pendingRefresh){const full=pendingFull;pendingRefresh=false;pendingFull=false;if(dirtyTables.size||full)setTimeout(()=>smartLoad({full}),0)}}
+    refreshInFlight=thisRefresh;
+    try{return await thisRefresh}finally{
+      if(refreshInFlight===thisRefresh){refreshInFlight=null;refreshClientId=null}
+      if(pendingRefresh&&!refreshInFlight){const full=pendingFull;pendingRefresh=false;pendingFull=false;if(dirtyTables.size||full)setTimeout(()=>smartLoad({full}),0)}
+    }
   };
   smartLoad.__lmPerfWrapped=true;smartLoad.full=()=>smartLoad({full:true});window.loadAll=smartLoad;return true;
 }
