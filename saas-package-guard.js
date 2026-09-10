@@ -38,7 +38,7 @@
     hidden(document.querySelector('.nav button[data-view="approvals"]'),!allowed('allow_approvals'));
     hidden(document.getElementById('approvals'),!allowed('allow_approvals'));
 
-    // Minuba is Business-only. Legacy customer cards may recreate its block.
+    // Minuba is available in Pro and Business, but not Start. Legacy customer cards may recreate its block.
     document.querySelectorAll('.minuba-rel').forEach(block=>{
       const section=block.closest('.customer-section');hidden(section||block,!allowed('allow_minuba'));
     });
