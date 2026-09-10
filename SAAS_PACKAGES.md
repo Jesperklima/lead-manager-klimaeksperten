@@ -30,7 +30,7 @@ Ikke inkluderet:
 - Aktivitetsrapport
 - Mailgodkendelser
 - Udbuds-/tendersøgning
-- Minuba
+- Minuba-integration
 
 ## Pakke 2 · Pro
 
@@ -43,20 +43,19 @@ Alt i Pakke 1 plus:
 - Mailstyret Tilbudspipeline
 - Aktivitetsrapport
 - Godkendelsescenter
+- Minuba-integration
+- Minuba-verifikation af tilbudsstatus, ordre og tidligere kundeforhold
 - Op til 300 kontaktberigelser pr. måned
 - Op til 300 AI-mailudkast pr. måned
 
 Ikke inkluderet:
 - Udbuds-/tendersøgning
-- Minuba-verifikation
 
 ## Pakke 3 · Business
 
 Alt i Pakke 2 plus:
 
 - Opportunity & Tender Hunter
-- Minuba-integration
-- Minuba-verifikation af tilbudsstatus, ordre og tidligere kundeforhold
 - Op til 600 kontaktberigelser pr. måned
 - Op til 1.000 AI-mailudkast pr. måned
 - Fair-use: maks. 200 manuelt sendte mails pr. dag
@@ -66,7 +65,8 @@ Alt i Pakke 2 plus:
 Feature-adgang håndhæves både i frontend og backend. En skjult menu er ikke i sig selv en sikkerhedsgrænse.
 
 - Tenant-adgang bindes til Supabase `auth.uid()`.
-- Pakke 1 kan sende via egen mail, men kan ikke læse mailhistorik eller tilbudstabeller via REST API.
+- Pakke 1 kan sende via egen mail, men kan ikke læse mailhistorik, tilbudstabeller eller bruge Minuba-integration via REST API.
+- Pakke 2 og Pakke 3 kan bruge Minuba-integration og Minuba-verifikation.
 - Plan og fair-use kan kun ændres af backend/service role.
 - Forbrug kan ikke nulstilles af kunden ved at slette CRM-data.
 - Kundens Lead Hunter bruger kun kundens egen capability profile, geografi, målgrupper og exclusions.
