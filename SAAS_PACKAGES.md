@@ -57,7 +57,7 @@ Alt i Pakke 2 plus:
 
 - Opportunity & Tender Hunter
 - Op til 600 kontaktberigelser pr. måned
-- Op til 1.000 AI-mailudkast pr. måned
+- Op til 600 AI-mailudkast pr. måned
 - Fair-use: maks. 200 manuelt sendte mails pr. dag
 
 ## Sikkerhed
