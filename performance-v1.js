@@ -11,7 +11,21 @@ const tableToKey={
 };
 const keyToTable=Object.fromEntries(Object.entries(tableToKey).map(([table,key])=>[key,table]));
 const dirtyTables=new Set();
-const externalRefreshKeys=['companies','contacts','leads','activities','mail','offers','approvals','tasks','requests','intelligence','integrations'];
+const viewRefreshKeys={
+  dashboard:['companies','contacts','leads','activities','offers','tasks'],
+  leads:['companies','contacts','leads'],
+  pipeline:['companies','contacts','leads'],
+  offers:['companies','offers'],
+  offerpipeline:['companies','offers'],
+  calendar:['leads','offers','tasks'],
+  mail:['mail'],
+  activity:['activities'],
+  approvals:['approvals'],
+  leadmanager:['integrations'],
+  agents:['runs','requests'],
+  marketingLeads:['companies','contacts','leads'],
+  marketingConnections:['integrations']
+};
 let fullLoaded=false;
 let refreshInFlight=null;
 let pendingRefresh=false;
@@ -38,6 +52,7 @@ function queryFor(key,cid){
 }
 
 function activeView(){return document.querySelector('.nav button[data-view].active')?.dataset?.view||'dashboard'}
+function keysForActiveView(){return [...(viewRefreshKeys[activeView()]||['companies','leads','offers','tasks'])]}
 function safeCall(name){try{if(typeof window[name]==='function')window[name]()}catch(e){console.warn('perf render '+name,e)}}
 function renderView(view=activeView()){
   switch(view){
@@ -95,12 +110,13 @@ function installSmartLoader(){
       if(forceFull){const out=await originalLoadAll();fullLoaded=true;dirtyTables.clear();lastRefreshAt=Date.now();updateSyncLabel(13,performance.now()-started);return out}
       const cid=state?.client?.id;if(!cid)return;
       let keys=[...new Set([...dirtyTables].map(t=>tableToKey[t]).filter(Boolean))];dirtyTables.clear();
-      if(!keys.length)keys=[...externalRefreshKeys];
+      if(!keys.length)keys=keysForActiveView();
       if(Array.isArray(options?.keys)&&options.keys.length)keys=[...new Set(options.keys.filter(k=>keyToTable[k]))];
       const results=await Promise.all(keys.map(async key=>[key,await queryFor(key,cid)]));
+      if(state?.client?.id!==cid)return;
       for(const [key,r] of results){if(r?.error){console.error('perf refresh '+key,r.error);if(typeof toast==='function')toast('Fejl ved '+key);continue}state[key]=r?.data||[]}
       lastRefreshAt=Date.now();renderView();refreshOpenSurface(keys);if(keys.includes('offers'))safeCall('renderOfferPipeline');updateSyncLabel(keys.length,performance.now()-started);
-      window.dispatchEvent(new CustomEvent('lm:data-refreshed',{detail:{keys,duration_ms:Math.round(performance.now()-started)}}));
+      window.dispatchEvent(new CustomEvent('lm:data-refreshed',{detail:{keys,duration_ms:Math.round(performance.now()-started),client_id:cid}}));
     })();
     try{return await refreshInFlight}finally{refreshInFlight=null;if(pendingRefresh){const full=pendingFull;pendingRefresh=false;pendingFull=false;if(dirtyTables.size||full)setTimeout(()=>smartLoad({full}),0)}}
   };
@@ -113,7 +129,7 @@ function installNavigationRendering(){
 function boot(){
   if(typeof state==='undefined'||typeof supabase==='undefined'||typeof window.loadAll!=='function'){setTimeout(boot,25);return}
   installWriteTracker();installSmartLoader();installNavigationRendering();
-  window.__LM_PERF={refreshFull:()=>window.loadAll({full:true}),refreshKeys:(...keys)=>window.loadAll({keys}),getStats:()=>window.__LM_PERF_STATS||null,getDirtyTables:()=>[...dirtyTables],getLastRefreshAge:()=>lastRefreshAt?Date.now()-lastRefreshAt:null};
+  window.__LM_PERF={refreshFull:()=>window.loadAll({full:true}),refreshKeys:(...keys)=>window.loadAll({keys}),renderCurrent:()=>renderView(),getStats:()=>window.__LM_PERF_STATS||null,getDirtyTables:()=>[...dirtyTables],getLastRefreshAge:()=>lastRefreshAt?Date.now()-lastRefreshAt:null};
 }
 boot();
 })();
