@@ -2,7 +2,7 @@
 'use strict';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 const STORAGE='lm_admin_active_client_v1';
-const CACHE_PREFIX='lm_admin_client_cache_v3:';
+const CACHE_PREFIX='lm_admin_client_cache_v4:';
 const CACHE_TTL=5*60*1000;
 let rows=[],busy=false,loaded=false;
 const prewarmInFlight=new Map();
@@ -19,7 +19,15 @@ function managedUi(r){const managed=!!r&&!r.is_home;document.body.dataset.lmMana
 function cacheCurrent(){const id=state?.client?.id;if(!id)return;try{const payload={ts:Date.now(),client:state.client};for(const k of stateKeys)if(Array.isArray(state?.[k]))payload[k]=state[k];sessionStorage.setItem(CACHE_PREFIX+id,JSON.stringify(payload))}catch{}}
 function restoreCached(id){try{const raw=sessionStorage.getItem(CACHE_PREFIX+id);if(!raw)return false;const c=JSON.parse(raw);if(!c?.client||Date.now()-c.ts>CACHE_TTL){sessionStorage.removeItem(CACHE_PREFIX+id);return false}clearTenantState();state.client=c.client;for(const k of stateKeys)if(Array.isArray(c[k]))state[k]=c[k];return true}catch{return false}}
 function activate(row){localStorage.setItem(STORAGE,state.client.id);if($('brandClient'))$('brandClient').textContent=state.client.name+(row.is_home?' · Admin':'');managedUi(row);render();window.dispatchEvent(new CustomEvent('lm:client-switching',{detail:{client_id:state.client.id,client:state.client,managed:!row.is_home,source:row.source||null}}))}
-function renderCurrentSurface(){try{if(window.__LM_PERF?.renderCurrent)window.__LM_PERF.renderCurrent();else if(typeof render==='function')render()}catch(e){console.warn('profile render',e)}const active=document.querySelector('.nav button[data-view="marketingLeads"].active,.nav button[data-view="marketingConnections"].active');if(active&&typeof active.click==='function')active.click()}
+function renderCurrentSurface(){
+  try{
+    if(typeof window.render==='function')window.render();
+    else if(window.__LM_PERF?.renderCurrent)window.__LM_PERF.renderCurrent();
+  }catch(e){console.warn('profile render',e)}
+  const active=document.querySelector('.nav button[data-view="marketingLeads"].active,.nav button[data-view="marketingConnections"].active');
+  if(active&&typeof active.click==='function')active.click();
+  window.dispatchEvent(new CustomEvent('lm:client-page-rendered',{detail:{client_id:state?.client?.id||null}}));
+}
 
 async function fetchSnapshot(id){
   const results=await Promise.all([
@@ -39,16 +47,12 @@ async function fetchSnapshot(id){
     supabase.from('crm_integrations').select('*').eq('client_id',id)
   ]);
   const first=results[0];if(first.error||!first.data)throw new Error(first.error?.message||'Kundeprofil kunne ikke hentes');
-  const keys=stateKeys;const payload={ts:Date.now(),client:first.data};
-  keys.forEach((k,i)=>{const r=results[i+1];if(r?.error)console.warn('preload '+k,r.error);payload[k]=r?.error?[]:(r?.data||[])});
+  const payload={ts:Date.now(),client:first.data};
+  stateKeys.forEach((k,i)=>{const r=results[i+1];if(r?.error)console.warn('preload '+k,r.error);payload[k]=r?.error?[]:(r?.data||[])});
   return payload;
 }
 function saveSnapshot(id,payload){try{sessionStorage.setItem(CACHE_PREFIX+id,JSON.stringify(payload))}catch{}}
-function getSnapshot(id){
-  if(prewarmInFlight.has(id))return prewarmInFlight.get(id);
-  const p=fetchSnapshot(id).then(payload=>{saveSnapshot(id,payload);return payload}).finally(()=>prewarmInFlight.delete(id));
-  prewarmInFlight.set(id,p);return p;
-}
+function getSnapshot(id){if(prewarmInFlight.has(id))return prewarmInFlight.get(id);const p=fetchSnapshot(id).then(payload=>{saveSnapshot(id,payload);return payload}).finally(()=>prewarmInFlight.delete(id));prewarmInFlight.set(id,p);return p}
 async function refreshSnapshot(id){
   try{
     const payload=await getSnapshot(id);if(state?.client?.id!==id)return;
@@ -65,8 +69,9 @@ async function switchClient(id,{silent=false}={}){
   try{
     cacheCurrent();
     const hadCache=restoreCached(id);
-    if(!hadCache){clearTenantState();state.client={id,name:row.client_name||'Kunde'};}
-    activate(row);renderCurrentSurface();
+    if(!hadCache){clearTenantState();state.client={id,name:row.client_name||'Kunde'}}
+    activate(row);
+    renderCurrentSurface();
     window.dispatchEvent(new CustomEvent('lm:client-switched',{detail:{client_id:id,client:state.client,managed:!row.is_home,source:row.source||null,workspace_id:row.workspace_id||null,cached:hadCache}}));
     if(!silent&&typeof toast==='function')toast(`Kundeprofil: ${state.client.name}`);
     refreshSnapshot(id);
@@ -74,15 +79,15 @@ async function switchClient(id,{silent=false}={}){
   finally{busy=false;if(sel)sel.disabled=false;render()}
 }
 async function prewarmProfiles(){
-  for(const row of rows){
-    if(row.client_id===state?.client?.id)continue;
+  const targets=rows.filter(row=>row.client_id!==state?.client?.id).map(async row=>{
     try{
-      const raw=sessionStorage.getItem(CACHE_PREFIX+row.client_id);if(raw){const c=JSON.parse(raw);if(c?.client&&Date.now()-c.ts<CACHE_TTL)continue}
+      const raw=sessionStorage.getItem(CACHE_PREFIX+row.client_id);if(raw){const c=JSON.parse(raw);if(c?.client&&Date.now()-c.ts<CACHE_TTL)return}
       await getSnapshot(row.client_id);
     }catch(e){console.warn('client prewarm',row.client_id,e)}
-  }
+  });
+  await Promise.allSettled(targets);
 }
-async function load(){if(loaded||!ready())return;loaded=true;try{const r=await supabase.rpc('crm_admin_list_managed_clients',{});if(r.error||!Array.isArray(r.data)||!r.data.length)return;rows=r.data;ensure();render();setTimeout(prewarmProfiles,50);const wanted=localStorage.getItem(STORAGE);if(wanted&&wanted!==state?.client?.id&&rows.some(x=>x.client_id===wanted))await switchClient(wanted,{silent:true});else managedUi(currentRow())}catch(e){console.warn('admin client switcher',e)} }
+async function load(){if(loaded||!ready())return;loaded=true;try{const r=await supabase.rpc('crm_admin_list_managed_clients',{});if(r.error||!Array.isArray(r.data)||!r.data.length)return;rows=r.data;ensure();render();setTimeout(prewarmProfiles,0);const wanted=localStorage.getItem(STORAGE);if(wanted&&wanted!==state?.client?.id&&rows.some(x=>x.client_id===wanted))await switchClient(wanted,{silent:true});else managedUi(currentRow())}catch(e){console.warn('admin client switcher',e)} }
 function init(){if(!ready()){setTimeout(init,250);return}load()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 window.addEventListener('lm:admin-clients-refresh',()=>{loaded=false;load()});
