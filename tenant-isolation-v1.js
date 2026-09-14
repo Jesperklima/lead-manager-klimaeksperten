@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
-if(window.__LM_TENANT_ISOLATION_V1)return;
-window.__LM_TENANT_ISOLATION_V1=true;
+if(window.__LM_TENANT_ISOLATION_V2)return;
+window.__LM_TENANT_ISOLATION_V2=true;
 
 const TENANT_TABLES=new Set([
   'crm_companies','crm_contacts','crm_leads','crm_activities','crm_mail_messages',
@@ -9,8 +9,16 @@ const TENANT_TABLES=new Set([
   'crm_agent_requests','crm_sales_intelligence','crm_integrations','crm_feedback',
   'crm_credit_checks','crm_marketing_leads','crm_marketing_connections'
 ]);
+const STATE_KEYS=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];
 const activeClientId=()=>{try{return state?.client?.id||null}catch{return null}};
+const sameTenant=(row,cid)=>!!row&&typeof row==='object'&&Object.prototype.hasOwnProperty.call(row,'client_id')&&String(row.client_id)===String(cid);
 
+function sanitizeResult(data,cid,table){
+  if(!cid||!TENANT_TABLES.has(table))return data;
+  if(Array.isArray(data))return data.filter(row=>sameTenant(row,cid));
+  if(data==null)return data;
+  return sameTenant(data,cid)?data:null;
+}
 function installSupabaseGuard(){
   if(typeof supabase==='undefined'||typeof supabase.from!=='function'||supabase.from.__lmTenantGuard)return false;
   const originalFrom=supabase.from.bind(supabase);
@@ -20,14 +28,16 @@ function installSupabaseGuard(){
     const originalExecute=q.execute.bind(q);
     q.execute=async function(){
       const cid=activeClientId();
-      if(!cid)return originalExecute();
+      if(!cid)return {data:null,error:new Error('Tenant mangler: forespørgsel blokeret')};
       const hasClientFilter=Array.isArray(q.params)&&q.params.some(([k])=>k==='client_id');
       if(!hasClientFilter&&typeof q.eq==='function')q.eq('client_id',cid);
       if(q.method==='POST'&&q.body){
-        if(Array.isArray(q.body))q.body=q.body.map(row=>row&&typeof row==='object'?{...row,client_id:row.client_id||cid}:row);
-        else if(typeof q.body==='object')q.body={...q.body,client_id:q.body.client_id||cid};
+        const enforce=row=>row&&typeof row==='object'?{...row,client_id:cid}:row;
+        q.body=Array.isArray(q.body)?q.body.map(enforce):enforce(q.body);
       }
-      return originalExecute();
+      const result=await originalExecute();
+      if(result&&'data' in result)result.data=sanitizeResult(result.data,cid,table);
+      return result;
     };
     return q;
   };
@@ -35,65 +45,49 @@ function installSupabaseGuard(){
   supabase.from=guarded;
   return true;
 }
-
 function installFetchGuard(){
   if(window.fetch.__lmTenantGuard)return;
   const originalFetch=window.fetch.bind(window);
   const guarded=async function(input,init){
+    const cid=activeClientId();
+    const raw=typeof input==='string'?input:(input?.url||'');
     try{
-      const cid=activeClientId();
-      const raw=typeof input==='string'?input:(input?.url||'');
-      if(cid&&raw.includes('/rest/v1/')){
+      if(raw.includes('/rest/v1/')){
         const u=new URL(raw,location.origin);
         const m=u.pathname.match(/\/rest\/v1\/([^/]+)$/);
         const table=m?decodeURIComponent(m[1]):'';
-        if(TENANT_TABLES.has(table)&&!u.searchParams.has('client_id')){
-          u.searchParams.append('client_id','eq.'+cid);
-          if(typeof input==='string')input=u.toString();
-          else input=new Request(u.toString(),input);
+        if(TENANT_TABLES.has(table)){
+          if(!cid)throw new Error('Tenant mangler: REST-kald blokeret');
+          u.searchParams.set('client_id','eq.'+cid);
+          if(typeof input==='string')input=u.toString();else input=new Request(u.toString(),input);
         }
       }
-    }catch(e){console.warn('tenant fetch guard',e)}
+    }catch(e){console.error('tenant fetch blocked',e);throw e}
     return originalFetch(input,init);
   };
-  guarded.__lmTenantGuard=true;
-  window.fetch=guarded;
+  guarded.__lmTenantGuard=true;window.fetch=guarded;
 }
-
 function clearCrossTenantUi(){
-  try{document.getElementById('drawer')?.classList.remove('open')}catch{}
-  try{document.getElementById('offerModal')?.classList.remove('open')}catch{}
-  try{document.getElementById('mailModal')?.classList.remove('open')}catch{}
+  ['drawer','offerModal','mailModal'].forEach(id=>{try{document.getElementById(id)?.classList.remove('open')}catch{}});
   try{const report=document.getElementById('activityReport');if(report)delete report.dataset.realLoaded}catch{}
   try{if(typeof currentLead!=='undefined')currentLead=null}catch{}
   try{if(typeof currentOffer!=='undefined')currentOffer=null}catch{}
 }
-
 function assertStateTenant(){
-  const cid=activeClientId();if(!cid)return;
-  const keys=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];
+  const cid=activeClientId();
+  if(!cid){for(const key of STATE_KEYS)try{if(Array.isArray(state?.[key]))state[key]=[]}catch{};clearCrossTenantUi();return false}
   let removed=0;
-  for(const key of keys){
-    try{
-      if(!Array.isArray(state?.[key]))continue;
-      const before=state[key].length;
-      state[key]=state[key].filter(row=>!row?.client_id||row.client_id===cid);
-      removed+=before-state[key].length;
-    }catch{}
+  for(const key of STATE_KEYS){
+    try{if(!Array.isArray(state?.[key]))continue;const before=state[key].length;state[key]=state[key].filter(row=>sameTenant(row,cid));removed+=before-state[key].length}catch{}
   }
-  if(removed){
-    console.error('Tenant isolation removed cross-client rows',removed,cid);
-    try{if(typeof render==='function')render()}catch{}
-  }
+  if(removed){console.error('SECURITY: cross-tenant rows blocked',removed,cid);clearCrossTenantUi();try{if(typeof render==='function')render()}catch{}}
+  return removed===0;
 }
-
 function boot(){
   if(typeof supabase==='undefined'||typeof state==='undefined'){setTimeout(boot,25);return}
   installSupabaseGuard();installFetchGuard();assertStateTenant();
-  window.addEventListener('lm:client-switching',()=>{clearCrossTenantUi();queueMicrotask(assertStateTenant)});
-  window.addEventListener('lm:client-data-ready',assertStateTenant);
-  window.addEventListener('lm:data-refreshed',assertStateTenant);
-  window.__LM_TENANT_GUARD={assert:assertStateTenant,activeClientId};
+  ['lm:tenant-reset','lm:client-switching','lm:client-switched','lm:client-data-ready','lm:data-refreshed','lm:client-page-rendered'].forEach(ev=>window.addEventListener(ev,()=>queueMicrotask(assertStateTenant)));
+  window.__LM_TENANT_GUARD={assert:assertStateTenant,activeClientId,sameTenant};
 }
 boot();
 })();
