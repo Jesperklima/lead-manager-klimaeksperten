@@ -2,7 +2,7 @@
 'use strict';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
 const STORAGE='lm_admin_active_client_v1';
-const CACHE_PREFIX='lm_admin_client_cache_v4:';
+const CACHE_PREFIX='lm_admin_client_cache_v5:';
 const CACHE_TTL=5*60*1000;
 let rows=[],busy=false,loaded=false;
 const prewarmInFlight=new Map();
@@ -16,8 +16,11 @@ function label(r){return r.is_home?`${r.client_name} · Min profil`:r.client_nam
 function render(){ensure();const sel=$('lmAdminClientSelect');if(!sel)return;sel.innerHTML=rows.map(r=>`<option value="${esc(r.client_id)}">${esc(label(r))}</option>`).join('');if(state?.client?.id)sel.value=state.client.id;const r=currentRow(),meta=$('lmAdminClientMeta');if(!meta)return;if(!r){meta.innerHTML='';return}if(r.is_home){meta.innerHTML='Din interne Lead Manager profil.<br><span class="lmac-pill">Admin</span>';return}meta.innerHTML=`Kundeprofil<br><span class="lmac-pill">${r.marketing_active===false?'Marketing pause':'Marketing aktiv'}</span>`}
 function clearTenantState(){for(const k of stateKeys)if(Array.isArray(state?.[k]))state[k]=[];try{currentLead=null}catch{}try{currentOffer=null}catch{}}
 function managedUi(r){const managed=!!r&&!r.is_home;document.body.dataset.lmManagedProfile=managed?'1':'0';['saasInviteCard','lmLeadSettingsCard'].forEach(id=>{const el=$(id);if(el)el.style.display=managed?'none':''})}
-function cacheCurrent(){const id=state?.client?.id;if(!id)return;try{const payload={ts:Date.now(),client:state.client};for(const k of stateKeys)if(Array.isArray(state?.[k]))payload[k]=state[k];sessionStorage.setItem(CACHE_PREFIX+id,JSON.stringify(payload))}catch{}}
-function restoreCached(id){try{const raw=sessionStorage.getItem(CACHE_PREFIX+id);if(!raw)return false;const c=JSON.parse(raw);if(!c?.client||Date.now()-c.ts>CACHE_TTL){sessionStorage.removeItem(CACHE_PREFIX+id);return false}clearTenantState();state.client=c.client;for(const k of stateKeys)if(Array.isArray(c[k]))state[k]=c[k];return true}catch{return false}}
+function belongsToClient(item,id){if(!item||typeof item!=='object')return true;if(!Object.prototype.hasOwnProperty.call(item,'client_id'))return true;return String(item.client_id)===String(id)}
+function sanitizeArray(arr,id){return Array.isArray(arr)?arr.filter(item=>belongsToClient(item,id)):[]}
+function snapshotValid(payload,id){if(!payload?.client||String(payload.client.id)!==String(id))return false;for(const k of stateKeys){if(Array.isArray(payload[k])&&payload[k].some(item=>!belongsToClient(item,id)))return false}return true}
+function cacheCurrent(){const id=state?.client?.id;if(!id)return;try{const payload={ts:Date.now(),client:state.client,client_id:id};for(const k of stateKeys)payload[k]=sanitizeArray(state?.[k],id);sessionStorage.setItem(CACHE_PREFIX+id,JSON.stringify(payload))}catch{}}
+function restoreCached(id){try{const raw=sessionStorage.getItem(CACHE_PREFIX+id);if(!raw)return false;const c=JSON.parse(raw);if(Date.now()-c.ts>CACHE_TTL||!snapshotValid(c,id)){sessionStorage.removeItem(CACHE_PREFIX+id);return false}clearTenantState();state.client=c.client;for(const k of stateKeys)state[k]=sanitizeArray(c[k],id);return true}catch{return false}}
 function activate(row){localStorage.setItem(STORAGE,state.client.id);if($('brandClient'))$('brandClient').textContent=state.client.name+(row.is_home?' · Admin':'');managedUi(row);render();window.dispatchEvent(new CustomEvent('lm:client-switching',{detail:{client_id:state.client.id,client:state.client,managed:!row.is_home,source:row.source||null}}))}
 function renderCurrentSurface(){
   try{
@@ -47,19 +50,22 @@ async function fetchSnapshot(id){
     supabase.from('crm_integrations').select('*').eq('client_id',id)
   ]);
   const first=results[0];if(first.error||!first.data)throw new Error(first.error?.message||'Kundeprofil kunne ikke hentes');
-  const payload={ts:Date.now(),client:first.data};
-  stateKeys.forEach((k,i)=>{const r=results[i+1];if(r?.error)console.warn('preload '+k,r.error);payload[k]=r?.error?[]:(r?.data||[])});
+  if(String(first.data.id)!==String(id))throw new Error('Forkert kundeprofil returneret');
+  const payload={ts:Date.now(),client:first.data,client_id:id};
+  stateKeys.forEach((k,i)=>{const r=results[i+1];if(r?.error)console.warn('preload '+k,r.error);payload[k]=r?.error?[]:sanitizeArray(r?.data,id)});
+  if(!snapshotValid(payload,id))throw new Error('Kundedata bestod ikke tenant-kontrol');
   return payload;
 }
-function saveSnapshot(id,payload){try{sessionStorage.setItem(CACHE_PREFIX+id,JSON.stringify(payload))}catch{}}
+function saveSnapshot(id,payload){try{if(snapshotValid(payload,id))sessionStorage.setItem(CACHE_PREFIX+id,JSON.stringify(payload))}catch{}}
 function getSnapshot(id){if(prewarmInFlight.has(id))return prewarmInFlight.get(id);const p=fetchSnapshot(id).then(payload=>{saveSnapshot(id,payload);return payload}).finally(()=>prewarmInFlight.delete(id));prewarmInFlight.set(id,p);return p}
 async function refreshSnapshot(id){
   try{
     const payload=await getSnapshot(id);if(state?.client?.id!==id)return;
-    state.client=payload.client;for(const k of stateKeys)state[k]=Array.isArray(payload[k])?payload[k]:[];
+    if(!snapshotValid(payload,id))throw new Error('Forkert kundedata blokeret');
+    clearTenantState();state.client=payload.client;for(const k of stateKeys)state[k]=sanitizeArray(payload[k],id);
     const row=rows.find(x=>x.client_id===id);if(row)activate(row);renderCurrentSurface();
     window.dispatchEvent(new CustomEvent('lm:client-data-ready',{detail:{client_id:id}}));
-  }catch(e){console.warn('background client refresh',e);if(state?.client?.id===id&&typeof toast==='function')toast('Kundeprofilen kunne ikke opdateres')}
+  }catch(e){console.warn('background client refresh',e);if(state?.client?.id===id&&typeof toast==='function')toast('Kundeprofilen kunne ikke opdateres sikkert')}
 }
 
 async function switchClient(id,{silent=false}={}){
@@ -68,20 +74,23 @@ async function switchClient(id,{silent=false}={}){
   busy=true;const sel=$('lmAdminClientSelect');if(sel)sel.disabled=true;
   try{
     cacheCurrent();
+    clearTenantState();
+    state.client={id,name:row.client_name||'Kunde'};
+    window.dispatchEvent(new CustomEvent('lm:tenant-reset',{detail:{client_id:id}}));
     const hadCache=restoreCached(id);
-    if(!hadCache){clearTenantState();state.client={id,name:row.client_name||'Kunde'}}
+    if(!hadCache){state.client={id,name:row.client_name||'Kunde'}}
     activate(row);
     renderCurrentSurface();
     window.dispatchEvent(new CustomEvent('lm:client-switched',{detail:{client_id:id,client:state.client,managed:!row.is_home,source:row.source||null,workspace_id:row.workspace_id||null,cached:hadCache}}));
     if(!silent&&typeof toast==='function')toast(`Kundeprofil: ${state.client.name}`);
     refreshSnapshot(id);
-  }catch(e){if(typeof toast==='function')toast(e.message||String(e));localStorage.removeItem(STORAGE)}
+  }catch(e){clearTenantState();if(typeof toast==='function')toast(e.message||String(e));localStorage.removeItem(STORAGE)}
   finally{busy=false;if(sel)sel.disabled=false;render()}
 }
 async function prewarmProfiles(){
   const targets=rows.filter(row=>row.client_id!==state?.client?.id).map(async row=>{
     try{
-      const raw=sessionStorage.getItem(CACHE_PREFIX+row.client_id);if(raw){const c=JSON.parse(raw);if(c?.client&&Date.now()-c.ts<CACHE_TTL)return}
+      const raw=sessionStorage.getItem(CACHE_PREFIX+row.client_id);if(raw){const c=JSON.parse(raw);if(Date.now()-c.ts<CACHE_TTL&&snapshotValid(c,row.client_id))return;sessionStorage.removeItem(CACHE_PREFIX+row.client_id)}
       await getSnapshot(row.client_id);
     }catch(e){console.warn('client prewarm',row.client_id,e)}
   });
