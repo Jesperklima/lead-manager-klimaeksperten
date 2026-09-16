@@ -1,0 +1,10 @@
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const ready=()=>typeof state!=='undefined'&&state?.session&&typeof supabase!=='undefined';
+let isAdmin=false;
+function style(){if($('lmPlatformAdminStyle'))return;const s=document.createElement('style');s.id='lmPlatformAdminStyle';s.textContent=`#lmPlatformAdmin{margin:12px 10px;padding:10px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.08)}#lmPlatformAdmin .title{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;opacity:.75}#lmPlatformAdmin .badge{display:inline-block;margin-top:7px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.14);font-size:10px;font-weight:900}#lmPlatformAdmin .mail{margin-top:7px;font-size:11px;line-height:1.4;opacity:.82}`;document.head.appendChild(s)}
+async function load(){if(!ready())return setTimeout(load,200);try{const {data,error}=await supabase.rpc('crm_is_platform_admin',{});if(error)throw error;isAdmin=!!data;if(!isAdmin)return;style();const nav=document.querySelector('.side .nav');if(!nav)return;let box=$('lmPlatformAdmin');if(!box){box=document.createElement('div');box.id='lmPlatformAdmin';nav.parentNode.insertBefore(box,nav)}let mail='skarpstudio26@gmail.com',status='pending_oauth';try{const r=await supabase.from('crm_platform_settings').select('value').eq('key','system_mail').maybeSingle();if(r.data?.value){mail=r.data.value.account||mail;status=r.data.value.status||status}}catch{}box.innerHTML=`<div class="title">Lead Manager Platform</div><span class="badge">Platform Owner</span><div class="mail">Systemmail: ${mail}<br>${status==='connected'?'Forbundet':'Afventer Gmail-godkendelse'}</div>`;window.dispatchEvent(new CustomEvent('lm:platform-admin-ready',{detail:{system_mail:mail,status}}))}catch(e){console.warn('platform admin init failed',e)}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
+window.LMPlatformAdmin={get active(){return isAdmin}};
+})();
