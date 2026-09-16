@@ -1,15 +1,36 @@
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const STORAGE='lm_admin_active_client_v1';let rows=[],loaded=false;
+const STORAGE='lm_admin_active_client_v1';let rows=[],loaded=false,switchSeq=0;
 const ready=()=>typeof state!=='undefined'&&state?.session&&typeof supabase!=='undefined'&&typeof supabase.rpc==='function';
+const DATA_KEYS=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];
 function style(){if($('lmAdminSwitchStyle'))return;const s=document.createElement('style');s.id='lmAdminSwitchStyle';s.textContent=`#lmAdminClientSwitch{margin:12px 10px 4px;padding:10px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(255,255,255,.06)}#lmAdminClientSwitch label{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.72;margin-bottom:5px}#lmAdminClientSwitch select{width:100%;border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:8px 9px;background:#fff!important;color:#17212b!important;font:inherit;color-scheme:light}#lmAdminClientSwitch select option{background:#fff;color:#17212b}#lmAdminClientSwitch .lmac-meta{font-size:11px;line-height:1.35;opacity:.72;margin-top:6px}#lmAdminClientSwitch .lmac-pill{display:inline-block;margin-top:6px;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.12);font-size:10px;font-weight:800}`;document.head.appendChild(s)}
 function ensure(){style();let box=$('lmAdminClientSwitch');const nav=document.querySelector('.side .nav');if(!nav)return null;if(!box){box=document.createElement('div');box.id='lmAdminClientSwitch';nav.parentNode.insertBefore(box,nav)}box.innerHTML='<label for="lmAdminClientSelect">Kundeprofil</label><select id="lmAdminClientSelect" aria-label="Vælg kundeprofil"></select><div class="lmac-meta" id="lmAdminClientMeta"></div>';const sel=$('lmAdminClientSelect');sel.addEventListener('change',e=>switchClient(e.target.value));return sel}
 function currentRow(){return rows.find(x=>String(x.client_id)===String(state?.client?.id))||null}
 function render(){let sel=$('lmAdminClientSelect');if(!sel)sel=ensure();if(!sel)return;sel.innerHTML='';for(const r of rows){const o=document.createElement('option');o.value=String(r.client_id);o.textContent=r.is_home?`${r.client_name} · Min profil`:r.client_name;sel.appendChild(o)}if(state?.client?.id&&rows.some(r=>String(r.client_id)===String(state.client.id)))sel.value=String(state.client.id);const r=currentRow(),meta=$('lmAdminClientMeta');if(meta)meta.innerHTML=!r?'':r.is_home?'Din interne Lead Manager profil.<br><span class="lmac-pill">Admin</span>':`Kundeprofil<br><span class="lmac-pill">${r.marketing_active===false?'Marketing pause':'Marketing aktiv'}</span>`}
-async function switchClient(id){id=String(id||'');if(!id||id===String(state?.client?.id)){render();return}const row=rows.find(r=>String(r.client_id)===id);if(!row)return;try{localStorage.setItem(STORAGE,id);if(typeof window.__LM_TENANT_GUARD?.switchTo==='function')await window.__LM_TENANT_GUARD.switchTo(id);state.client={id:row.client_id,name:row.client_name||'Kunde'};if($('brandClient'))$('brandClient').textContent=state.client.name+(row.is_home?' · Admin':'');window.dispatchEvent(new CustomEvent('lm:tenant-reset',{detail:{client_id:id}}));window.dispatchEvent(new CustomEvent('lm:client-switched',{detail:{client_id:id}}));if(typeof loadAll==='function')await loadAll();else if(typeof window.render==='function')window.render();render();if(typeof toast==='function')toast(`Kundeprofil: ${state.client.name}`)}catch(e){console.error('customer switch failed',e);if(typeof toast==='function')toast('Kunne ikke skifte kundeprofil: '+(e?.message||e))}}
+function resetWorkspaceUi(){
+  for(const id of ['leadSearch','offerSearch','mailSearch']){const el=$(id);if(el)el.value=''}
+  for(const id of ['statusFilter','offerStatusFilter']){const el=$(id);if(el)el.value=''}
+  for(const key of DATA_KEYS){try{if(Array.isArray(state?.[key]))state[key]=[]}catch{}}
+  try{if(typeof currentLead!=='undefined')currentLead=null}catch{}
+  try{if(typeof currentOffer!=='undefined')currentOffer=null}catch{}
+  for(const id of ['drawer','offerModal','mailModal'])try{$(id)?.classList.remove('open')}catch{}
+  try{if(typeof window.render==='function')window.render()}catch(e){console.warn('workspace reset render failed',e)}
+}
+function assertVisibleData(){
+  try{
+    const leadCount=Array.isArray(state?.leads)?state.leads.length:0,offerCount=Array.isArray(state?.offers)?state.offers.length:0;
+    const leadRows=$('leadRows'),offerRows=$('offerRows');
+    if(leadCount&&leadRows&&!leadRows.querySelector('[data-open-lead]')){const s=$('leadSearch'),f=$('statusFilter');if(s)s.value='';if(f)f.value='';if(typeof renderRows==='function')renderRows()}
+    if(offerCount&&offerRows&&!offerRows.querySelector('[data-open-offer]')){const s=$('offerSearch'),f=$('offerStatusFilter');if(s)s.value='';if(f)f.value='';if(typeof renderOffers==='function')renderOffers()}
+    const visibleLeads=leadRows?.querySelectorAll('[data-open-lead]').length||0,visibleOffers=offerRows?.querySelectorAll('[data-open-offer]').length||0;
+    if((leadCount&&!visibleLeads)||(offerCount&&!visibleOffers))console.error('DATA CONSISTENCY: dashboard data exists but detail view is empty',{client_id:state?.client?.id,leadCount,visibleLeads,offerCount,visibleOffers});
+  }catch(e){console.warn('workspace data consistency check failed',e)}
+}
+async function switchClient(id){id=String(id||'');if(!id||id===String(state?.client?.id)){render();return}const row=rows.find(r=>String(r.client_id)===id);if(!row)return;const seq=++switchSeq;try{localStorage.setItem(STORAGE,id);window.dispatchEvent(new CustomEvent('lm:client-switching',{detail:{client_id:id}}));resetWorkspaceUi();state.client={id:row.client_id,name:row.client_name||'Kunde'};if($('brandClient'))$('brandClient').textContent=state.client.name+(row.is_home?' · Admin':'');window.dispatchEvent(new CustomEvent('lm:tenant-reset',{detail:{client_id:id}}));window.dispatchEvent(new CustomEvent('lm:client-switched',{detail:{client_id:id}}));if(typeof loadAll==='function')await loadAll();else if(typeof window.render==='function')window.render();if(seq!==switchSeq||String(state?.client?.id)!==id)return;try{window.__LM_TENANT_GUARD?.assert?.()}catch{}if(typeof window.render==='function')window.render();assertVisibleData();window.dispatchEvent(new CustomEvent('lm:client-data-ready',{detail:{client_id:id,leads:state?.leads?.length||0,offers:state?.offers?.length||0}}));render();if(typeof toast==='function')toast(`Kundeprofil: ${state.client.name}`)}catch(e){console.error('customer switch failed',e);if(typeof toast==='function')toast('Kunne ikke skifte kundeprofil: '+(e?.message||e))}}
 async function load(force=false){if((loaded&&!force)||!ready())return;loaded=true;try{const r=await supabase.rpc('crm_admin_list_managed_clients',{});if(r.error)throw r.error;if(!Array.isArray(r.data)||!r.data.length)throw new Error('Ingen kundeprofiler returneret');rows=r.data;ensure();render()}catch(e){loaded=false;console.error('admin client list failed',e);ensure();const meta=$('lmAdminClientMeta');if(meta)meta.textContent='Kunne ikke hente kundelisten.'}}
-function init(){if(!ready()){setTimeout(init,200);return}load(true)}
+function init(){if(!ready()){setTimeout(init,200);return}load(true);window.addEventListener('lm:data-refreshed',assertVisibleData)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 window.addEventListener('lm:admin-clients-refresh',()=>load(true));
+window.__LM_ADMIN_CLIENT_SWITCHER_TEST={resetWorkspaceUi,assertVisibleData};
 })();
