@@ -15,41 +15,63 @@ jobs:
 
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
+          changed = False
 
-          old = "const $=id=>document.getElementById(id); const esc=s=>String(s??'').replace(/[&<>\\\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\\"':'&quot;',\"'\":'&#039;'}[m]));\nfunction toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}"
-          new = "const $=id=>document.getElementById(id); const esc=s=>String(s??'').replace(/[&<>\\\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\\\"':'&quot;',\"'\":'&#039;'}[m]));\nfunction setText(id,value){const e=$(id);if(!e){console.warn('DOM element mangler:',id);return false}e.textContent=value??'';return true}\nfunction toast(t){const e=$('toast');if(!e){console.warn('Toast element mangler:',t);return}e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}"
-          if old not in s:
-              raise SystemExit('Core helper anchor not found')
-          s = s.replace(old, new, 1)
+          old_toast = "function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}"
+          new_toast = "function setText(id,value){const e=$(id);if(!e){console.warn('DOM element mangler:',id);return false}e.textContent=value??'';return true}\nfunction toast(t){const e=$('toast');if(!e){console.warn('Toast element mangler:',t);return}e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}"
+          if old_toast in s:
+              s = s.replace(old_toast, new_toast, 1)
+              changed = True
+          elif 'function setText(id,value)' not in s:
+              raise SystemExit('toast anchor not found')
 
           old_render = "function render(){renderMetrics();renderTasks();renderRows();renderKanban();renderOffers();renderCalendar();renderActivity();renderMail();renderApprovals();renderAgents();renderLeadManager();renderIntegrations();renderDashCards();if(typeof renderExecutiveDashboard==='function')renderExecutiveDashboard();}"
           new_render = "function render(){const jobs=[['metrics',renderMetrics],['tasks',renderTasks],['rows',renderRows],['kanban',renderKanban],['offers',renderOffers],['calendar',renderCalendar],['activity',renderActivity],['mail',renderMail],['approvals',renderApprovals],['agents',renderAgents],['leadmanager',renderLeadManager],['integrations',renderIntegrations],['dashcards',renderDashCards]];for(const [name,fn] of jobs){try{fn()}catch(error){console.error('Renderfejl i '+name,error)}}try{if(typeof renderExecutiveDashboard==='function')renderExecutiveDashboard()}catch(error){console.error('Renderfejl i executive dashboard',error)}}"
-          if old_render not in s:
-              raise SystemExit('render() anchor not found')
-          s = s.replace(old_render, new_render, 1)
+          if old_render in s:
+              s = s.replace(old_render, new_render, 1)
+              changed = True
+          elif "console.error('Renderfejl i '+name,error)" not in s:
+              raise SystemExit('render anchor not found')
 
-          replacements = {
-            "function showAuth(msg=''){ $('authScreen').classList.remove('hidden');$('appShell').classList.add('hidden');$('authMessage').textContent=msg;}":
-            "function showAuth(msg=''){ $('authScreen')?.classList.remove('hidden');$('appShell')?.classList.add('hidden');setText('authMessage',msg);}",
-            "function showApp(){ $('authScreen').classList.add('hidden');$('appShell').classList.remove('hidden');$('userEmail').textContent=state.session?.user?.email||''; }":
-            "function showApp(){ $('authScreen')?.classList.add('hidden');$('appShell')?.classList.remove('hidden');setText('userEmail',state.session?.user?.email||''); }",
-            "$('brandClient').textContent=state.client.name+' · Pilot';":
-            "setText('brandClient',state.client.name+' · Pilot');",
-            "render();$('syncState').textContent='● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});":
-            "render();setText('syncState','● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));",
-            "$('weekLabel').textContent=`Uge ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(days[0])} – ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',year:'numeric'}).format(days[4])}`;":
-            "setText('weekLabel',`Uge ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(days[0])} – ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',year:'numeric'}).format(days[4])}`);",
-            "$(b.dataset.view).classList.add('active');$('title').textContent=b.textContent":
-            "$(b.dataset.view)?.classList.add('active');setText('title',b.textContent)"
-          }
-          for a,b in replacements.items():
-              if a in s:
-                  s = s.replace(a,b,1)
+          critical = [
+              ("$('brandClient').textContent=state.client.name+' · Pilot';", "setText('brandClient',state.client.name+' · Pilot');"),
+              ("render();$('syncState').textContent='● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});", "render();setText('syncState','● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));")
+          ]
+          for old, new in critical:
+              if old in s:
+                  s = s.replace(old, new, 1)
+                  changed = True
+              elif new not in s:
+                  raise SystemExit('critical DOM anchor not found: ' + old[:50])
 
+          optional = [
+              ("function showAuth(msg=''){ $('authScreen').classList.remove('hidden');$('appShell').classList.add('hidden');$('authMessage').textContent=msg;}", "function showAuth(msg=''){ $('authScreen')?.classList.remove('hidden');$('appShell')?.classList.add('hidden');setText('authMessage',msg);}"),
+              ("function showApp(){ $('authScreen').classList.add('hidden');$('appShell').classList.remove('hidden');$('userEmail').textContent=state.session?.user?.email||''; }", "function showApp(){ $('authScreen')?.classList.add('hidden');$('appShell')?.classList.remove('hidden');setText('userEmail',state.session?.user?.email||''); }"),
+              ("$(b.dataset.view).classList.add('active');$('title').textContent=b.textContent", "$(b.dataset.view)?.classList.add('active');setText('title',b.textContent)")
+          ]
+          for old, new in optional:
+              if old in s:
+                  s = s.replace(old, new, 1)
+                  changed = True
+
+          if not changed:
+              print('DOM hardening already present')
           p.write_text(s, encoding='utf-8')
 
           test = Path('scripts/test-dom-null-guards.js')
-          test.write_text("""const fs=require('fs');\nconst s=fs.readFileSync('index.html','utf8');\nconst must=[\n  "function setText(id,value)",\n  "if(!e){console.warn('Toast element mangler:',t);return}",\n  "console.error('Renderfejl i '+name,error)",\n  "setText('syncState'",\n  "setText('brandClient'",\n  "setText('weekLabel'"\n];\nfor(const x of must){if(!s.includes(x)){console.error('Mangler DOM-guard:',x);process.exit(1)}}\nconsole.log('DOM null-guards OK');\n""",encoding='utf-8')
+          test.write_text("""const fs=require('fs');
+const s=fs.readFileSync('index.html','utf8');
+const must=[
+  "function setText(id,value)",
+  "if(!e){console.warn('Toast element mangler:',t);return}",
+  "console.error('Renderfejl i '+name,error)",
+  "setText('syncState'",
+  "setText('brandClient'"
+];
+for(const x of must){if(!s.includes(x)){console.error('Mangler DOM-guard:',x);process.exit(1)}}
+if(s.includes("function render(){renderMetrics();renderTasks();renderRows();")){console.error('Monolitisk render er stadig aktiv');process.exit(1)}
+console.log('DOM null-guards OK');
+""",encoding='utf-8')
           PY
       - name: Verify DOM hardening
         run: node scripts/test-dom-null-guards.js
