@@ -115,7 +115,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
 @media(max-width:620px){#offerPipelineBoard .offer-pipe-col{flex-basis:82vw;min-width:82vw}}
 </style>
 <link rel="stylesheet" href="/executive-dashboard-v1.css?v=20260901-2">
-</head>
+<style id="lm-documented-pipeline-lane-v2">.documented-lane-head{margin:14px -2px 7px;padding:8px 4px 6px;border-top:2px solid #c9d5df;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:#52606a}.documented-lane-head span:last-child{min-width:22px;text-align:center;border-radius:999px;background:#dff7ed;color:#147a58;padding:2px 6px}.pipeline-documented-lane{min-height:42px}.documented-opportunity-card{border-left:3px solid #14a37f!important;background:#fbfffd!important}.documented-opportunity-badge{display:inline-flex;margin-top:7px;padding:3px 7px;border-radius:999px;background:#dcfce7;color:#166534;font-size:10px;font-weight:800}.documented-lane-empty{font-size:10.5px;color:#94a3b8;padding:7px 4px 5px;font-style:italic}.pipeline-standard-lane:empty{min-height:3px}</style></head>
 <body>
 <div id="authScreen" class="auth">
   <div class="authbox">
@@ -479,14 +479,12 @@ function renderKanban(){
   const board=$('kanban');
   const oldScroll=board.scrollLeft;
   const poolOf=l=>(l.lead_pool||'standard');
-  const card=l=>`<div class="leadcard pipeline-card" draggable="true" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.source_reference?`<small style="margin-top:4px">${esc(l.source_reference)}</small>`:''}${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`;
-  const columns=leads=>cols.map(s=>`<div class="col pipeline-col" data-pipeline-status="${esc(s)}"><strong>${esc(s)}</strong><div class="sub">${leads.filter(x=>x.status===s).length} leads</div>${leads.filter(x=>x.status===s).map(card).join('')}</div>`).join('');
-  const standard=state.leads.filter(l=>poolOf(l)!=='documented_opportunity');
-  const documented=state.leads.filter(l=>poolOf(l)==='documented_opportunity');
-  board.innerHTML=`<div style="display:grid;gap:18px;min-width:max-content">
-    <section><div style="display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 2px 8px"><div><strong style="font-size:15px">Normal pipeline</strong><div class="sub">Almindelige leads og den valgte Nye-pulje.</div></div><span class="badge">${standard.length} leads</span></div><div style="display:flex;gap:10px;min-width:max-content">${columns(standard)}</div></section>
-    <section><div style="display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 2px 8px"><div><strong style="font-size:15px">Dokumenterede muligheder</strong><div class="sub">Udbud, referater, indkøbsplaner og andre dokumenterede købssignaler. Denne pulje er altid åben og tæller ikke med i den normale leadgrænse.</div></div><span class="badge ok">${documented.length} leads</span></div><div style="display:flex;gap:10px;min-width:max-content">${columns(documented)}</div></section>
-  </div>`;
+  const card=(l,isDocumented=false)=>`<div class="leadcard pipeline-card${isDocumented?' documented-opportunity-card':''}" draggable="true" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.source_reference?`<small style="margin-top:4px">${esc(l.source_reference)}</small>`:''}${isDocumented?'<div class="documented-opportunity-badge">Dokumenteret mulighed</div>':''}${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`;
+  board.innerHTML=cols.map(status=>{
+    const standard=state.leads.filter(l=>poolOf(l)!=='documented_opportunity'&&l.status===status);
+    const documented=state.leads.filter(l=>poolOf(l)==='documented_opportunity'&&l.status===status);
+    return `<div class="col pipeline-col" data-pipeline-status="${esc(status)}"><strong>${esc(status)}</strong><div class="sub">${standard.length} almindelige leads</div><div class="pipeline-standard-lane">${standard.map(l=>card(l,false)).join('')}</div><div class="documented-lane-head"><span>Dokumenterede muligheder</span><span>${documented.length}</span></div><div class="pipeline-documented-lane">${documented.length?documented.map(l=>card(l,true)).join(''):'<div class="documented-lane-empty">Ingen i dette stadie</div>'}</div></div>`;
+  }).join('');
   board.scrollLeft=oldScroll;
   wireLeadButtons();wirePipelineDrag();wirePipelineNavigation();
 }
