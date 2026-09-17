@@ -1,8 +1,5 @@
 name: Merge documented opportunities into pipeline lanes
-on:
-  push:
-    paths:
-      - '.github/workflows/merge-documented-lane-into-pipeline.yml'
+on: push
 permissions:
   contents: write
 jobs:
@@ -10,50 +7,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Patch pipeline layout
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
-          import re
           p=Path('index.html')
           s=p.read_text()
-          pattern=r"function renderKanban\(\)\{.*?\n\}\nasync function movePipelineLead"
-          replacement=r'''function renderKanban(){
-  const cols=['NY','UNDER VURDERING','KLAR TIL KONTAKT','I GANG','DIALOG','MØDE','TILBUD','AFVENTER','PÅ PAUSE','VUNDET','TABT','IKKE RELEVANT'];
-  const board=$('kanban');
-  const oldScroll=board.scrollLeft;
-  const poolOf=l=>(l.lead_pool||'standard');
-  const card=(l,isDocumented=false)=>`<div class="leadcard pipeline-card${isDocumented?' documented-opportunity-card':''}" draggable="true" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.source_reference?`<small style="margin-top:4px">${esc(l.source_reference)}</small>`:''}${isDocumented?'<div class="documented-opportunity-badge">Dokumenteret mulighed</div>':''}${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`;
-  board.innerHTML=cols.map(status=>{
-    const standard=state.leads.filter(l=>poolOf(l)!=='documented_opportunity'&&l.status===status);
-    const documented=state.leads.filter(l=>poolOf(l)==='documented_opportunity'&&l.status===status);
-    return `<div class="col pipeline-col" data-pipeline-status="${esc(status)}">
-      <strong>${esc(status)}</strong>
-      <div class="sub">${standard.length} almindelige leads</div>
-      <div class="pipeline-standard-lane">${standard.map(l=>card(l,false)).join('')}</div>
-      <div class="documented-lane-head"><span>Dokumenterede muligheder</span><span>${documented.length}</span></div>
-      <div class="pipeline-documented-lane">${documented.length?documented.map(l=>card(l,true)).join(''):'<div class="documented-lane-empty">Ingen i dette stadie</div>'}</div>
-    </div>`;
-  }).join('');
-  board.scrollLeft=oldScroll;
-  wireLeadButtons();wirePipelineDrag();wirePipelineNavigation();
-}
-async function movePipelineLead'''
-          ns,n=re.subn(pattern,replacement,s,flags=re.S)
-          if n!=1:
-              raise SystemExit(f'renderKanban replacement count={n}')
-          css='''\n<style id="lm-documented-pipeline-lane-v2">\n.documented-lane-head{margin:14px -2px 7px;padding:8px 4px 6px;border-top:2px solid #c9d5df;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:#52606a}.documented-lane-head span:last-child{min-width:22px;text-align:center;border-radius:999px;background:#dff7ed;color:#147a58;padding:2px 6px}.pipeline-documented-lane{min-height:42px}.documented-opportunity-card{border-left:3px solid #14a37f!important;background:#fbfffd!important}.documented-opportunity-badge{display:inline-flex;margin-top:7px;padding:3px 7px;border-radius:999px;background:#dcfce7;color:#166534;font-size:10px;font-weight:800}.documented-lane-empty{font-size:10.5px;color:#94a3b8;padding:7px 4px 5px;font-style:italic}.pipeline-standard-lane:empty{min-height:3px}\n</style>\n'''
-          if 'lm-documented-pipeline-lane-v2' not in ns:
-              ns=ns.replace('</head>',css+'</head>',1)
-          p.write_text(ns)
-      - name: Remove one-time workflow
-        run: rm .github/workflows/merge-documented-lane-into-pipeline.yml
-      - name: Commit patch
+          start=s.index('function renderKanban(){')
+          end=s.index('async function movePipelineLead',start)
+          fn='''function renderKanban(){
+            const cols=['NY','UNDER VURDERING','KLAR TIL KONTAKT','I GANG','DIALOG','MØDE','TILBUD','AFVENTER','PÅ PAUSE','VUNDET','TABT','IKKE RELEVANT'];
+            const board=$('kanban');
+            const oldScroll=board.scrollLeft;
+            const poolOf=l=>(l.lead_pool||'standard');
+            const card=(l,isDocumented=false)=>`<div class="leadcard pipeline-card${isDocumented?' documented-opportunity-card':''}" draggable="true" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.source_reference?`<small style="margin-top:4px">${esc(l.source_reference)}</small>`:''}${isDocumented?'<div class="documented-opportunity-badge">Dokumenteret mulighed</div>':''}${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`;
+            board.innerHTML=cols.map(status=>{
+              const standard=state.leads.filter(l=>poolOf(l)!=='documented_opportunity'&&l.status===status);
+              const documented=state.leads.filter(l=>poolOf(l)==='documented_opportunity'&&l.status===status);
+              return `<div class="col pipeline-col" data-pipeline-status="${esc(status)}"><strong>${esc(status)}</strong><div class="sub">${standard.length} almindelige leads</div><div class="pipeline-standard-lane">${standard.map(l=>card(l,false)).join('')}</div><div class="documented-lane-head"><span>Dokumenterede muligheder</span><span>${documented.length}</span></div><div class="pipeline-documented-lane">${documented.length?documented.map(l=>card(l,true)).join(''):'<div class="documented-lane-empty">Ingen i dette stadie</div>'}</div></div>`;
+            }).join('');
+            board.scrollLeft=oldScroll;
+            wireLeadButtons();wirePipelineDrag();wirePipelineNavigation();
+          }
+          '''
+          s=s[:start]+fn+s[end:]
+          css='''<style id="lm-documented-pipeline-lane-v2">.documented-lane-head{margin:14px -2px 7px;padding:8px 4px 6px;border-top:2px solid #c9d5df;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:10px;font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:#52606a}.documented-lane-head span:last-child{min-width:22px;text-align:center;border-radius:999px;background:#dff7ed;color:#147a58;padding:2px 6px}.pipeline-documented-lane{min-height:42px}.documented-opportunity-card{border-left:3px solid #14a37f!important;background:#fbfffd!important}.documented-opportunity-badge{display:inline-flex;margin-top:7px;padding:3px 7px;border-radius:999px;background:#dcfce7;color:#166534;font-size:10px;font-weight:800}.documented-lane-empty{font-size:10.5px;color:#94a3b8;padding:7px 4px 5px;font-style:italic}.pipeline-standard-lane:empty{min-height:3px}</style>'''
+          if 'lm-documented-pipeline-lane-v2' not in s:
+              s=s.replace('</head>',css+'</head>',1)
+          p.write_text(s)
+          PY
+      - name: Commit result
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/merge-documented-lane-into-pipeline.yml
+          git config user.name github-actions
+          git config user.email actions@github.com
           git add index.html .github/workflows/merge-documented-lane-into-pipeline.yml
           git commit -m "Place documented opportunities inside pipeline columns"
           git push
