@@ -7,10 +7,48 @@
   const byId=id=>document.getElementById(id);
   const safe=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const closedStatuses=new Set(['VUNDET','TABT','IKKE RELEVANT']);
+  const allowedNewLeadPoolSizes=[10,20,30];
 
   function dashboardNow(){
     if(serverClockMs!==null&&serverClockMeasuredAt!==null&&typeof performance!=='undefined')return serverClockMs+(performance.now()-serverClockMeasuredAt);
     return Date.now();
+  }
+
+  function newLeadPoolLimit(){
+    const raw=Number(state?.client?.settings?.new_lead_pool_limit??10);
+    return allowedNewLeadPoolSizes.includes(raw)?raw:10;
+  }
+
+  async function saveNewLeadPoolLimit(value){
+    const limit=Number(value);
+    if(!allowedNewLeadPoolSizes.includes(limit)||!state?.client?.id)return;
+    const currentSettings=(state.client.settings&&typeof state.client.settings==='object')?state.client.settings:{};
+    const settings={...currentSettings,new_lead_pool_limit:limit};
+    const {error}=await supabase.from('crm_clients').update({settings}).eq('id',state.client.id);
+    if(error){toast(`Kunne ikke gemme puljestørrelse: ${error.message}`);renderNewLeadPoolControl();return}
+    state.client={...state.client,settings};
+    renderNewLeadPoolControl();
+    renderAttention(state.leads||[],state.offers||[],state.approvals||[]);
+    toast(`Puljen Nye er sat til ${limit} leads`);
+  }
+
+  function renderNewLeadPoolControl(){
+    if(typeof state==='undefined'||!state?.client)return;
+    const pipeline=document.querySelector('#pipeline .pipeline-toolbar');
+    if(!pipeline)return;
+    let wrap=byId('newLeadPoolControl');
+    if(!wrap){
+      wrap=document.createElement('label');
+      wrap.id='newLeadPoolControl';
+      wrap.className='pill';
+      wrap.style.cssText='gap:7px;align-items:center;white-space:nowrap';
+      const actions=pipeline.querySelector('.pipeline-actions');
+      (actions||pipeline).appendChild(wrap);
+    }
+    const limit=newLeadPoolLimit();
+    const count=(state.leads||[]).filter(lead=>lead.status==='NY').length;
+    wrap.innerHTML=`<span>Nye:</span><select id="newLeadPoolSize" aria-label="Antal leads i puljen Nye" style="border:0;background:transparent;font-weight:800;color:inherit;outline:none"><option value="10" ${limit===10?'selected':''}>10</option><option value="20" ${limit===20?'selected':''}>20</option><option value="30" ${limit===30?'selected':''}>30</option></select><span class="sub" style="font-size:11px">${count}/${limit}</span>`;
+    byId('newLeadPoolSize').onchange=event=>saveNewLeadPoolLimit(event.target.value);
   }
 
   async function syncServerClock(){
@@ -78,7 +116,8 @@
     const pending=approvals.filter(item=>item.status==='pending');
     if(pending.length)items.push({color:'#2f67d8',title:`${pending.length} ${pending.length===1?'godkendelse venter':'godkendelser venter'}`,copy:'Gennemgå handlingerne, før noget bliver sendt eller udført.',button:'Gennemgå',attrs:'data-executive-view="approvals"'});
     const newCount=leads.filter(lead=>lead.status==='NY').length;
-    if(newCount<12)items.push({color:'#c47b12',title:`Kun ${newCount} nye leads står klar`,copy:'Målet er mindst 12 nye leads i puljen.',button:'Se nye leads',attrs:'data-executive-status="NY"'});
+    const targetCount=newLeadPoolLimit();
+    if(newCount<targetCount)items.push({color:'#c47b12',title:`${newCount}/${targetCount} nye leads står klar`,copy:`Leadmotoren fylder automatisk puljen op til ${targetCount}.`,button:'Se nye leads',attrs:'data-executive-status="NY"'});
     target.innerHTML=items.length?items.slice(0,5).map(attentionItem).join(''):'<div class="executive-empty"><div class="executive-empty-mark">✓</div><strong>Alt er fulgt op</strong><div class="sub" style="margin-top:4px">Der er ingen forfaldne handlinger lige nu.</div></div>';
   }
 
@@ -156,6 +195,7 @@
     renderPerformance(periodActivities,periodOffers);
     renderPipeline(leads);
     renderActivityList(periodActivities);
+    renderNewLeadPoolControl();
     if(state.client)byId('loading')?.classList.add('hidden');
   }
 
