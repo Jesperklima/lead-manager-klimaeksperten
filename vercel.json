@@ -4,6 +4,14 @@
   "trailingSlash": false,
   "routes": [
     {
+      "src": "^/index(?:\\.html)?$",
+      "dest": "/api/app",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
       "src": "^/$",
       "dest": "/login.html",
       "headers": {

@@ -51,6 +51,10 @@ input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:
   const recoveryToken=hash.get('access_token')||'';
   const recoveryRefresh=hash.get('refresh_token')||'';
   const recoveryType=hash.get('type')||'';
+  if(new URLSearchParams(location.search).has('onboarding')&&recoveryType!=='recovery'){
+    location.replace(appTarget());
+    return;
+  }
 
   function appTarget(){
     const q=new URLSearchParams(location.search);q.delete('logged_out');
