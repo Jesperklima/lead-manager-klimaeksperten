@@ -9,7 +9,7 @@
     const v=String(value||'').trim();
     if(!v)return null;
     if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
-    let m=v.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
+    const m=v.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
     if(m){const d=String(m[1]).padStart(2,'0'),mo=String(m[2]).padStart(2,'0');return `${m[3]}-${mo}-${d}`}
     const dt=new Date(v);
     if(!Number.isNaN(dt.getTime()))return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
@@ -17,6 +17,19 @@
   }
   function formatDate(value){const iso=normalizeDate(value);if(!iso)return 'ingen dato';try{return new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(iso+'T12:00:00'))}catch{return value}}
   function message(text,bad=false){const input=byId('oFollow');if(!input)return;let el=byId('offerDateSaveMessage');if(!el){el=document.createElement('div');el.id='offerDateSaveMessage';el.className='sub';el.style.marginTop='5px';input.insertAdjacentElement('afterend',el)}el.textContent=text||'';el.style.color=bad?'#b33232':''}
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+  async function readSavedDate(offerId){
+    let lastError=null;
+    for(let attempt=0;attempt<3;attempt++){
+      const r=await supabase.from('crm_offers').select('id,follow_up_date').eq('id',offerId).maybeSingle();
+      if(!r.error)return normalizeDate(r.data?.follow_up_date||null);
+      lastError=r.error;
+      await wait(120*(attempt+1));
+    }
+    if(lastError)throw new Error(lastError.message||'Kunne ikke bekræfte datoen i CRM');
+    return null;
+  }
 
   async function save(){
     if(saving)return;
@@ -29,9 +42,10 @@
     const now=new Date().toISOString();
     saving=true;if(btn){btn.disabled=true;btn.textContent='Gemmer…'};message('Gemmer '+formatDate(date)+'…');
     try{
-      const r=await supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id).select('id,status,follow_up_date,current_comment').single();
+      const r=await supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id);
       if(r.error)throw new Error(r.error.message||'Tilbuddet kunne ikke gemmes');
-      const savedDate=normalizeDate(r.data?.follow_up_date||null);
+
+      const savedDate=await readSavedDate(o.id);
       if(savedDate!==date)throw new Error(`Den valgte dato blev ikke gemt i CRM. Forventet ${formatDate(date)}, fik ${formatDate(savedDate)}.`);
 
       const task=(state.tasks||[]).find(t=>t.offer_id===o.id&&t.task_type==='offer_followup');
@@ -49,7 +63,11 @@
       if(normalizeDate(o.follow_up_date||null)!==date&&typeof logOfferActivity==='function')await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${date||'ingen dato'}`,{previous:normalizeDate(o.follow_up_date||null),next:date,manual:true,method:'verified_offer_save'});
       if(typeof loadAll==='function')await loadAll();
       const check=(state.offers||[]).find(x=>x.id===o.id);
-      if(!check||normalizeDate(check.follow_up_date||null)!==date)throw new Error('Datoen blev ikke bekræftet efter genindlæsning.');
+      const reloadedDate=normalizeDate(check?.follow_up_date||null);
+      if(reloadedDate!==date){
+        const directDate=await readSavedDate(o.id);
+        if(directDate!==date)throw new Error(`Datoen blev ikke bekræftet efter genindlæsning. Forventet ${formatDate(date)}, fik ${formatDate(directDate)}.`);
+      }
       byId('offerModal')?.classList.remove('open');currentOffer=null;if(typeof toast==='function')toast('Tilbud opdateret · opfølgning '+formatDate(date));
     }catch(error){console.error('offer date save failed',error);message(error?.message||'Datoen kunne ikke gemmes',true);if(typeof toast==='function')toast(error?.message||'Tilbuddet kunne ikke gemmes')}
     finally{dateAtClick=null;saving=false;if(btn){btn.disabled=false;btn.textContent=old}}
