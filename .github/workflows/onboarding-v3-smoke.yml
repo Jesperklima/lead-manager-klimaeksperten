@@ -37,6 +37,8 @@ jobs:
             echo 'Old SaaS startup layer reintroduced.' >&2
             exit 1
           fi
-      - name: Safe core observer repair remains
+      - name: Safe access bootstrap ownership remains
         shell: bash
-        run: grep -q 'global mail-follow-up MutationObserver disabled' api/app.js
+        run: |
+          grep -q 'authInit deferred to access-bootstrap-v1.js' api/app.js
+          grep -q 'access-bootstrap-v1.js' api/app.js
