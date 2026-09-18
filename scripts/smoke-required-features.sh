@@ -77,6 +77,20 @@ PY
 node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
 node --check lead-manager-theme-v2.js
+python3 - <<'PY'
+import base64, hashlib
+from pathlib import Path
+parts=[Path(f'assets/lead-manager-logo.webp.b64.{i}').read_text(encoding='utf-8').strip() for i in range(4)]
+raw=base64.b64decode(''.join(parts), validate=True)
+assert len(raw)==10508, f'official logo byte size changed: {len(raw)}'
+assert hashlib.sha256(raw).hexdigest()=='4395d23c3a8dbf5e14d2a98179a4de21ade88ab32190ad0450545489d3d32456', 'official logo hash mismatch'
+assert raw[:4]==b'RIFF' and raw[8:12]==b'WEBP', 'official logo is not valid WebP'
+js=Path('lead-manager-theme-v2.js').read_text(encoding='utf-8')
+assert "data:image/webp;base64," in js, 'sidebar logo data URI missing'
+for i in range(4):
+    assert f'/assets/lead-manager-logo.webp.b64.{i}' in js, f'logo chunk {i} not loaded'
+print('PASS: official Lead Manager sidebar logo assets')
+PY
 node --check saas-credit-check-v1.js
 node --check saas-regression-center-v1.js
 node scripts/test-executive-dashboard-clock.js
