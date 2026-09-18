@@ -504,7 +504,63 @@ function renderKanban(){
   wireLeadButtons();wirePipelineDrag();wirePipelineNavigation();
 }
 async function movePipelineLead(id,targetStatus){const l=leadById(id);if(!l||l.status===targetStatus)return;const previous=l.status;if(targetStatus==='TABT'&&!l.loss_reason){const reason=window.prompt(`Hvorfor er ${leadName(l)} tabt?`,'');if(!reason||!reason.trim()){toast('Flytning annulleret – TABT kræver en årsag');renderKanban();return}l._pipeline_loss_reason=reason.trim()}const closed=['VUNDET','TABT','IKKE RELEVANT'].includes(targetStatus);const patch={status:targetStatus,manual_lock:true,updated_at:new Date().toISOString()};if(targetStatus==='TABT')patch.loss_reason=l._pipeline_loss_reason||l.loss_reason||null;else if(previous==='TABT')patch.loss_reason=null;if(closed){patch.next_action=null;patch.next_at=null}const {error}=await supabase.from('crm_leads').update(patch).eq('id',id);if(error){toast(error.message);await loadAll();return}if(closed){const openTasks=state.tasks.filter(t=>t.lead_id===id&&t.status==='open');for(const t of openTasks){await supabase.from('crm_tasks').update({status:'closed',calendar_sync_status:t.external_calendar_id?'delete_pending':'none'}).eq('id',t.id)}}await logActivity(l,'Status',`${previous} → ${targetStatus} (drag & drop)`,{previous,next:targetStatus,manual:true,method:'pipeline_drag_drop',loss_reason:patch.loss_reason||null});await loadAll();toast(`${leadName(l)} flyttet til ${targetStatus}`);if(targetStatus==='MØDE'&&!l.next_at){openLead(id);toast('Møde registreret – angiv dato og tid på leadkortet')}}
-function wirePipelineDrag(){const board=$('kanban');document.querySelectorAll('[data-pipeline-lead]').forEach(card=>{card.addEventListener('dragstart',e=>{card.classList.add('dragging');document.body.classList.add('pipeline-drag-active');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/x-pipeline-lead',card.dataset.pipelineLead)});card.addEventListener('dragend',()=>{card.classList.remove('dragging');document.body.classList.remove('pipeline-drag-active');document.querySelectorAll('.pipeline-col.dragover').forEach(x=>x.classList.remove('dragover'));setPipelineEdgeGlow()})});board.ondragover=e=>{if(!e.dataTransfer?.types?.includes('application/x-pipeline-lead'))return;const r=board.getBoundingClientRect(),edge=Math.min(150,r.width*.18),speed=30;if(e.clientX<r.left+edge)board.scrollLeft-=speed;else if(e.clientX>r.right-edge)board.scrollLeft+=speed;setPipelineEdgeGlow(e.clientX)};document.querySelectorAll('.pipeline-col[data-pipeline-status]').forEach(col=>{col.addEventListener('dragover',e=>{if(!e.dataTransfer.types.includes('application/x-pipeline-lead'))return;e.preventDefault();e.dataTransfer.dropEffect='move';col.classList.add('dragover')});col.addEventListener('dragleave',e=>{if(!col.contains(e.relatedTarget))col.classList.remove('dragover')});col.addEventListener('drop',async e=>{const id=e.dataTransfer.getData('application/x-pipeline-lead');if(!id)return;e.preventDefault();e.stopPropagation();col.classList.remove('dragover');await movePipelineLead(id,col.dataset.pipelineStatus)})})}
+function wirePipelineDrag(){
+  const board=$('kanban');if(!board)return;
+  const clearDragState=()=>{
+    delete board.dataset.pipelineDragLead;
+    document.body.classList.remove('pipeline-drag-active');
+    board.querySelectorAll('.pipeline-card.dragging').forEach(x=>{x.classList.remove('dragging');x.setAttribute('aria-grabbed','false')});
+    board.querySelectorAll('.pipeline-col.dragover').forEach(x=>x.classList.remove('dragover'));
+    setPipelineEdgeGlow();
+  };
+  const dragTypes=e=>Array.from(e.dataTransfer?.types||[]);
+  const isPipelineDrag=e=>Boolean(board.dataset.pipelineDragLead||dragTypes(e).includes('application/x-pipeline-lead')||dragTypes(e).includes('text/plain'));
+  const draggedLeadId=e=>board.dataset.pipelineDragLead||e.dataTransfer?.getData('application/x-pipeline-lead')||e.dataTransfer?.getData('text/plain')||'';
+
+  board.querySelectorAll('[data-pipeline-lead]').forEach(card=>{
+    card.setAttribute('aria-grabbed','false');
+    card.addEventListener('dragstart',e=>{
+      const id=card.dataset.pipelineLead;if(!id)return;
+      board.dataset.pipelineDragLead=id;
+      card.classList.add('dragging');
+      card.setAttribute('aria-grabbed','true');
+      document.body.classList.add('pipeline-drag-active');
+      if(e.dataTransfer){
+        e.dataTransfer.effectAllowed='move';
+        e.dataTransfer.setData('application/x-pipeline-lead',id);
+        e.dataTransfer.setData('text/plain',id);
+      }
+    });
+    card.addEventListener('dragend',clearDragState);
+  });
+
+  board.ondragover=e=>{
+    if(!isPipelineDrag(e))return;
+    e.preventDefault();
+    if(e.dataTransfer)e.dataTransfer.dropEffect='move';
+    const col=e.target.closest?.('.pipeline-col[data-pipeline-status]');
+    board.querySelectorAll('.pipeline-col.dragover').forEach(x=>{if(x!==col)x.classList.remove('dragover')});
+    if(col)col.classList.add('dragover');
+    const r=board.getBoundingClientRect(),edge=Math.min(150,r.width*.18),speed=30;
+    if(e.clientX<r.left+edge)board.scrollLeft-=speed;
+    else if(e.clientX>r.right-edge)board.scrollLeft+=speed;
+    setPipelineEdgeGlow(e.clientX);
+  };
+  board.ondragleave=e=>{
+    if(!board.contains(e.relatedTarget))board.querySelectorAll('.pipeline-col.dragover').forEach(x=>x.classList.remove('dragover'));
+  };
+  board.ondrop=async e=>{
+    if(!isPipelineDrag(e))return;
+    const col=e.target.closest?.('.pipeline-col[data-pipeline-status]');
+    const id=draggedLeadId(e);
+    if(!col||!id)return;
+    e.preventDefault();
+    e.stopPropagation();
+    const targetStatus=col.dataset.pipelineStatus;
+    clearDragState();
+    await movePipelineLead(id,targetStatus);
+  };
+}
 function ensurePipelineEdgeGlow(){if(!document.querySelector('.pipeline-autoscroll-left')){const l=document.createElement('div'),r=document.createElement('div');l.className='pipeline-autoscroll-left';r.className='pipeline-autoscroll-right';document.body.append(l,r)}}
 function setPipelineEdgeGlow(x=null){ensurePipelineEdgeGlow();const board=$('kanban'),left=document.querySelector('.pipeline-autoscroll-left'),right=document.querySelector('.pipeline-autoscroll-right');left.classList.remove('active');right.classList.remove('active');if(x==null||!document.body.classList.contains('pipeline-drag-active'))return;const rect=board.getBoundingClientRect(),edge=Math.min(150,rect.width*.18);if(x<rect.left+edge&&board.scrollLeft>0)left.classList.add('active');if(x>rect.right-edge&&board.scrollLeft<board.scrollWidth-board.clientWidth-2)right.classList.add('active')}
 function wirePipelineNavigation(){const board=$('kanban'),left=$('pipelineLeft'),right=$('pipelineRight'),compact=$('pipelineCompact');if(left)left.onclick=()=>board.scrollBy({left:-Math.max(420,board.clientWidth*.72),behavior:'smooth'});if(right)right.onclick=()=>board.scrollBy({left:Math.max(420,board.clientWidth*.72),behavior:'smooth'});if(compact){compact.textContent=document.body.classList.contains('pipeline-compact')?'Normal visning':'Kompakt visning';compact.onclick=()=>{document.body.classList.toggle('pipeline-compact');compact.textContent=document.body.classList.contains('pipeline-compact')?'Normal visning':'Kompakt visning';localStorage.setItem('lm_pipeline_compact',document.body.classList.contains('pipeline-compact')?'1':'0')}}if(localStorage.getItem('lm_pipeline_compact')==='1')document.body.classList.add('pipeline-compact');board.onwheel=e=>{if(Math.abs(e.deltaY)<=Math.abs(e.deltaX)||board.scrollWidth<=board.clientWidth)return;if(e.ctrlKey||e.metaKey)return;e.preventDefault();board.scrollLeft+=e.deltaY},{passive:false};ensurePipelineEdgeGlow()}
