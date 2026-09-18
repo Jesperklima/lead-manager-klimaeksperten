@@ -24,23 +24,39 @@
     const brand=document.querySelector('.brand');
     if(!brand||brand.dataset.lmV2==='1')return;
     brand.dataset.lmV2='1';
-    const small=brand.querySelector('small');
-    const label=[...brand.childNodes].find(node=>node.nodeType===Node.TEXT_NODE&&node.textContent.trim());
-    const name=(label?.textContent||'Lead Manager').trim();
-    if(label)label.remove();
-    const mark=document.createElement('span');
-    mark.className='lm-brand-mark';
-    mark.setAttribute('aria-hidden','true');
-    mark.innerHTML='<span class="lm-brand-bars"><i></i><i></i><i></i></span>';
-    const copy=document.createElement('span');
-    copy.className='lm-brand-copy';
-    const title=document.createElement('span');
-    title.className='lm-brand-name';
-    title.textContent=name;
-    copy.appendChild(title);
-    if(small)copy.appendChild(small);
-    brand.prepend(copy);
-    brand.prepend(mark);
+    brand.setAttribute('aria-label','Lead Manager');
+
+    const previous=brand.innerHTML;
+    brand.innerHTML='';
+
+    const logo=document.createElement('img');
+    logo.className='lm-brand-logo';
+    logo.alt='Lead Manager';
+    logo.decoding='async';
+
+    const fallback=document.createElement('span');
+    fallback.className='lm-brand-fallback';
+    fallback.textContent='Lead Manager';
+
+    brand.appendChild(logo);
+    brand.appendChild(fallback);
+
+    const parts=[0,1,2,3].map(index=>
+      fetch('/assets/lead-manager-logo.b64.'+index+'?v=20260918-1',{cache:'force-cache'})
+        .then(response=>{
+          if(!response.ok)throw new Error('Logo asset '+index+' kunne ikke hentes');
+          return response.text();
+        })
+    );
+
+    Promise.all(parts).then(chunks=>{
+      logo.onload=()=>brand.classList.add('lm-brand-ready');
+      logo.onerror=()=>{brand.innerHTML=previous;};
+      logo.src='data:image/png;base64,'+chunks.join('');
+    }).catch(error=>{
+      console.warn('Lead Manager-logo kunne ikke indlæses',error);
+      brand.innerHTML=previous;
+    });
   }
 
   function enhanceNav(){
