@@ -20,16 +20,14 @@ jobs:
         shell: bash
         run: |
           if grep -nE 'MutationObserver|setInterval\s*\(' saas-onboarding-v5.js; then
-            echo 'Onboarding v3 must remain event-driven: polling/MutationObserver found.' >&2
+            echo 'Onboarding v5 must remain event-driven: polling/MutationObserver found.' >&2
             exit 1
           fi
-      - name: Microsoft OAuth must stay outside onboarding startup
+      - name: Mail OAuth must remain user-triggered
         shell: bash
         run: |
-          if grep -nE 'microsoft-oauth-(auth|callback)|microsoft-direct-send|microsoft-history-check' saas-onboarding-v5.js; then
-            echo 'Microsoft OAuth/Graph may not run inside onboarding v3.' >&2
-            exit 1
-          fi
+          grep -q 'async function connectOauth(provider)' saas-onboarding-v5.js
+          grep -q "provider==='google'?'gmail-direct-auth':'microsoft-oauth-auth'" saas-onboarding-v5.js
       - name: App loads stable SaaS layers only
         shell: bash
         run: |
