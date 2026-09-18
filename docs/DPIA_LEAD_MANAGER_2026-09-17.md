@@ -2,8 +2,8 @@
 
 **Dokumenttype:** Konsekvensanalyse vedrørende databeskyttelse (DPIA)  
 **Produkt:** Lead Manager  
-**Version:** 1.0  
-**Dato:** 17. september 2026  
+**Version:** 1.1  
+**Dato:** 18. september 2026  
 **Status:** Udarbejdet – afventer formelt sign-off  
 **Dokumentejer:** Skarp Studio / Lead Manager  
 **Review:** Skal genvurderes ved væsentlige ændringer i datakilder, AI-funktioner, mailintegrationer, kreditfunktioner eller kundetyper.
@@ -33,21 +33,40 @@ DPIA'en følger GDPR artikel 35-principperne og EDPB's DPIA-struktur: beskrivels
 
 ## 2. Roller og ansvar
 
-### 2.1 Dataansvarlig og databehandler
+### 2.1 Rollen fastlægges pr. behandling – ikke pr. kunde
 
-Lead Manager kan anvendes i to roller:
+Lead Manager må ikke beskrive rollefordelingen som én fast konstruktion, hvor kunden altid er dataansvarlig og Skarp Studio / Lead Manager altid er databehandler. Efter GDPR afhænger rollen af de faktiske beslutninger om **formål** og **væsentlige hjælpemidler** i den konkrete behandling.
 
-1. **Skarp Studio / Lead Manager som dataansvarlig** for egne leads, egne kontaktdata, egne mailflows og egen salgsaktivitet.
-2. **Lead Manager som databehandler** for eksterne kunder, hvor kunden er dataansvarlig for egne leads, kontaktpersoner, mails og behandlingsformål.
+- **Dataansvarlig:** den part, der alene eller sammen med andre bestemmer formål og væsentlige hjælpemidler.
+- **Databehandler:** den part, der behandler personoplysninger på vegne af den dataansvarlige og efter dokumenteret instruks. Databehandleren kan træffe almindelige tekniske og organisatoriske valg inden for instruksen, men må ikke selv overtage behandlingsformålet eller væsentlige beslutninger om rækkevidde.
+- **Fælles dataansvar:** kan opstå, hvis Skarp Studio / Lead Manager og kunden i fællesskab bestemmer formål og væsentlige hjælpemidler for samme behandling. Rollen følger de faktiske forhold og kan ikke skabes eller fjernes alene ved kontrakttekst.
 
-Rollefordelingen skal fremgå af kundeaftale/databehandleraftale.
+### 2.2 Behandlingsmodeller
 
-### 2.2 Interne ansvar
+1. **Self-service SaaS:** Kunden vælger egne leads, målgrupper, formål, kontaktpolitik og opfølgning. Skarp Studio / Lead Manager leverer systemet og behandler kundedata efter instruks. Her vil kunden som udgangspunkt være dataansvarlig, og Skarp Studio / Lead Manager databehandler for kundedata.
+2. **Managed CRM efter instruks:** Skarp Studio arbejder aktivt i kundens CRM, men kunden fastlægger formål, målgrupper, kontaktpolitik og væsentlige kriterier. Dette kan fortsat være en databehandlerkonstruktion, hvis Skarp Studio reelt handler inden for dokumenteret instruks.
+3. **Managed lead research/sourcing:** Hvis Skarp Studio selv vælger eller har selvstændig indflydelse på datakilder, søgekriterier, hvilke personer der indsamles om, berigelsesmetoder eller kvalificeringslogik, kan Skarp Studio være selvstændigt dataansvarlig for sourcing-/berigelsesfasen. Kunden kan derefter være selvstændigt dataansvarlig for sin videre anvendelse.
+4. **Fælles kampagne-/leadmodel:** Hvis Skarp Studio og kunden sammen fastlægger kampagnens formål, målgruppe og væsentlige midler, kan der foreligge fælles dataansvar efter artikel 26.
+5. **Platformens egne formål:** Skarp Studio / Lead Manager er selvstændigt dataansvarlig for bl.a. konto- og brugeradministration, sikkerhed, misbrugsforebyggelse, fakturering, egne auditlogs og opfyldelse af egne retlige forpligtelser.
+6. **Support/impersonation:** Supportadgang til kundedata vil normalt ske som del af databehandlerrollen, når den sker på kundens instruks og alene for kundens formål. Egne sikkerheds- og auditlogs kan samtidig være platformens eget controller-formål.
+7. **Produktforbedring:** Kundedata må ikke automatisk genbruges til Skarp Studios eget produktforbedringsformål under henvisning til databehandlerrollen. Hvis Skarp Studio bestemmer et selvstændigt formål, kræves særskilt vurdering af rolle, retsgrundlag, transparens, kompatibilitet og kontrakt.
 
-- Produktejer har ansvar for produktets privacy-by-design og sikkerhed.
+### 2.3 Kontraktmæssig konsekvens
+
+Rollefordelingen skal dokumenteres pr. service/behandlingsaktivitet:
+- artikel 28-databehandleraftale ved reel processorbehandling,
+- controller-to-controller-vurdering ved videregivelse mellem selvstændige dataansvarlige,
+- artikel 26-arrangement ved fælles dataansvar.
+
+En standard-databehandleraftale må ikke anvendes som juridisk “etiket” på en behandling, der faktisk er selvstændigt eller fælles dataansvar.
+
+### 2.4 Interne ansvar
+
+- Produktejer har ansvar for privacy-by-design og for at juridiske rolleændringer udløser review.
 - Platformadministratorer har udvidet adgang til support- og compliancefunktioner.
-- Impersonation/supportadgang skal være begrænset, logget og anvendt efter behov.
-- Kundens egne brugere må kun få adgang til deres egen tenant.
+- Impersonation/supportadgang skal være formålsbundet, mindst muligt, tidsbegrænset hvor praktisk muligt og logget.
+- Kundens egne brugere må kun få adgang til autoriserede tenants.
+- Managed service skal klassificeres juridisk før behandling starter.
 
 ---
 
@@ -136,45 +155,81 @@ AI anvendes som beslutningsstøtte og skrive-/analyseværktøj, ikke som autonom
 
 ---
 
-## 7. Retsgrundlag og vurdering
+## 7. Retsgrundlag, nødvendighed og markedsføring
 
-Det konkrete retsgrundlag afhænger af behandlingens type og kundens rolle.
+Det konkrete retsgrundlag skal fastlægges af den part, der er dataansvarlig for den konkrete behandling. At en behandling er B2B, at oplysningerne er offentligt tilgængelige, eller at en person optræder professionelt, er ikke i sig selv et retsgrundlag.
 
-### 7.1 CRM og eksisterende kunder
+### 7.1 Eksisterende kunder og CRM
 
-Behandling kan typisk være nødvendig for kontrakt, aftaleopfyldelse, legitim interesse eller retlig forpligtelse afhængigt af den konkrete situation.
+Behandling af kontaktpersoner hos eksisterende kunder kan afhængigt af formål og kontekst være baseret på bl.a. legitim interesse, kontraktrelateret administration eller retlig forpligtelse. Artikel 6, stk. 1, litra b, kan ikke uden videre bruges for kontaktpersoner, der ikke selv er part i kontrakten; i sådanne tilfælde vil legitim interesse ofte skulle vurderes særskilt.
 
-### 7.2 B2B lead research
+### 7.2 B2B lead research og berigelse
 
-Offentligt tilgængelige erhvervskontaktdata kan behandles på baggrund af legitim interesse, når der er et reelt erhvervsmæssigt formål, behandlingen er nødvendig, forventelig og proportional, og den registreredes interesser ikke vejer tungere.
+Hvor artikel 6, stk. 1, litra f anvendes, skal der foreligge en dokumenteret interesseafvejning (LIA) med tre led:
 
-Der skal foretages og vedligeholdes en særskilt LIA for lead research/prospecting.
+1. **Legitim interesse:** Interessen skal være konkret, reel og aktuel.
+2. **Nødvendighed:** Det skal vurderes, om formålet kan opnås med færre eller mindre indgribende personoplysninger.
+3. **Afvejning:** Der skal tages stilling til personens rimelige forventninger, datakilde, professionel rolle, datatyper, omfang, konsekvenser, mulighed for indsigelse og øvrige safeguards.
 
-### 7.3 Direkte markedsføring
+En generisk formulering som “legitim interesse i salg” er ikke tilstrækkelig dokumentation.
 
-GDPR-retsgrundlag og markedsføringsregler er separate krav. At der findes et GDPR-grundlag betyder ikke automatisk, at en e-mail må sendes som direkte markedsføring.
+Offentlig tilgængelighed er kun en omstændighed i vurderingen. En offentlig arbejdsmail, LinkedIn-profil eller virksomhedswebside giver ikke i sig selv tilladelse til at indsamle, opbevare eller markedsføre uden yderligere vurdering.
 
-Lead Manager har derfor en særskilt marketing-gate, som blokerer kolde salgs-/marketingmails uden dokumenteret tilladelse eller relevant lovlig undtagelse.
+### 7.3 Direkte elektronisk markedsføring
 
-### 7.4 Mailintegration
+GDPR og markedsføringsloven er to selvstændige lag.
 
-Kunden autoriserer selv mailintegration via OAuth eller IMAP/SMTP. Adgangen skal begrænses til de scopes/funktioner, der er nødvendige for de valgte CRM-funktioner.
+Efter det danske spamforbud må en erhvervsdrivende som udgangspunkt ikke sende elektronisk post med henblik på direkte markedsføring til en bestemt modtager uden forudgående samtykke. Reglen gælder ikke kun private forbrugere; ordlyden omfatter “nogen”.
+
+En eventuel eksisterende-kundefravigelse må kun anvendes efter konkret dokumentation af samtlige betingelser, herunder at kontaktoplysningen blev modtaget i forbindelse med salg, markedsføringen vedrører egne tilsvarende produkter/ydelser, og modtageren havde og fortsat har let og gebyrfri mulighed for at frabede sig markedsføring.
+
+En CRM-status som “kunde” er derfor ikke tilstrækkelig i sig selv.
+
+Lead Manager skal holde følgende adskilt:
+- GDPR-grundlag for opbevaring/berigelse,
+- tilladelse til den konkrete marketingkanal,
+- indsigelse/stopliste,
+- artikel 13/14-transparens.
+
+### 7.4 Telefon og andre kanaler
+
+Telefonisk kontakt skal vurderes særskilt efter modtagertype, formål og gældende markedsførings-/forbrugerlovgivning. Lead Manager må ikke antage, at et telefonnummer automatisk må bruges, fordi e-mail er blokeret.
+
+### 7.5 Mailintegration
+
+Kundens OAuth- eller IMAP/SMTP-autorisation er en teknisk adgangsgodkendelse og er ikke i sig selv GDPR-retsgrundlag for al behandling af mailindhold. Formål, nødvendighed, dataminimering, retention og adgang skal stadig vurderes.
 
 ---
 
-## 8. Artikel 14 og transparens
+## 8. Oplysningspligt og transparens
 
-Når personoplysninger ikke er indsamlet direkte fra personen, kan GDPR artikel 14 medføre oplysningspligt.
+### 8.1 Artikel 13 og artikel 14
 
-Lead Manager understøtter dette ved at registrere:
+- Indsamles oplysninger direkte hos personen, gælder artikel 13.
+- Indsamles oplysninger fra andre kilder, gælder artikel 14.
 
-- kilde/provenance,
-- dato for indsamling,
-- status for artikel 14-information,
-- retention-review,
-- review-required status ved manglende dokumentation.
+Ved artikel 14 skal den dataansvarlige som udgangspunkt give de krævede oplysninger:
+- inden for en rimelig frist og senest én måned efter indsamling,
+- hvis oplysningerne skal bruges til kommunikation med personen: senest ved første kommunikation,
+- hvis oplysningerne skal videregives: senest ved første videregivelse.
 
-Artikel 14-flowet må ikke implementeres som automatisk kold marketingmail. Oplysningspligt og markedsføring skal holdes adskilt.
+Informationen skal bl.a. omfatte identitet og kontaktoplysninger på den dataansvarlige, formål, retsgrundlag, datakategorier, modtagere, opbevaring, relevante rettigheder, kilde og om oplysningerne stammer fra offentligt tilgængelige kilder.
+
+### 8.2 Undtagelser
+
+Undtagelser fra artikel 14 må ikke anvendes som en generel undtagelse for lead research. Hvis en undtagelse påberåbes, skal den vurderes konkret, dokumenteres og kunne forsvares. En vurdering af “uforholdsmæssig stor indsats” er ikke det samme som, at det er upraktisk eller dyrt.
+
+### 8.3 Managed leads og videregivelse
+
+Hvis Skarp Studio er selvstændigt dataansvarlig for sourcing/berigelse og videregiver et lead til kunden, skal der foretages særskilt vurdering af:
+- Skarp Studios oplysningspligt,
+- lovligheden af videregivelsen,
+- kundens oplysningspligt ved modtagelse,
+- om parterne i stedet har fælles dataansvar.
+
+En privacy-meddelelse må ikke bruges som markedsføringsmail eller som påskud til at omgå spamforbuddet.
+
+Lead Manager skal registrere provenance, indsamlingsdato, controller-rolle, notice-status og eventuel konkret undtagelsesbegrundelse.
 
 ---
 
@@ -226,19 +281,32 @@ Personligt ejede virksomheder og situationer, hvor kreditvurdering reelt bliver 
 
 ---
 
-## 12. Databehandlere og underdatabehandlere
+## 12. Databehandlere, underdatabehandlere og selvstændige modtagere
 
-Aktuelle væsentlige leverandører omfatter:
+Leverandørens juridiske rolle afhænger også af den behandling, som leverandøren udfører.
 
+Når Skarp Studio / Lead Manager er **dataansvarlig**, kan tekniske leverandører være databehandlere for Skarp Studio / Lead Manager.
+
+Når Skarp Studio / Lead Manager selv er **databehandler for en kunde**, vil de samme tekniske leverandører typisk være **underdatabehandlere** i forhold til kundens data.
+
+Aktuelle væsentlige tekniske leverandører omfatter:
 - Supabase – database, auth, Edge Functions og Vault,
 - Vercel – hosting og levering,
 - OpenAI – AI-assistance,
 - Google – Gmail/OAuth hvor relevant,
 - Microsoft – Microsoft 365/Graph hvor relevant.
 
-Før bred ekstern lancering skal DPA-status, overførselsgrundlag og relevante vilkår være dokumenteret og reviewet for hver leverandør.
+Før bred ekstern lancering skal der for hver relevant behandlingskæde dokumenteres:
+- korrekt rolle,
+- databehandler-/underdatabehandlergrundlag hvor artikel 28 finder anvendelse,
+- instrukser og underdatabehandlerbemyndigelse,
+- behandlingssted og eventuelle tredjelandsoverførsler,
+- relevant overførselsgrundlag og supplerende foranstaltninger,
+- sikkerhed, sletning/returnering og brudhåndtering.
 
-Google/Gmail bruger restricted scopes, og bred ekstern Gmail-lancering holdes blokeret, indtil nødvendig OAuth-verifikation og sikkerhedsassessment er dokumenteret.
+En offentlig DPA eller standardkontrakt er dokumentation, der skal vurderes – ikke automatisk bevis for, at alle konkrete krav er opfyldt.
+
+Google/Gmail restricted scopes håndteres desuden af en særskilt produkt-launch gate.
 
 ---
 
@@ -369,8 +437,10 @@ Samlet niveau:
 | 11 | Support/impersonation misbruges | Lav | Høj | Admin-only funktion, logging under udbygning | Middel | Gul |
 | 12 | Kompromitterede passwords accepteres | Middel | Høj | Auth eksisterer, men leaked-password protection mangler | Middel | Rød |
 | 13 | Leverandør/DPA/transfer-grundlag er utilstrækkeligt dokumenteret | Middel | Høj | Subprocessor-register findes, status markeres ikke falsk verificeret | Middel | Rød |
-| 14 | Registreret får ikke nødvendig transparens efter art. 14 | Middel | Middel-høj | Provenance og notice fields findes; workflow ikke fuldt operationaliseret | Middel | Gul/Rød før skalering |
-| 15 | Repository afslører unødigt intern arkitektur | Middel | Middel | Secrets ligger ikke bevidst i repo, Vault anvendes | Middel | Gul |
+| 14 | Registreret får ikke nødvendig transparens efter art. 13/14 | Middel | Høj | Provenance og notice fields findes; workflow ikke fuldt operationaliseret | Middel | Rød før skalering |
+| 15 | Forkert rolleklassifikation mellem kunde og Skarp Studio | Middel | Høj | Juridisk rollematrix, kontraktkrav og feature-review | Middel | Rød før managed skalering |
+| 16 | Managed lead videregives uden korrekt controller-to-controller/art. 26-vurdering | Middel | Høj | Rolleklassifikation før serviceaktivering | Middel | Rød før managed skalering |
+| 17 | Repository afslører unødigt intern arkitektur | Middel | Middel | Secrets ligger ikke bevidst i repo, Vault anvendes | Middel | Gul |
 
 ---
 
@@ -412,8 +482,9 @@ Følgende skal være lukket eller eksplicit accepteret af ansvarlig ledelse før
 1. **Google OAuth/CASA:** relevant Google-verifikation og sikkerhedsassessment dokumenteret før bred Gmail-lancering.
 2. **Leaked password protection:** aktiveres eller der dokumenteres et tilsvarende kompenserende sikkerhedsniveau.
 3. **Subprocessor review:** DPA, transfer-grundlag og relevante vilkår verificeres for aktive kerneleverandører.
-4. **Artikel 14-proces:** operationelt workflow fastlægges og dokumenteres.
-5. **Authenticated SECURITY DEFINER review:** følsomme funktioner gennemgås og browseradgang fjernes, hvor den ikke er nødvendig.
+4. **Artikel 13/14-proces:** operationelt workflow fastlægges og dokumenteres med konkrete frister, notice-indhold og undtagelseslogik.
+5. **Rolleklassifikation for managed service:** hver managed/hybrid ydelse klassificeres som processor, controller-to-controller eller fælles dataansvar, og kontrakter/onboarding følger klassifikationen.
+6. **Authenticated SECURITY DEFINER review:** følsomme funktioner gennemgås og browseradgang fjernes, hvor den ikke er nødvendig.
 
 ---
 
@@ -431,15 +502,18 @@ Følgende skal være lukket eller eksplicit accepteret af ansvarlig ledelse før
 
 ## 23. Samlet vurdering
 
-Lead Manager har væsentlige privacy-by-design kontroller på plads, herunder tenant-isolation, provenance, marketing-gate, human-in-the-loop AI, retention, Vault-baseret secret-håndtering og compliance-monitorering.
+Lead Manager har væsentlige privacy-by-design-kontroller på plads, men den juridiske vurdering kan ikke reduceres til én generel SaaS-rolle. Produktet understøtter både self-service og managed/hybrid behandling, og den faktiske rolle kan derfor skifte mellem behandlinger.
 
-Den nuværende restrisiko vurderes som **middel**, primært fordi enkelte eksterne og operationelle krav endnu ikke er endeligt lukket: Google-verifikation, leverandør/DPA-review, leaked-password protection og fuld operationalisering af artikel 14.
+Den nuværende restrisiko vurderes som **middel til høj for managed/hybrid flows, indtil rollefordeling, artikel 13/14-proces og kontraktmodel er operationaliseret**, og som **middel for self-service flows** under de eksisterende tekniske kontroller.
 
 **Konklusion:**
 
-- Intern drift/pilot kan fortsætte under de eksisterende kontroller.
-- Bred kommerciel lancering med alle integrationer bør først markeres som fuldt launch-ready, når de røde blockers er lukket eller formelt accepteret med dokumenteret begrundelse.
-- Gmail til brede eksterne kunder skal fortsat være launch-gated, indtil Google-kravene er dokumenteret opfyldt.
+- Intern drift/pilot kan fortsætte under dokumenterede kontroller og begrænset managed anvendelse.
+- Self-service SaaS kan juridisk struktureres som klassisk controller/processor, men kun for behandlinger hvor kunden faktisk bestemmer formål og væsentlige midler.
+- Managed lead research må ikke automatisk lægges ind under kundens databehandleraftale.
+- Før bred managed/hybrid lancering skal rolleklassifikation, art. 13/14, LIA/videregivelse og den korrekte art. 26/28/controller-to-controller kontraktmodel være på plads.
+- Bred kommerciel lancering med alle integrationer bør først markeres launch-ready, når de røde blockers er lukket eller fagligt og ledelsesmæssigt accepteret på et dokumenteret grundlag.
+- Gmail til brede eksterne kunder forbliver særskilt launch-gated, indtil Google-kravene er dokumenteret opfyldt.
 
 ---
 
@@ -484,7 +558,9 @@ DPIA'en skal genåbnes ved bl.a.:
 
 ## 26. Referencer
 
-- GDPR artikel 35 – Data Protection Impact Assessment.
-- European Data Protection Board (EDPB) – Guidelines on DPIA and high-risk processing.
-- EDPB – DPIA template/explainer, 2026.
+- GDPR artikel 4(7)-(8), 5, 6, 12-14, 21, 22, 26, 28, 30, 32 og 35.
+- Datatilsynet – Rollefordeling: Dataansvarlig og databehandler; vejledning om dataansvarlige og databehandlere; direkte markedsføring; konsekvensanalyse.
+- European Data Protection Board (EDPB) – Guidelines 07/2020 on the concepts of controller and processor in the GDPR.
+- Markedsføringsloven § 10 og Forbrugerombudsmandens vejledning/praksis om spamforbuddet.
+- EU AI Act, herunder artikel 4 og artikel 50, hvor anvendeligt.
 - Lead Managers interne privacy-, AI-governance-, retention- og compliance-kontroller.
