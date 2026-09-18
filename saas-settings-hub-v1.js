@@ -7,15 +7,16 @@ function isCustomer(){return window.LM_ACCESS?.authenticated===true&&window.LM_A
 function navLabel(){
   const b=$('.nav button[data-view="leadmanager"]');if(!b)return;
   const spans=b.querySelectorAll('span');
-  if(spans.length>1)spans[spans.length-1].textContent='Indstillinger';else b.textContent='Indstillinger';
+  if(spans.length>1){if(spans[spans.length-1].textContent!=='Indstillinger')spans[spans.length-1].textContent='Indstillinger';}else if(b.textContent!=='Indstillinger')b.textContent='Indstillinger';
 }
 function heading(){
   if(!isCustomer())return;
   const b=$('.nav button[data-view="leadmanager"]');
   if(b?.classList.contains('active')){
     const t=$('#title'),s=$('#subtitle');
-    if(t)t.textContent='Indstillinger';
-    if(s)s.textContent='Opsæt og ændr de funktioner, Lead Manager bruger for jeres virksomhed.';
+    if(t&&t.textContent!=='Indstillinger')t.textContent='Indstillinger';
+    const msg='Opsæt og ændr de funktioner, Lead Manager bruger for jeres virksomhed.';
+    if(s&&s.textContent!==msg)s.textContent=msg;
   }
 }
 function ensureStyle(){
