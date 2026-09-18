@@ -62,8 +62,8 @@ function rehome(){
   if(mail){if(mail.parentNode!==view)view.appendChild(mail);headingBefore(mail,'lmSettingsMailHeading','Mail','Forbind mailkonto og styr afsender, signatur og mailopsætning.');}
   const minuba=findMinuba();
   if(minuba)headingBefore(minuba,'lmSettingsIntegrationHeading','Integrationer','Forbind de systemer, jeres Lead Manager må arbejde sammen med.');
-  const marketing=$('#mkConnectionsCard');
-  if(marketing){if(marketing.parentNode!==view)view.appendChild(marketing);headingBefore(marketing,'lmSettingsMarketingHeading','Marketing & leadkilder','Forbind formularer, kampagner og andre leadkilder.');}
+  $('#lmSettingsMarketingHeading')?.remove();
+  $('#mkConnectionsCard')?.remove();
   heading();
 }
 function boot(){
