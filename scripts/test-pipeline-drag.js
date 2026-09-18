@@ -1,24 +1,26 @@
 const fs=require('node:fs');
 
 const html=fs.readFileSync('index.html','utf8');
+const start=html.indexOf('function updatePipelineColumnCount(col)');
+const end=html.indexOf('\nfunction ensurePipelineEdgeGlow()',start);
+if(start<0||end<0)throw new Error('pipeline drag implementation missing');
+const drag=html.slice(start,end);
 
 for(const [marker,message] of [
-  ['draggable="false" data-pipeline-lead=','pipeline cards must use pointer dragging instead of native HTML5 dragging'],
-  ["card.addEventListener('pointerdown'","pipeline pointerdown handler missing"],
-  ["card.addEventListener('pointermove'","pipeline pointermove handler missing"],
-  ["card.addEventListener('pointerup'","pipeline pointerup handler missing"],
-  ["document.elementFromPoint(x,y)","drop target must follow the actual pointer location"],
-  [".pipeline-col[data-pipeline-status]","pipeline status drop target selector missing"],
-  ["card.dataset.pipelineSuppressClick='1'","dragging must suppress the following click-to-open"],
-  ["await movePipelineLead(id,col.dataset.pipelineStatus)","pointer drop must persist the target status"],
-  [".pipeline-drag-ghost","drag ghost styling missing"],
-  ["background:#0a1f2c!important","drawer status select must stay dark in the dark theme"],
-  ["color:#eaf4f8!important","drawer status select text must remain readable"]
+  ["board.dataset.pipelinePointerBound='1'","pipeline board must bind delegated pointer dragging only once"],
+  ["document.addEventListener('pointermove'","dragging must continue at document level when pointer leaves the card"],
+  ["document.addEventListener('pointerup'","drop must complete at document level"],
+  ["document.elementFromPoint(x,y)","drop column must follow the actual pointer position"],
+  ["movePipelineCardDom(id,targetStatus)","successful drops must move the existing card without rerendering the board"],
+  ["Object.assign(l,patch)","successful drops must update in-memory CRM state"],
+  ["updatePipelineColumnCount(source)","source count must update in place"],
+  ["updatePipelineColumnCount(target)","target count must update in place"],
+  ["await movePipelineLead(id,col.dataset.pipelineStatus)","pointer drop must persist the selected status"]
 ]){
-  if(!html.includes(marker))throw new Error(message);
+  if(!drag.includes(marker))throw new Error(message);
 }
 
-if(html.includes('class="leadcard pipeline-card" draggable="true"'))
-  throw new Error('native HTML5 draggable pipeline cards returned');
+if(drag.includes('await loadAll()'))throw new Error('pipeline drag must not reload all CRM data after a drop');
+if(drag.includes("card.addEventListener('pointermove'"))throw new Error('card-local pointermove returned; drag can fall off the card again');
 
-console.log('PASS: pointer-based pipeline dragging and readable dark quick-status UI');
+console.log('PASS: global pointer drag remains attached and successful drops update in place without full CRM rerender');
