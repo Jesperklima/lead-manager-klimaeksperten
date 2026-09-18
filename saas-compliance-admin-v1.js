@@ -1,11 +1,37 @@
 (()=>{
 'use strict';
-const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
-let lastClient=null,lastData=null,busy=false;
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
+const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
+let lastClient=null,lastData=null,lastIdentity=null,busy=false,identityBusy=false;
 function clientId(){try{return state?.client?.id||null}catch{return null}}
 function admin(){try{return !!window.LMPlatformAdmin?.active}catch{return false}}
 function host(){return document.querySelector('#lmSystemView .lm-system-grid')}
 function card(){let el=document.getElementById('lmComplianceCard');if(!el){el=document.createElement('div');el.id='lmComplianceCard';el.className='lm-system-card';el.style.gridColumn='1 / -1';host()?.appendChild(el)}return el}
+async function legalAdminEdge(payload={}){
+ const {data:s}=await supabase.auth.getSession();const token=s?.session?.access_token;if(!token)throw new Error('Login-session mangler');
+ const r=await fetch(API+'/functions/v1/platform-legal-identity-admin',{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+token},body:JSON.stringify(payload)}),raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={error:raw}}if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d
+}
+function identitySection(){
+ const i=lastIdentity?.identity||{},ok=lastIdentity?.check?.ok===true,miss=Array.isArray(lastIdentity?.check?.missing)?lastIdentity.check.missing:[];
+ const input=(id,label,val,ph='')=>`<div><label style="display:block;font-size:11px;font-weight:800;color:#475569;margin-bottom:4px">${esc(label)}</label><input id="${id}" value="${esc(val||'')}" placeholder="${esc(ph)}" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:9px;padding:9px 10px;font-size:13px"></div>`;
+ return `<section style="margin-top:14px;border:1px solid ${ok?'#a7f3d0':'#fecaca'};border-radius:16px;background:#fff;padding:15px">
+   <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:15px;font-weight:900;color:#0f172a">Juridisk udbyderidentitet</div><div style="font-size:12px;color:#64748b;margin-top:2px">Bruges i privacy notice, DPA og kundeaftaler. Gem kun verificerede virksomhedsoplysninger.</div></div>${chip(ok?'VERIFICERET':'MANGLER OPLYSNINGER',ok?'ok':'bad')}</div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px">
+    ${input('lmLegalName','Juridisk virksomhedsnavn',i.legal_name,'Fx Selskab ApS')}
+    ${input('lmLegalCvr','CVR',i.cvr,'8 cifre')}
+    ${input('lmLegalStreet','Gadeadresse',i.street_address)}
+    ${input('lmLegalPostal','Postnr.',i.postal_code)}
+    ${input('lmLegalCity','By',i.city)}
+    ${input('lmLegalPrivacy','Privacy/GDPR-mail',i.privacy_email,'privacy@...')}
+   </div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px">
+    ${input('lmLegalTrading','Brand/handelsnavn',i.trading_name||'Skarp Studio')}
+    ${input('lmLegalWebsite','Website',i.website||'https://skarpstudio.dk')}
+   </div>
+   <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><div id="lmLegalIdentityMsg" style="font-size:12px;color:${ok?'#166534':'#991b1b'}">${ok?'Identiteten er verificeret og den globale blocker kan lukkes.':('Mangler: '+(miss.length?miss.join(', '):'verificering'))}</div><button class="btn primary" id="lmLegalIdentitySave" type="button">Gem og verificér</button></div>
+ </section>`
+}
 const tone={ok:{bg:'#ecfdf5',border:'#a7f3d0',text:'#166534',badge:'#d1fae5'},warn:{bg:'#fff7ed',border:'#fed7aa',text:'#9a3412',badge:'#ffedd5'},bad:{bg:'#fef2f2',border:'#fecaca',text:'#991b1b',badge:'#fee2e2'},info:{bg:'#eff6ff',border:'#bfdbfe',text:'#1d4ed8',badge:'#dbeafe'},neutral:{bg:'#f8fafc',border:'#e2e8f0',text:'#334155',badge:'#eef2f7'}};
 function n(v){return Number(v||0)}
 function chip(text,kind='neutral'){const t=tone[kind]||tone.neutral;return `<span style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:800;letter-spacing:.02em;background:${t.badge};color:${t.text};white-space:nowrap">${esc(text)}</span>`}
@@ -66,6 +92,7 @@ function render(data,error){const el=card();if(!el)return;if(error){el.innerHTML
      <div style="margin-top:10px">${aiRule('Human review før afsendelse',human,'AI må ikke selv sende kunde-/salgs-mails uden menneskelig godkendelse.')}${aiRule('Ingen automatisk afsendelse',noAuto,'AI-genereret indhold kræver aktiv brugerhandling før mail sendes.')}${aiRule('Ingen juridisk effekt-beslutninger',noLegal,'AI må ikke selv træffe beslutninger med væsentlig juridisk effekt.')}${aiRule('Ingen personlig kredit-scoring',noCredit,'Personligt ejede virksomheder/personer må ikke få automatisk AI-kreditscore.')}${aiRule('Ingen følsomme data i prompts',noSensitive,'Følsomme personoplysninger må ikke sendes ind i AI-prompts som standard.')}</div>
    </section>
  </div>
+ ${identitySection()}
  <section style="margin-top:14px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:15px">
    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><div style="font-size:16px;font-weight:950;color:#0f172a">Globale platform-blockers</div><div style="font-size:12px;color:#64748b;margin-top:2px">Kun disse forhold afgør status for bred platformlancering.</div></div>${chip(blockers.length?`${blockers.length} ÅBNE`:'INGEN ÅBNE',blockers.length?'bad':'ok')}</div>
    <div style="display:grid;gap:10px;margin-top:12px">${blockers.length?blockers.map((x,i)=>blockerCard(x,ctx,i)).join(''):'<div style="padding:14px;border-radius:12px;background:#ecfdf5;color:#166534;font-weight:800">Ingen launch-blockers registreret.</div>'}</div>
@@ -79,8 +106,16 @@ function render(data,error){const el=card();if(!el)return;if(error){el.innerHTML
  </section>
  <div style="font-size:11px;color:#94a3b8;line-height:1.5;margin-top:12px">Compliance-panelet er en operationel kontrol og erstatter ikke juridisk sign-off. DPA-status, OAuth-verifikation og security assessment behandles som separate gates.</div>`;
  document.getElementById('lmComplianceRefresh')?.addEventListener('click',()=>load(true),{once:true});
+ document.getElementById('lmLegalIdentitySave')?.addEventListener('click',async()=>{
+   if(identityBusy)return;identityBusy=true;const b=document.getElementById('lmLegalIdentitySave'),m=document.getElementById('lmLegalIdentityMsg');if(b)b.disabled=true;if(m){m.style.color='#475569';m.textContent='Gemmer og verificerer…'}
+   try{
+     lastIdentity=await legalAdminEdge({action:'save',legal_name:document.getElementById('lmLegalName')?.value||'',cvr:document.getElementById('lmLegalCvr')?.value||'',street_address:document.getElementById('lmLegalStreet')?.value||'',postal_code:document.getElementById('lmLegalPostal')?.value||'',city:document.getElementById('lmLegalCity')?.value||'',privacy_email:document.getElementById('lmLegalPrivacy')?.value||'',trading_name:document.getElementById('lmLegalTrading')?.value||'Skarp Studio',website:document.getElementById('lmLegalWebsite')?.value||'https://skarpstudio.dk'});
+     lastClient=null;lastData=null;await load(true)
+   }catch(e){if(m){m.style.color='#991b1b';m.textContent=e?.message||String(e)}}
+   finally{identityBusy=false;if(b)b.disabled=false}
+ },{once:true});
 }
-async function load(force=false){if(!admin()||!host()||busy)return;const id=clientId();if(!id)return;if(!force&&lastClient===id&&lastData){render(lastData);return}busy=true;try{const {data,error}=await supabase.rpc('crm_compliance_dashboard',{p_client_id:id});if(error)throw error;lastClient=id;lastData=data;render(data)}catch(e){render(null,e?.message||String(e))}finally{busy=false}}
+async function load(force=false){if(!admin()||!host()||busy)return;const id=clientId();if(!id)return;if(!force&&lastClient===id&&lastData){render(lastData);return}busy=true;try{const [dash,identity]=await Promise.all([supabase.rpc('crm_compliance_dashboard',{p_client_id:id}),legalAdminEdge({action:'status'}).catch(()=>null)]);if(dash.error)throw dash.error;if(identity)lastIdentity=identity;lastClient=id;lastData=dash.data;render(dash.data)}catch(e){render(null,e?.message||String(e))}finally{busy=false}}
 function tick(){if(admin()&&host()){card();load(false)}}
 new MutationObserver(()=>setTimeout(tick,0)).observe(document.documentElement,{subtree:true,childList:true});
 window.addEventListener('lm:client-switched',()=>{lastClient=null;lastData=null;setTimeout(()=>load(true),50)});
