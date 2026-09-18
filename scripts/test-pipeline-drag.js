@@ -1,7 +1,7 @@
 const fs=require('node:fs');
 
 const html=fs.readFileSync('index.html','utf8');
-const start=html.indexOf('async function movePipelineLead(id,targetStatus)');
+const start=html.indexOf('function updatePipelineColumnCount(col)');
 const end=html.indexOf('\nfunction ensurePipelineEdgeGlow()',start);
 if(start<0||end<0)throw new Error('pipeline drag implementation missing');
 const drag=html.slice(start,end);
