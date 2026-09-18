@@ -236,7 +236,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
   <div class="cards" id="reportMetrics"></div>
   <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Dato</th><th>Type</th><th>Virksomhed</th><th>Detalje</th><th>Aktør</th></tr></thead><tbody id="reportRows"></tbody></table></div>
 </section>
-<section id="approvals" class="view"><div class="card"><h2 style="margin-top:0">Godkendelsescenter</h2><div class="sub">Handlinger der ikke skal udføres blindt af AI, lander her.</div><div id="approvalFeed" style="margin-top:12px"></div></div></section>
+<section id="approvals" class="view"><div class="card"><h2 style="margin-top:0">Godkendelsescenter</h2><div class="sub">Handlinger der kræver godkendelse, samles her.</div><div id="approvalFeed" style="margin-top:12px"></div></div></section>
 <section id="leadmanager" class="view">
   <div class="grid2">
     <div class="card"><h2 style="margin-top:0">Lead Manager</h2><div class="sub">Skriv en kommando til CRM'et. Interne ændringer journalføres; eksterne mails går altid via godkendelsescenteret.</div><div class="field"><textarea id="lmCommand" rows="5" placeholder="Fx: Hvad skal jeg ringe på i dag? · Flyt mine fleksible opfølgninger fra torsdag til fredag · Lav et mailudkast til Hotel Kirstine"></textarea></div><button class="btn primary" id="sendLmCommand">Send til Lead Manager</button></div>
