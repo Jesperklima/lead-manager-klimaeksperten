@@ -425,7 +425,6 @@ $('signupBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){
 $('logoutBtn').onclick=()=>supabase.auth.signOut();
 let startAppPromise=null;
 async function startApp(){
-  showApp();
   if(startAppPromise)return startAppPromise;
   $('loading').classList.remove('hidden');
   startAppPromise=(async()=>{
@@ -438,6 +437,13 @@ async function startApp(){
       const {data:clients,error:ce}=await supabase.from('crm_clients').select('*').eq('id',state.userMap.client_id);
       if(ce||!clients?.length)throw new Error(ce?.message||'Kundeprofil kunne ikke hentes');
       state.client=clients[0];
+      const isInternal=state.client?.settings?.saas?.onboarding_completed===true || state.client?.settings?.saas==null;
+      if(!isInternal){
+        $('authScreen')?.classList.add('hidden');
+        $('appShell')?.classList.add('hidden');
+        return;
+      }
+      showApp();
       $('brandClient').textContent=state.client.name+' · Pilot';
       await loadAll();
     }catch(error){
