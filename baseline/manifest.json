@@ -14,8 +14,8 @@
     "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
     "snapshot": "lead_manager_canonical_baseline_20260827_1242"
   },
-  "repository_bytes": 185621,
-  "repository_md5": "2b274e66bf86021a54a67d0ded003bb6",
+  "repository_bytes": 185619,
+  "repository_md5": "1f48ae0360aadf743a1529fd022e5e0e",
   "change": "apply premium dark Lead Manager design system across the application",
   "previous_repository": {
     "bytes": 183626,
