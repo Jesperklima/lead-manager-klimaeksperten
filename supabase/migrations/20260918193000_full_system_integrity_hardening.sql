@@ -13,7 +13,7 @@ alter table public.crm_contacts disable trigger user;
 alter table public.crm_activities disable trigger user;
 alter table public.crm_offers disable trigger user;
 
-do $
+do $$
 declare
   v_source_company uuid := '6c63056c-2ee7-4929-9a39-3e664d32d92b';
   v_target_client uuid := '9b6b08bd-e9ce-40c3-8ffa-aa18e859d3af';
