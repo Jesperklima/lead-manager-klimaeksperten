@@ -76,12 +76,19 @@ Path('/tmp/required-views.js').write_text(m.group(1),encoding='utf-8')
 PY
 node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
+node --check lead-manager-theme-v2.js
 node --check saas-credit-check-v1.js
 node --check saas-regression-center-v1.js
 node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 node scripts/test-regression-guards.js
 test -s executive-dashboard-v1.css
+test -s lead-manager-theme-v2.css
+grep -q 'lead-manager-theme-v2.css' index.html
+grep -q 'lead-manager-theme-v2.js' index.html
+for page in login.html microsoft-setup.html minuba-setup.html privacy.html; do
+  grep -q 'lead-manager-theme-v2.css' "$page"
+done
 grep -q "function dashboardNow" executive-dashboard-v1.js
 grep -q "method:'HEAD'" executive-dashboard-v1.js
 grep -q "serverClockMs" executive-dashboard-v1.js
