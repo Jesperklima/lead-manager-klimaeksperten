@@ -42,15 +42,13 @@
     brand.appendChild(fallback);
 
     const logoParts=[
-      '/assets/lead-manager-logo.b64.0',
-      '/assets/lead-manager-logo.b64.1',
-      '/assets/lead-manager-logo.b64.2a',
-      '/assets/lead-manager-logo.b64.2b',
-      '/assets/lead-manager-logo.b64.2c',
-      '/assets/lead-manager-logo.b64.3'
+      '/assets/lead-manager-logo.webp.b64.0',
+      '/assets/lead-manager-logo.webp.b64.1',
+      '/assets/lead-manager-logo.webp.b64.2',
+      '/assets/lead-manager-logo.webp.b64.3'
     ];
     const parts=logoParts.map(url=>
-      fetch(url+'?v=20260918-2',{cache:'force-cache'})
+      fetch(url+'?v=20260918-3',{cache:'force-cache'})
         .then(response=>{
           if(!response.ok)throw new Error('Logo asset kunne ikke hentes: '+url);
           return response.text();
@@ -60,7 +58,7 @@
     Promise.all(parts).then(chunks=>{
       logo.onload=()=>brand.classList.add('lm-brand-ready');
       logo.onerror=()=>{brand.innerHTML=previous;};
-      logo.src='data:image/png;base64,'+chunks.join('');
+      logo.src='data:image/webp;base64,'+chunks.join('');
     }).catch(error=>{
       console.warn('Lead Manager-logo kunne ikke indlæses',error);
       brand.innerHTML=previous;
