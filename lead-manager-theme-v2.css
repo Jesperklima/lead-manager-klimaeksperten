@@ -285,7 +285,7 @@ td small{color:#7891a2!important}
 .badge.c{background:rgba(148,163,184,.12)!important;color:#cbd5e1!important}
 .badge.ok{background:rgba(74,222,128,.11)!important;color:#8ff0ae!important;border-color:rgba(74,222,128,.18)!important}
 .badge.mail{background:rgba(56,189,248,.1)!important;color:#80d7fb!important;border-color:rgba(56,189,248,.18)!important}
-.status.VUNDET{color:#74e49b!important}.status.TABT,.status.IKKE-RELEVANT{color:#fb8799!important}.status.AFVENTER,.status.PÅ-PAUSE{color:#f9ce63!important}.status.DIALOG,.status.MØDE,.status.TILBUD{color:#bda8ff!important}
+.status.VUNDET{color:#74e49b!important}.status.TABT,.status.IKKE-RELEVANT{color:#fb8799!important}.status.AFVENTER,.status.PÅ-PAUSE{color:#f9ce63!important}.status.DIALOG,.status.MØDE,.status.TILBUD{color:#bda8ff!important}\n.status.LUKKET{color:#8ea3b2!important}
 
 .pipeline-toolbar,.calendar-head{
   background:linear-gradient(180deg,rgba(12,30,42,.95),rgba(9,24,34,.95))!important;
