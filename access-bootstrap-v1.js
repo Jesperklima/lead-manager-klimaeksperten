@@ -21,6 +21,7 @@ async function controlledStartApp(){
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
    if(access.next_route==='onboarding'){
     document.getElementById('authScreen')?.classList.add('hidden');document.getElementById('appShell')?.classList.add('hidden');
+    window.dispatchEvent(new CustomEvent('lm:central-onboarding-required',{detail:access}));
     return;
    }
    let clientId=access.workspace_id||null;
