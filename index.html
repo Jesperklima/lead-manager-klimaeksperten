@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Lead Manager – Klimaeksperten</title>
 <style>
-:root{--bg:#f4f7f9;--panel:#fff;--text:#14202a;--muted:#66737d;--border:#dbe3e8;--accent:#14384c;--accent2:#25556d;--soft:#edf3f6;--danger:#9b2f2f;--ok:#2d6a4f;--warn:#8a5a12;--purple:#674188}*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}.app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}.side{background:#102632;color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh}.brand{font-size:20px;font-weight:800;margin-bottom:24px}.brand small{display:block;font-size:12px;font-weight:500;opacity:.72;margin-top:4px}.nav button{width:100%;text-align:left;border:0;background:transparent;color:#dce8ef;padding:11px 12px;border-radius:9px;margin:2px 0}.nav button:hover,.nav button.active{background:#1c3d4d;color:#fff}.sidefoot{position:absolute;left:16px;right:16px;bottom:18px;font-size:12px;color:#a9bec9}.main{padding:24px;min-width:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.top h1{margin:0;font-size:28px}.topactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sub{color:var(--muted);font-size:14px}.btn{border:1px solid var(--border);background:#fff;padding:9px 12px;border-radius:9px;color:var(--text)}.btn:hover{background:#f7fafb}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.danger{color:var(--danger)}.btn.small{font-size:12px;padding:6px 9px}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0}.metric{font-size:30px;font-weight:800;margin:4px 0}.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:14px;margin-top:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.section h2{font-size:18px;margin:0 0 12px}.task{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid var(--border)}.task:first-child{border-top:0}.badge{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--soft);font-size:12px;white-space:nowrap}.badge.a{background:#fee2e2;color:#7f1d1d}.badge.b{background:#fef3c7;color:#78350f}.badge.c{background:#e5e7eb;color:#374151}.badge.ok{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#854d0e}.badge.mail{background:#e0f2fe;color:#075985}.status{font-weight:700}.status.VUNDET{color:var(--ok)}.status.TABT,.status.IKKE-RELEVANT{color:var(--danger)}.status.AFVENTER,.status.PÅ-PAUSE{color:var(--warn)}.status.DIALOG,.status.MØDE,.status.TILBUD{color:var(--purple)}.tablewrap{overflow:auto;background:#fff;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:800px}th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px;vertical-align:top}th{background:#f8fafb;color:#52606a;position:sticky;top:0}.view{display:none}.view.active{display:block}.kanban{display:grid;grid-template-columns:repeat(8,minmax(220px,1fr));gap:12px;overflow:auto;padding-bottom:8px}.col{background:#eef3f6;border:1px solid var(--border);border-radius:12px;padding:10px;min-height:280px}.leadcard{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0;cursor:pointer}.leadcard:hover{border-color:#9fb5c2}.pipeline-card{cursor:grab;user-select:none}.pipeline-card:active{cursor:grabbing}.pipeline-card.dragging{opacity:.45;transform:scale(.98)}.pipeline-col.dragover{outline:2px dashed var(--accent);outline-offset:2px;background:#e3edf2}.leadcard strong{display:block}.leadcard small{color:var(--muted)}.drawer{position:fixed;right:-580px;top:0;width:560px;max-width:100%;height:100%;background:#fff;border-left:1px solid var(--border);box-shadow:-12px 0 35px rgba(0,0,0,.14);transition:right .18s ease;z-index:30;overflow:auto;padding:20px}.drawer.open{right:0}.drawer-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:#fff}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.timeline{margin-top:18px}.event{border-left:3px solid #9fb5c2;padding:5px 0 10px 12px;margin:0 0 8px;word-break:break-word}.event small{color:var(--muted)}.event.mail{border-left-color:#3b82f6}.event.agent{border-left-color:#7c3aed}.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px}.calendar{display:grid;grid-template-columns:repeat(5,minmax(180px,1fr));gap:10px;overflow:auto}.day{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;min-height:320px}.day.dragover{outline:2px dashed var(--accent)}.calitem{padding:8px;border:1px solid var(--border);border-radius:8px;margin:7px 0;background:#f9fbfc;cursor:grab}.calitem strong{display:inline-block;min-width:46px}.modalback{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;z-index:50}.modalback.open{display:flex}.modal{background:#fff;border-radius:14px;padding:18px;width:min(560px,92vw);max-height:88vh;overflow:auto}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#102632;color:#fff;padding:10px 14px;border-radius:999px;display:none;z-index:80}.toast.show{display:block}.notice{padding:10px 12px;border-radius:9px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px}.oknotice{padding:10px 12px;border-radius:9px;background:#ecfdf5;border:1px solid #a7f3d0;color:#166534;font-size:13px}.auth{min-height:100vh;display:grid;place-items:center;padding:24px;background:#102632}.authbox{width:min(460px,100%);background:#fff;border-radius:18px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.2)}.authbox h1{margin:0 0 8px}.authactions{display:flex;gap:8px;flex-wrap:wrap}.loader{padding:30px;text-align:center;color:var(--muted)}.mailrow{display:grid;grid-template-columns:150px minmax(0,1fr) 150px;gap:12px;padding:12px 0;border-top:1px solid var(--border)}.mailrow:first-child{border-top:0}.mailbody{white-space:pre-wrap;max-height:120px;overflow:hidden;color:#475569;font-size:13px;margin-top:5px}.agentgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.split{display:flex;gap:8px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;font-size:12px}.empty{padding:24px;text-align:center;color:var(--muted)}
+:root{--bg:#f4f7f9;--panel:#fff;--text:#14202a;--muted:#66737d;--border:#dbe3e8;--accent:#14384c;--accent2:#25556d;--soft:#edf3f6;--danger:#9b2f2f;--ok:#2d6a4f;--warn:#8a5a12;--purple:#674188}*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}.app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}.side{background:#102632;color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh}.brand{font-size:20px;font-weight:800;margin-bottom:24px}.brand small{display:block;font-size:12px;font-weight:500;opacity:.72;margin-top:4px}.nav button{width:100%;text-align:left;border:0;background:transparent;color:#dce8ef;padding:11px 12px;border-radius:9px;margin:2px 0}.nav button:hover,.nav button.active{background:#1c3d4d;color:#fff}.sidefoot{position:absolute;left:16px;right:16px;bottom:18px;font-size:12px;color:#a9bec9}.main{padding:24px;min-width:0}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}.top h1{margin:0;font-size:28px}.topactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sub{color:var(--muted);font-size:14px}.btn{border:1px solid var(--border);background:#fff;padding:9px 12px;border-radius:9px;color:var(--text)}.btn:hover{background:#f7fafb}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.danger{color:var(--danger)}.btn.small{font-size:12px;padding:6px 9px}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0}.metric{font-size:30px;font-weight:800;margin:4px 0}.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:14px;margin-top:14px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}.section h2{font-size:18px;margin:0 0 12px}.task{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-top:1px solid var(--border)}.task:first-child{border-top:0}.badge{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--soft);font-size:12px;white-space:nowrap}.badge.a{background:#fee2e2;color:#7f1d1d}.badge.b{background:#fef3c7;color:#78350f}.badge.c{background:#e5e7eb;color:#374151}.badge.ok{background:#dcfce7;color:#166534}.badge.warn{background:#fef3c7;color:#854d0e}.badge.mail{background:#e0f2fe;color:#075985}.status{font-weight:700}.status.VUNDET{color:var(--ok)}.status.TABT,.status.IKKE-RELEVANT{color:var(--danger)}.status.AFVENTER,.status.PÅ-PAUSE{color:var(--warn)}.status.DIALOG,.status.MØDE,.status.TILBUD{color:var(--purple)}.tablewrap{overflow:auto;background:#fff;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:800px}th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:14px;vertical-align:top}th{background:#f8fafb;color:#52606a;position:sticky;top:0}.view{display:none}.view.active{display:block}.kanban{display:grid;grid-template-columns:repeat(8,minmax(220px,1fr));gap:12px;overflow:auto;padding-bottom:8px}.col{background:#eef3f6;border:1px solid var(--border);border-radius:12px;padding:10px;min-height:280px}.leadcard{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0;cursor:pointer}.leadcard:hover{border-color:#9fb5c2}.pipeline-card{cursor:grab;user-select:none;touch-action:none}.pipeline-drag-ghost{position:fixed!important;left:0;top:0;z-index:9999!important;pointer-events:none!important;margin:0!important;opacity:.96!important;transform-origin:top left;box-shadow:0 22px 55px rgba(0,0,0,.42)!important}.pipeline-pointer-drag{cursor:grabbing!important}.pipeline-card:active{cursor:grabbing}.pipeline-card.dragging{opacity:.45;transform:scale(.98)}.pipeline-col.dragover{outline:2px dashed var(--accent);outline-offset:2px;background:#e3edf2}.leadcard strong{display:block}.leadcard small{color:var(--muted)}.drawer{position:fixed;right:-580px;top:0;width:560px;max-width:100%;height:100%;background:#fff;border-left:1px solid var(--border);box-shadow:-12px 0 35px rgba(0,0,0,.14);transition:right .18s ease;z-index:30;overflow:auto;padding:20px}.drawer.open{right:0}.drawer-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:#fff}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.timeline{margin-top:18px}.event{border-left:3px solid #9fb5c2;padding:5px 0 10px 12px;margin:0 0 8px;word-break:break-word}.event small{color:var(--muted)}.event.mail{border-left-color:#3b82f6}.event.agent{border-left-color:#7c3aed}.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px}.calendar{display:grid;grid-template-columns:repeat(5,minmax(180px,1fr));gap:10px;overflow:auto}.day{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;min-height:320px}.day.dragover{outline:2px dashed var(--accent)}.calitem{padding:8px;border:1px solid var(--border);border-radius:8px;margin:7px 0;background:#f9fbfc;cursor:grab}.calitem strong{display:inline-block;min-width:46px}.modalback{position:fixed;inset:0;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;z-index:50}.modalback.open{display:flex}.modal{background:#fff;border-radius:14px;padding:18px;width:min(560px,92vw);max-height:88vh;overflow:auto}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#102632;color:#fff;padding:10px 14px;border-radius:999px;display:none;z-index:80}.toast.show{display:block}.notice{padding:10px 12px;border-radius:9px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13px}.oknotice{padding:10px 12px;border-radius:9px;background:#ecfdf5;border:1px solid #a7f3d0;color:#166534;font-size:13px}.auth{min-height:100vh;display:grid;place-items:center;padding:24px;background:#102632}.authbox{width:min(460px,100%);background:#fff;border-radius:18px;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.2)}.authbox h1{margin:0 0 8px}.authactions{display:flex;gap:8px;flex-wrap:wrap}.loader{padding:30px;text-align:center;color:var(--muted)}.mailrow{display:grid;grid-template-columns:150px minmax(0,1fr) 150px;gap:12px;padding:12px 0;border-top:1px solid var(--border)}.mailrow:first-child{border-top:0}.mailbody{white-space:pre-wrap;max-height:120px;overflow:hidden;color:#475569;font-size:13px;margin-top:5px}.agentgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.split{display:flex;gap:8px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;font-size:12px}.empty{padding:24px;text-align:center;color:var(--muted)}
 @media(max-width:1000px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.sidefoot{display:none}.cards{grid-template-columns:repeat(2,1fr)}.grid2,.grid3{grid-template-columns:1fr}.calendar{grid-template-columns:repeat(5,240px)}.agentgrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.main{padding:16px}.cards{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.row,.row3{grid-template-columns:1fr}.mailrow{grid-template-columns:1fr}.agentgrid{grid-template-columns:1fr}.drawer{width:100%}}
 .status.STATUS-UKLAR{color:#64748b}.status.I-GANG{color:#075985}.offer-summary{margin-bottom:2px}.badge.a{vertical-align:middle}
 .intelitem{padding:10px 0;border-top:1px solid var(--border)}
@@ -489,7 +489,7 @@ function renderKanban(){
   const board=$('kanban');
   const oldScroll=board.scrollLeft;
   const poolOf=l=>(l.lead_pool||'standard');
-  const card=l=>`<div class="leadcard pipeline-card" draggable="true" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.source_reference?`<small style="margin-top:4px">${esc(l.source_reference)}</small>`:''}${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`;
+  const card=l=>`<div class="leadcard pipeline-card" draggable="false" data-pipeline-lead="${l.id}" data-open-lead="${l.id}"><strong>${esc(leadName(l))}</strong><small>${esc(l.next_action||'Ingen næste handling')}</small>${l.source_reference?`<small style="margin-top:4px">${esc(l.source_reference)}</small>`:''}${l.manual_lock?'<div class="sub" style="margin-top:5px">🔒 Manuel status</div>':''}</div>`;
   const columns=[];
   const ny=state.leads.filter(l=>poolOf(l)!=='documented_opportunity'&&l.status==='NY');
   columns.push(`<div class="col pipeline-col" data-pipeline-status="NY"><strong>NY</strong><div class="sub">${ny.length} leads</div>${ny.map(card).join('')}</div>`);
@@ -506,60 +506,85 @@ function renderKanban(){
 async function movePipelineLead(id,targetStatus){const l=leadById(id);if(!l||l.status===targetStatus)return;const previous=l.status;if(targetStatus==='TABT'&&!l.loss_reason){const reason=window.prompt(`Hvorfor er ${leadName(l)} tabt?`,'');if(!reason||!reason.trim()){toast('Flytning annulleret – TABT kræver en årsag');renderKanban();return}l._pipeline_loss_reason=reason.trim()}const closed=['VUNDET','TABT','IKKE RELEVANT'].includes(targetStatus);const patch={status:targetStatus,manual_lock:true,updated_at:new Date().toISOString()};if(targetStatus==='TABT')patch.loss_reason=l._pipeline_loss_reason||l.loss_reason||null;else if(previous==='TABT')patch.loss_reason=null;if(closed){patch.next_action=null;patch.next_at=null}const {error}=await supabase.from('crm_leads').update(patch).eq('id',id);if(error){toast(error.message);await loadAll();return}if(closed){const openTasks=state.tasks.filter(t=>t.lead_id===id&&t.status==='open');for(const t of openTasks){await supabase.from('crm_tasks').update({status:'closed',calendar_sync_status:t.external_calendar_id?'delete_pending':'none'}).eq('id',t.id)}}await logActivity(l,'Status',`${previous} → ${targetStatus} (drag & drop)`,{previous,next:targetStatus,manual:true,method:'pipeline_drag_drop',loss_reason:patch.loss_reason||null});await loadAll();toast(`${leadName(l)} flyttet til ${targetStatus}`);if(targetStatus==='MØDE'&&!l.next_at){openLead(id);toast('Møde registreret – angiv dato og tid på leadkortet')}}
 function wirePipelineDrag(){
   const board=$('kanban');if(!board)return;
-  const clearDragState=()=>{
-    delete board.dataset.pipelineDragLead;
-    document.body.classList.remove('pipeline-drag-active');
-    board.querySelectorAll('.pipeline-card.dragging').forEach(x=>{x.classList.remove('dragging');x.setAttribute('aria-grabbed','false')});
+  let active=null;
+
+  const clearTarget=()=>{
     board.querySelectorAll('.pipeline-col.dragover').forEach(x=>x.classList.remove('dragover'));
-    setPipelineEdgeGlow();
   };
-  const dragTypes=e=>Array.from(e.dataTransfer?.types||[]);
-  const isPipelineDrag=e=>Boolean(board.dataset.pipelineDragLead||dragTypes(e).includes('application/x-pipeline-lead')||dragTypes(e).includes('text/plain'));
-  const draggedLeadId=e=>board.dataset.pipelineDragLead||e.dataTransfer?.getData('application/x-pipeline-lead')||e.dataTransfer?.getData('text/plain')||'';
+  const cleanup=()=>{
+    if(!active)return;
+    active.card.classList.remove('dragging');
+    active.card.setAttribute('aria-grabbed','false');
+    active.ghost?.remove();
+    clearTarget();
+    document.body.classList.remove('pipeline-drag-active','pipeline-pointer-drag');
+    setPipelineEdgeGlow();
+    active=null;
+  };
+  const targetColumnAt=(x,y)=>{
+    const node=document.elementFromPoint(x,y);
+    const col=node?.closest?.('.pipeline-col[data-pipeline-status]')||null;
+    clearTarget();
+    if(col)col.classList.add('dragover');
+    if(active)active.targetCol=col;
+    return col;
+  };
+  const moveGhost=(x,y)=>{
+    if(!active?.ghost)return;
+    active.ghost.style.transform=`translate3d(${Math.round(x+14)}px,${Math.round(y+14)}px,0)`;
+  };
+  const autoScroll=(x)=>{
+    const r=board.getBoundingClientRect(),edge=Math.min(150,r.width*.18),speed=34;
+    if(x<r.left+edge)board.scrollLeft-=speed;
+    else if(x>r.right-edge)board.scrollLeft+=speed;
+    setPipelineEdgeGlow(x);
+  };
 
   board.querySelectorAll('[data-pipeline-lead]').forEach(card=>{
     card.setAttribute('aria-grabbed','false');
-    card.addEventListener('dragstart',e=>{
-      const id=card.dataset.pipelineLead;if(!id)return;
-      board.dataset.pipelineDragLead=id;
-      card.classList.add('dragging');
-      card.setAttribute('aria-grabbed','true');
-      document.body.classList.add('pipeline-drag-active');
-      if(e.dataTransfer){
-        e.dataTransfer.effectAllowed='move';
-        e.dataTransfer.setData('application/x-pipeline-lead',id);
-        e.dataTransfer.setData('text/plain',id);
-      }
+    card.draggable=false;
+    card.addEventListener('pointerdown',e=>{
+      if(e.button!==0||active)return;
+      active={card,id:card.dataset.pipelineLead,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,dragging:false,ghost:null,targetCol:null};
+      try{card.setPointerCapture(e.pointerId)}catch{}
     });
-    card.addEventListener('dragend',clearDragState);
+    card.addEventListener('pointermove',e=>{
+      if(!active||active.card!==card||active.pointerId!==e.pointerId)return;
+      const dx=e.clientX-active.startX,dy=e.clientY-active.startY;
+      if(!active.dragging&&Math.hypot(dx,dy)<6)return;
+      if(!active.dragging){
+        active.dragging=true;
+        card.dataset.pipelineSuppressClick='1';
+        card.classList.add('dragging');
+        card.setAttribute('aria-grabbed','true');
+        document.body.classList.add('pipeline-drag-active','pipeline-pointer-drag');
+        const rect=card.getBoundingClientRect();
+        const ghost=card.cloneNode(true);
+        ghost.classList.add('pipeline-drag-ghost');
+        ghost.classList.remove('dragging');
+        ghost.removeAttribute('data-open-lead');
+        ghost.style.width=rect.width+'px';
+        document.body.appendChild(ghost);
+        active.ghost=ghost;
+      }
+      e.preventDefault();
+      moveGhost(e.clientX,e.clientY);
+      autoScroll(e.clientX);
+      targetColumnAt(e.clientX,e.clientY);
+    });
+    card.addEventListener('pointerup',async e=>{
+      if(!active||active.card!==card||active.pointerId!==e.pointerId)return;
+      const wasDragging=active.dragging;
+      const id=active.id;
+      const col=wasDragging?targetColumnAt(e.clientX,e.clientY):null;
+      if(wasDragging){e.preventDefault();e.stopPropagation()}
+      try{card.releasePointerCapture(e.pointerId)}catch{}
+      cleanup();
+      if(wasDragging&&col&&id)await movePipelineLead(id,col.dataset.pipelineStatus);
+    });
+    card.addEventListener('pointercancel',cleanup);
+    card.addEventListener('lostpointercapture',()=>{if(active&&!active.dragging)cleanup()});
   });
-
-  board.ondragover=e=>{
-    if(!isPipelineDrag(e))return;
-    e.preventDefault();
-    if(e.dataTransfer)e.dataTransfer.dropEffect='move';
-    const col=e.target.closest?.('.pipeline-col[data-pipeline-status]');
-    board.querySelectorAll('.pipeline-col.dragover').forEach(x=>{if(x!==col)x.classList.remove('dragover')});
-    if(col)col.classList.add('dragover');
-    const r=board.getBoundingClientRect(),edge=Math.min(150,r.width*.18),speed=30;
-    if(e.clientX<r.left+edge)board.scrollLeft-=speed;
-    else if(e.clientX>r.right-edge)board.scrollLeft+=speed;
-    setPipelineEdgeGlow(e.clientX);
-  };
-  board.ondragleave=e=>{
-    if(!board.contains(e.relatedTarget))board.querySelectorAll('.pipeline-col.dragover').forEach(x=>x.classList.remove('dragover'));
-  };
-  board.ondrop=async e=>{
-    if(!isPipelineDrag(e))return;
-    const col=e.target.closest?.('.pipeline-col[data-pipeline-status]');
-    const id=draggedLeadId(e);
-    if(!col||!id)return;
-    e.preventDefault();
-    e.stopPropagation();
-    const targetStatus=col.dataset.pipelineStatus;
-    clearDragState();
-    await movePipelineLead(id,targetStatus);
-  };
 }
 function ensurePipelineEdgeGlow(){if(!document.querySelector('.pipeline-autoscroll-left')){const l=document.createElement('div'),r=document.createElement('div');l.className='pipeline-autoscroll-left';r.className='pipeline-autoscroll-right';document.body.append(l,r)}}
 function setPipelineEdgeGlow(x=null){ensurePipelineEdgeGlow();const board=$('kanban'),left=document.querySelector('.pipeline-autoscroll-left'),right=document.querySelector('.pipeline-autoscroll-right');left.classList.remove('active');right.classList.remove('active');if(x==null||!document.body.classList.contains('pipeline-drag-active'))return;const rect=board.getBoundingClientRect(),edge=Math.min(150,rect.width*.18);if(x<rect.left+edge&&board.scrollLeft>0)left.classList.add('active');if(x>rect.right-edge&&board.scrollLeft<board.scrollWidth-board.clientWidth-2)right.classList.add('active')}
@@ -580,7 +605,7 @@ async function decideApproval(id,status){const a=state.approvals.find(x=>x.id===
 function renderAgents(){$('agentCards').innerHTML=AGENTS.map(([name,desc])=>{const run=state.runs.find(r=>r.agent_name===name);return `<div class="card"><strong>${esc(name)}</strong><div style="margin:8px 0"><span class="badge ${run?.status==='error'?'warn':'ok'}">${run?.status||'Klar'}</span></div><div class="sub">${esc(desc)}</div>${run?`<div class="sub" style="margin-top:8px">Senest: ${fmt(run.started_at)}</div>`:''}</div>`}).join('');}
 function renderLeadManager(){const arr=state.requests.filter(r=>r.request_type==='lead_manager_command').slice(0,12);$('lmResponses').innerHTML=arr.length?arr.map(r=>`<div class="event ${r.status==='error'?'':'agent'}"><strong>${esc(r.status==='queued'?'I kø':r.status==='running'?'Arbejder':r.status==='done'?'Lead Manager':'Fejl')}</strong><div>${esc(r.request_text)}</div>${r.response_text?`<div style="margin-top:6px">${esc(r.response_text)}</div>`:''}${r.error_text?`<div class="notice" style="margin-top:6px">${esc(r.error_text)}</div>`:''}<small>${fmt(r.created_at)}</small></div>`).join(''):'<div class="empty">Ingen kommandoer endnu.</div>'; }
 function renderDashCards(){$('dashMail').innerHTML=state.mail.slice(0,3).map(m=>`<div class="task"><div><strong>${esc(m.subject||'(uden emne)')}</strong><div class="sub">${esc(company(m.company_id).name||m.from_email||'')}</div></div></div>`).join('')||'<div class="sub">Ingen nye mails.</div>';$('dashApprovals').innerHTML=state.approvals.filter(a=>a.status==='pending').slice(0,3).map(a=>`<div class="task"><div><strong>${esc(a.action_type)}</strong><div class="sub">${fmt(a.created_at)}</div></div></div>`).join('')||'<div class="sub">Intet afventer.</div>';}
-function wireLeadButtons(){document.querySelectorAll('[data-open-lead]').forEach(el=>{el.onclick=e=>{if(el.dataset.dragLead&&e.detail===0)return;openLead(el.dataset.openLead)}})}
+function wireLeadButtons(){document.querySelectorAll('[data-open-lead]').forEach(el=>{el.onclick=e=>{if(el.dataset.pipelineSuppressClick==='1'){delete el.dataset.pipelineSuppressClick;return}if(el.dataset.dragLead&&e.detail===0)return;openLead(el.dataset.openLead)}})}
 function openLead(id){const l=leadById(id);if(!l)return;currentLead=l;const c=company(l.company_id),cts=contactsFor(c.id),dt=localDateTime(l.next_at);$('drawer').classList.add('open');$('dName').textContent=c.name||'Lead';$('dMeta').textContent=[c.domain,l.source].filter(Boolean).join(' · ');$('contactBlock').innerHTML=`<div class="sub" style="margin-bottom:8px">Kontaktpersoner</div>`+(cts.length?cts.map(x=>`<div><strong>${esc(x.full_name||x.title||'Kontakt')}</strong><div class="sub">${esc(x.title||'')} ${x.role_relevance?'· '+esc(x.role_relevance):''}</div><div>${x.email?`<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>`:''} ${x.phone?`· <a href="tel:${esc(x.phone)}">${esc(x.phone)}</a>`:''}</div><div class="sub">${x.verified?'✓ verificeret':''}${x.confidence?' · '+esc(x.confidence):''}${x.source_url?` · <a href="${esc(x.source_url)}" target="_blank">kilde</a>`:''}</div></div>`).join('<hr style="border:0;border-top:1px solid var(--border)">'):'<div class="sub">Ingen kontaktperson registreret.</div>');const intel=state.intelligence.filter(x=>x.company_id===c.id||x.lead_id===l.id).slice(0,20);$('intelligenceBlock').innerHTML=`<div class="sub" style="margin-bottom:8px">Sales intelligence</div>`+(intel.length?intel.map(x=>`<div class="intelitem"><div><strong>${esc(x.title||x.signal_type||'Fund')}</strong>${x.verified?' <span class="badge ok">verificeret</span>':''}</div><div>${esc(x.summary||'')}</div>${x.conversation_angle?`<div class="intel-angle"><strong>Åbningsvinkel:</strong> ${esc(x.conversation_angle)}</div>`:''}${x.recommended_action?`<div class="sub"><strong>Næste skridt:</strong> ${esc(x.recommended_action)}</div>`:''}<div class="sub">${esc(x.source_type||'')}${x.source_url?` · <a href="${esc(x.source_url)}" target="_blank">kilde</a>`:''}${x.observed_at?' · '+fmt(x.observed_at):''}</div></div>`).join(''):'<div class="sub">Ingen verificeret sales intelligence endnu. Agenten henter det automatisk.</div>');$('dStatus').innerHTML=STATUSES.map(s=>`<option ${s===l.status?'selected':''}>${esc(s)}</option>`).join('');$('dScore').value=l.score??'';$('dPriority').value=l.priority||'';$('dPlanning').value=l.planning_type||'flexible';$('dNext').value=l.next_action||'';$('dDate').value=dt.date;$('dTime').value=dt.time;$('dLock').checked=!!l.manual_lock;$('dLoss').value=l.loss_reason||'';$('dWon').value=l.won_value??'';$('dNote').value='';statusExtras();const acts=state.activities.filter(a=>a.lead_id===l.id).slice(0,100);const mails=state.mail.filter(m=>m.lead_id===l.id).map(m=>({created_at:m.message_at,type:m.direction==='inbound'?'Indgående mail':'Udgående mail',summary:(m.subject||'')+(m.body_text?' — '+m.body_text:''),actor_name:m.from_email,actor_type:'mail'}));const all=[...acts,...mails].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));$('timeline').innerHTML=all.length?all.map(a=>`<div class="event ${a.actor_type==='mail'?'mail':''}"><strong>${esc(a.type)}</strong><div>${esc(a.summary)}</div><small>${fmt(a.created_at)} · ${esc(a.actor_name||a.actor_type||'')}</small></div>`).join(''):'<div class="sub">Ingen historik endnu.</div>';const firstEmail=bestEmailContact(cts)?.email||'';$('mTo').value=firstEmail;}
 
 </script>
@@ -1138,13 +1163,14 @@ authInit();
 })();
 </script>
 <style id="lm-lead-quick-status-v1-css">
-#lmLeadQuickStatus{margin-top:12px;padding:11px 12px;border:1px solid var(--border);border-radius:13px;background:#f8fafc;box-shadow:var(--shadow)}
+#lmLeadQuickStatus{margin-top:12px;padding:12px 13px;border:1px solid rgba(129,174,195,.18);border-radius:13px;background:linear-gradient(180deg,rgba(14,35,48,.96),rgba(9,26,37,.96));box-shadow:0 12px 30px rgba(0,0,0,.18)}
 .lm-lead-quick-status-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,.9fr);gap:12px;align-items:center}
-.lm-lead-quick-status-title{font-size:12px;font-weight:850;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
-.lm-lead-quick-status-copy{font-size:11.5px;color:var(--muted);margin-top:2px}
+.lm-lead-quick-status-title{font-size:12px;font-weight:850;text-transform:uppercase;letter-spacing:.04em;color:#dce9ef}
+.lm-lead-quick-status-copy{font-size:11.5px;color:#7f99aa;margin-top:2px;line-height:1.35}
 #lmLeadStatusSlot .field{margin:0}
 #lmLeadStatusSlot .field label{display:none}
-#lmLeadStatusSlot #dStatus{width:100%;font-weight:800;border-color:#cfd7e5!important;background:#fff!important}
+#lmLeadStatusSlot #dStatus{width:100%;min-height:44px;font-weight:800;color:#eaf4f8!important;border-color:rgba(73,224,183,.24)!important;background:#0a1f2c!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.025)!important}
+#lmLeadStatusSlot #dStatus option{background:#0a1f2c!important;color:#eaf4f8!important}
 #lmLeadStatusSlot #dStatus:disabled{opacity:.62;cursor:wait}
 @media(max-width:620px){.lm-lead-quick-status-row{grid-template-columns:1fr}}
 </style>
