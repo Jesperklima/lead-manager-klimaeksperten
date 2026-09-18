@@ -8,6 +8,45 @@ function isCustomer(){return window.LM_ACCESS?.authenticated===true&&window.LM_A
 function fmtKr(ore){return new Intl.NumberFormat('da-DK',{minimumFractionDigits:0,maximumFractionDigits:2}).format((Number(ore)||0)/100)+' kr./md.'}
 function fmtDate(v){if(!v)return'—';try{return new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(v))}catch{return String(v)}}
 function planName(v){return v==='start'?'Start':v==='pro'?'Pro':v==='business'?'Business':String(v||'—')}
+const PLAN_FEATURES={
+  start:[
+    'Op til 100 leads pr. måned',
+    '150 berigelser pr. måned',
+    '4 automatiske søgekørsler pr. dag',
+    'Mailafsendelse op til 100 pr. dag',
+    'Kalender',
+    'Kreditcheck'
+  ],
+  pro:[
+    'Op til 100 leads pr. måned',
+    '300 berigelser pr. måned',
+    '300 AI-mailudkast pr. måned',
+    '4 automatiske søgekørsler pr. dag',
+    'Mailafsendelse op til 100 pr. dag',
+    'Mailovervågning',
+    'Minuba-integration',
+    'Tilbud og tilbudspipeline',
+    'Aktivitetsrapport',
+    'AI-mail',
+    'Kalender og godkendelser',
+    'Kreditcheck'
+  ],
+  business:[
+    'Op til 100 leads pr. måned',
+    '600 berigelser pr. måned',
+    '600 AI-mailudkast pr. måned',
+    '4 automatiske søgekørsler pr. dag',
+    'Mailafsendelse op til 200 pr. dag',
+    'Mailovervågning',
+    'Minuba-integration',
+    'Udbuds- og dokumentsøgning',
+    'Tilbud og tilbudspipeline',
+    'Aktivitetsrapport',
+    'AI-mail',
+    'Kalender og godkendelser',
+    'Kreditcheck'
+  ]
+}
 async function planEdge(payload){
   const {data:{session}}=await supabase.auth.getSession();
   if(!session?.access_token)throw new Error('Du er ikke logget ind');
@@ -99,7 +138,11 @@ function ensureStyle(){
     .lm-plan-card.active{border-color:#3157e8;background:#f7f9ff;box-shadow:0 0 0 1px rgba(49,87,232,.12)}
     .lm-plan-card h4{margin:0;font-size:15px}
     .lm-plan-price{font-size:20px;font-weight:850;color:#10203a}
-    .lm-plan-card .sub{font-size:12px;line-height:1.35;flex:1}
+    .lm-plan-card .sub{font-size:12px;line-height:1.35}
+    .lm-plan-features{margin:2px 0 4px;padding:0;list-style:none;display:grid;gap:6px;flex:1}
+    .lm-plan-features li{font-size:12px;line-height:1.3;color:#475569;display:flex;gap:7px;align-items:flex-start}
+    .lm-plan-features li:before{content:'✓';color:#1f9d69;font-weight:900;line-height:1.2}
+    .lm-plan-more{border:0;background:transparent;color:#3157e8;font-weight:750;padding:0;text-align:left;cursor:pointer;font-size:12px}
     .lm-plan-card .btn{width:100%}
     .lm-plan-card .btn[disabled]{opacity:.55;cursor:not-allowed}
     .lm-billing-lock{margin:12px 0;padding:10px 12px;border-radius:11px;background:#fff8e8;border:1px solid #f4ddb0;color:#805b15;font-size:12px}
@@ -249,6 +292,10 @@ function renderAccount(){
           <div class="lm-plan-card ${p.code===current?'active':''}">
             <div><h4>${esc(p.name||planName(p.code))}</h4><div class="lm-plan-price">${esc(fmtKr(p.price_ore))}</div></div>
             <div class="sub">${esc(planCopy[p.code]||'Lead Manager abonnement.')}</div>
+            <ul class="lm-plan-features">
+              ${(PLAN_FEATURES[p.code]||[]).slice(0,6).map(x=>'<li>'+esc(x)+'</li>').join('')}
+            </ul>
+            ${(PLAN_FEATURES[p.code]||[]).length>6?'<button type="button" class="lm-plan-more" data-lm-plan-more="'+esc(p.code)+'">Se hele pakkens indhold</button>':''}
             <button type="button" class="btn ${p.code===current?'':'primary'}" data-lm-plan-change="${esc(p.code)}" ${p.code===current||!canChange?'disabled':''}>
               ${p.code===current?'Aktiv pakke':locked?'Låst i bindingsperioden':p.price_ore>price?'Opgradér':'Nedgradér'}
             </button>
@@ -270,6 +317,7 @@ function renderAccount(){
   `;
 
   card.querySelectorAll('[data-lm-plan-change]').forEach(b=>b.addEventListener('click',()=>openPlanModal(b.dataset.lmPlanChange)));
+  card.querySelectorAll('[data-lm-plan-more]').forEach(b=>b.addEventListener('click',()=>openPlanDetails(b.dataset.lmPlanMore)));
 }
 
 async function loadBilling(force=false){
@@ -278,6 +326,23 @@ async function loadBilling(force=false){
   try{billingState=await planEdge({action:'status'})}
   catch(e){billingError=e?.message||String(e)}
   finally{billingLoading=false;renderAccount()}
+}
+
+function openPlanDetails(code){
+  const plan=(billingState?.plans||[]).find(x=>x.code===code)||{code,name:planName(code),price_ore:{start:14900,pro:19900,business:24900}[code]||0};
+  $('#lmPlanModal')?.remove();
+  const m=document.createElement('div');m.id='lmPlanModal';m.className='lm-plan-modal';
+  m.innerHTML=`<div class="lm-plan-modal-card">
+    <h3>${esc(plan.name||planName(code))}</h3>
+    <div class="lm-plan-price" style="margin:4px 0 12px">${esc(fmtKr(plan.price_ore))}</div>
+    <div class="sub">Pakken indeholder:</div>
+    <ul class="lm-plan-features" style="margin-top:12px">
+      ${(PLAN_FEATURES[code]||[]).map(x=>'<li>'+esc(x)+'</li>').join('')}
+    </ul>
+    <div class="lm-plan-actions"><button type="button" class="btn primary" id="lmPlanDetailsClose">Luk</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  $('#lmPlanDetailsClose').onclick=()=>m.remove();
 }
 
 function openPlanModal(target){
