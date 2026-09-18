@@ -49,6 +49,10 @@ function ensureStyle(){
     #lmLeadSettingsCard h2{font-size:16px!important;margin:0 0 3px!important}
     #lmLeadSettingsCard .sub{max-width:700px}
     #lmMailProviderCard{padding:20px!important}
+    #lmSettingsMailPanel #lmMicrosoftCard,
+    #lmSettingsMailPanel #lmGmailPlatformCard,
+    #lmSettingsMailPanel #lmMailSenderNameCard,
+    #lmSettingsMailPanel #lmMailSignatureCard{margin-top:12px!important}
     #lmMailProviderCard>.split:first-child{align-items:center!important}
     #lmMailProviderCard>.split:first-child .sub{max-width:720px}
     #lmMailProviderCard .lm-mail-provider-grid{display:grid!important;grid-template-columns:1fr!important;gap:12px!important;margin-top:16px!important}
@@ -188,6 +192,19 @@ function rehome(){
 
   const mail=$('#lmMailProviderCard'),mailPanel=$('#lmSettingsMailPanel');
   if(mail&&mailPanel&&mail.parentNode!==mailPanel)mailPanel.appendChild(mail);
+
+  const microsoft=$('#lmMicrosoftCard');
+  if(microsoft&&mailPanel&&microsoft.parentNode!==mailPanel)mailPanel.appendChild(microsoft);
+
+  const gmail=$('#lmGmailPlatformCard');
+  if(gmail&&mailPanel&&gmail.parentNode!==mailPanel)mailPanel.appendChild(gmail);
+
+  const sender=$('#lmMailSenderNameCard');
+  if(sender&&mailPanel&&sender.parentNode!==mailPanel)mailPanel.appendChild(sender);
+
+  const signature=$('#lmMailSignatureCard');
+  if(signature&&mailPanel&&signature.parentNode!==mailPanel)mailPanel.appendChild(signature);
+
   polishMail();
 
   const minuba=[...view.querySelectorAll('.card.section')].find(x=>x.querySelector('h2')?.textContent?.trim()==='Bruger I Minuba?'||x.querySelector('h2')?.textContent?.trim()==='Minuba-forbindelse');
