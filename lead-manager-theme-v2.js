@@ -41,10 +41,18 @@
     brand.appendChild(logo);
     brand.appendChild(fallback);
 
-    const parts=[0,1,2,3].map(index=>
-      fetch('/assets/lead-manager-logo.b64.'+index+'?v=20260918-1',{cache:'force-cache'})
+    const logoParts=[
+      '/assets/lead-manager-logo.b64.0',
+      '/assets/lead-manager-logo.b64.1',
+      '/assets/lead-manager-logo.b64.2a',
+      '/assets/lead-manager-logo.b64.2b',
+      '/assets/lead-manager-logo.b64.2c',
+      '/assets/lead-manager-logo.b64.3'
+    ];
+    const parts=logoParts.map(url=>
+      fetch(url+'?v=20260918-2',{cache:'force-cache'})
         .then(response=>{
-          if(!response.ok)throw new Error('Logo asset '+index+' kunne ikke hentes');
+          if(!response.ok)throw new Error('Logo asset kunne ikke hentes: '+url);
           return response.text();
         })
     );
