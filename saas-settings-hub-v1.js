@@ -266,6 +266,14 @@ function renderAccount(){
     business:'Udbud, større kapacitet og de fulde salgsfunktioner.'
   };
   const docs=billingState?.billing_documents||[];
+  const renderKey=JSON.stringify({
+    client:cl.id||'',name:cl.name||'',login:state.session?.user?.email||s.mail||'',
+    contact:s.contact_name||'',role,current,price,lock:sub?.lock_until||'',
+    loading:billingLoading,error:billingError,
+    docs:docs.map(d=>[d.id,d.status,d.email_status,d.invoice_on,d.amount_ore]),
+    plans:plans.map(p=>[p.code,p.price_ore])
+  });
+  if(card.dataset.lmRenderKey===renderKey)return;
 
   card.innerHTML=`
     <div class="lm-account-grid">
@@ -316,6 +324,7 @@ function renderAccount(){
     <div class="lm-settings-note">Virksomhedsoplysninger fra onboarding bruges som grundlag for Lead Manager. Leadkriterier ændres under fanen <strong>Leads</strong>, og mailopsætning ændres under <strong>Mail</strong>.</div>
   `;
 
+  card.dataset.lmRenderKey=renderKey;
   card.querySelectorAll('[data-lm-plan-change]').forEach(b=>b.addEventListener('click',()=>openPlanModal(b.dataset.lmPlanChange)));
   card.querySelectorAll('[data-lm-plan-more]').forEach(b=>b.addEventListener('click',()=>openPlanDetails(b.dataset.lmPlanMore)));
 }
@@ -431,7 +440,10 @@ function boot(){
   document.querySelectorAll('.nav button:not([data-view="leadmanager"])').forEach(b=>b.addEventListener('click',()=>setTimeout(heading,0)));
   window.addEventListener('lm:data-refreshed',schedule);
   window.addEventListener('lm:client-data-ready',schedule);
-  observer=new MutationObserver(schedule);
+  observer=new MutationObserver(mutations=>{
+    const external=mutations.some(m=>!m.target?.closest?.('#lmSettingsAccountCard'));
+    if(external)schedule();
+  });
   observer.observe($('#leadmanager'),{childList:true,subtree:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
