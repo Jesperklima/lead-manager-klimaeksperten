@@ -14,12 +14,12 @@
     "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
     "snapshot": "lead_manager_canonical_baseline_20260827_1242"
   },
-  "repository_bytes": 188078,
-  "repository_md5": "c6a698df9a4968f67984f94ea81f1b2b",
-  "change": "use pointer-based pipeline dragging and dark readable quick-status UI",
+  "repository_bytes": 189925,
+  "repository_md5": "a7f039c99af47a7667cd7059aa034510",
+  "change": "keep pipeline drag attached globally and update dropped cards without full CRM rerender",
   "previous_repository": {
-    "bytes": 186718,
-    "md5": "0b60513a29794c53f7c38269d94abef7",
-    "change": "fix pipeline drag-and-drop reliability"
+    "bytes": 188078,
+    "md5": "c6a698df9a4968f67984f94ea81f1b2b",
+    "change": "use pointer-based pipeline dragging and dark readable quick-status UI"
   }
 }
