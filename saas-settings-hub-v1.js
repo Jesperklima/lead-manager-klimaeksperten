@@ -8,6 +8,7 @@ function isCustomer(){return window.LM_ACCESS?.authenticated===true&&window.LM_A
 function fmtKr(ore){return new Intl.NumberFormat('da-DK',{minimumFractionDigits:0,maximumFractionDigits:2}).format((Number(ore)||0)/100)+' kr./md.'}
 function fmtDate(v){if(!v)return'—';try{return new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(v))}catch{return String(v)}}
 function planName(v){return v==='start'?'Start':v==='pro'?'Pro':v==='business'?'Business':String(v||'—')}
+const PAYMENT_TERMS_VERSION='2026-09-18-v1';
 const PLAN_FEATURES={
   start:[
     'Op til 100 leads pr. måned',
@@ -416,7 +417,7 @@ async function confirmPlanChange(target){
   const btn=$('#lmPlanConfirm'),msg=$('#lmPlanModalMsg');if(!btn)return;
   btn.disabled=true;if(msg)msg.textContent='Ændrer pakke og opretter regning…';
   try{
-    const d=await planEdge({action:'change',plan_code:target});
+    const d=await planEdge({action:'change',plan_code:target,payment_terms_accepted:true,payment_terms_version:PAYMENT_TERMS_VERSION});
     billingState=null;
     if(msg)msg.textContent='Pakken er ændret, og regningen er oprettet til næste faktura.';
     if(typeof toast==='function')toast('Pakke ændret til '+planName(target));
