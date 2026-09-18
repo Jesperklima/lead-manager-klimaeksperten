@@ -289,12 +289,11 @@ function renderAccount(){
       <div class="lm-account-item"><span>Kontaktperson</span><strong>${esc(s.contact_name||'—')}</strong></div>
       <div class="lm-account-item"><span>Rolle</span><strong>${esc(roleName)}</strong></div>
       <div class="lm-account-item"><span>Workspace</span><strong>${esc(cl.name||window.LM_ACCESS?.workspace_name||'—')}</strong></div>
-      <div class="lm-account-item"><span>Fakturering</span><strong>1 måned bagud</strong></div>
     </div>
 
     <div class="lm-subscription">
       <div class="lm-subscription-head">
-        <div><h3>Abonnement</h3><div class="sub">Op- eller nedgradér pakken her. En pakkeændring gælder med det samme og giver 30 dages binding.</div></div>
+        <div><h3>Abonnement</h3><div class="sub">Se jeres aktuelle pakke, sammenlign indhold og skift pakke.</div></div>
         <div class="lm-subscription-current"><span class="sub">Aktiv pakke</span><strong>${esc(planName(current))}</strong><span class="sub">${esc(fmtKr(price))}</span></div>
       </div>
 
