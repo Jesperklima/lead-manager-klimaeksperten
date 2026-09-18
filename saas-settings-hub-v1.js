@@ -158,6 +158,12 @@ function ensureStyle(){
     .lm-plan-summary{margin:14px 0;padding:13px 14px;border-radius:12px;background:#f8fafc;border:1px solid #e7ebf1}
     .lm-plan-summary div{margin:5px 0}
     .lm-plan-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+    .lm-terms-link{border:0;background:transparent;color:#3157e8;font-weight:750;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+    .lm-terms-box{margin-top:14px;padding:14px;border:1px solid #e7ebf1;border-radius:12px;background:#fbfcfe}
+    .lm-terms-box h4{margin:0 0 8px;font-size:15px}
+    .lm-terms-list{margin:0;padding-left:20px;display:grid;gap:8px;color:#475569;font-size:13px;line-height:1.45}
+    .lm-terms-accept{display:flex;gap:9px;align-items:flex-start;margin-top:14px;padding:11px 12px;border:1px solid #e7ebf1;border-radius:11px;background:#fff}
+    .lm-terms-accept input{margin-top:3px}
     #lmSettingsShell .pill{white-space:nowrap}
     #lmSettingsShell .notice{border-radius:11px!important}
     @media(max-width:760px){
@@ -311,7 +317,7 @@ function renderAccount(){
         `).join('')}
       </div>
 
-      <div class="lm-settings-note"><strong>Sådan faktureres ændringer:</strong> Lead Manager betales én måned bagud. Ved en pakkeændring oprettes regningen med det samme, den nye pakke træder i kraft med det samme, og beløbet medtages på den næste faktura. Efter ændringen er pakken bundet i 30 dage.</div>
+      <div class="lm-settings-note">Pakkeændringer følger Lead Managers <button type="button" class="lm-terms-link" id="lmOpenPaymentTerms">betalingsbetingelser</button>.</div>
 
       ${docs.length?`<div class="lm-billing-docs"><h3 style="margin:0 0 6px;font-size:15px">Seneste regninger og pakkeændringer</h3>${docs.map(d=>`
         <div class="lm-billing-doc">
@@ -327,6 +333,7 @@ function renderAccount(){
   card.dataset.lmRenderKey=renderKey;
   card.querySelectorAll('[data-lm-plan-change]').forEach(b=>b.addEventListener('click',()=>openPlanModal(b.dataset.lmPlanChange)));
   card.querySelectorAll('[data-lm-plan-more]').forEach(b=>b.addEventListener('click',()=>openPlanDetails(b.dataset.lmPlanMore)));
+  $('#lmOpenPaymentTerms')?.addEventListener('click',openPaymentTerms);
 }
 
 async function loadBilling(force=false){
@@ -354,6 +361,32 @@ function openPlanDetails(code){
   $('#lmPlanDetailsClose').onclick=()=>m.remove();
 }
 
+function paymentTermsHtml(){
+  return `
+    <div class="lm-terms-box">
+      <h4>Betalingsbetingelser for Lead Manager</h4>
+      <ul class="lm-terms-list">
+        <li>Lead Manager faktureres månedligt bagud.</li>
+        <li>Ved ændring af abonnement træder den nye pakke i kraft med det samme.</li>
+        <li>En pakkeændring medfører 30 dages binding fra ændringstidspunktet.</li>
+        <li>Der oprettes et faktureringsgrundlag ved ændringen, som medtages på den næste ordinære faktura.</li>
+        <li>Efter bindingsperioden fortsætter abonnementet til den gældende månedspris, indtil pakken ændres igen.</li>
+      </ul>
+    </div>`;
+}
+function openPaymentTerms(){
+  $('#lmPlanModal')?.remove();
+  const m=document.createElement('div');m.id='lmPlanModal';m.className='lm-plan-modal';
+  m.innerHTML=`<div class="lm-plan-modal-card">
+    <h3>Betalingsbetingelser</h3>
+    <div class="sub">Gældende for Lead Manager-abonnementer og pakkeændringer.</div>
+    ${paymentTermsHtml()}
+    <div class="lm-plan-actions"><button type="button" class="btn primary" id="lmPaymentTermsClose">Luk</button></div>
+  </div>`;
+  document.body.appendChild(m);
+  $('#lmPaymentTermsClose').onclick=()=>m.remove();
+}
+
 function openPlanModal(target){
   const p=(billingState?.plans||[]).find(x=>x.code===target)||{code:target,name:planName(target),price_ore:{start:14900,pro:19900,business:24900}[target]||0};
   const current=billingState?.current_plan||billingState?.subscription?.plan_code||'start';
@@ -364,18 +397,18 @@ function openPlanModal(target){
     <h3>Bekræft pakkeændring</h3>
     <div class="sub">Du ændrer fra <strong>${esc(planName(current))}</strong> til <strong>${esc(p.name||planName(target))}</strong>.</div>
     <div class="lm-plan-summary">
+      <div><strong>Ny pakke:</strong> ${esc(p.name||planName(target))}</div>
       <div><strong>Ny pris:</strong> ${esc(fmtKr(p.price_ore))}</div>
-      <div><strong>Træder i kraft:</strong> med det samme</div>
-      <div><strong>Binding:</strong> 30 dage fra ændringen</div>
-      <div><strong>Betaling:</strong> én måned bagud</div>
-      <div><strong>Regning:</strong> oprettes nu og medtages på næste faktura</div>
     </div>
-    <div class="sub">Efter bindingsperioden fortsætter pakken til samme månedspris, indtil I ændrer den igen.</div>
+    <button type="button" class="lm-terms-link" id="lmPlanTermsLink">Se betalingsbetingelser</button>
+    <label class="lm-terms-accept"><input type="checkbox" id="lmPlanTermsAccept"><span>Jeg har læst og accepterer betalingsbetingelserne for pakkeændringen.</span></label>
     <div id="lmPlanModalMsg" class="sub" style="margin-top:10px"></div>
-    <div class="lm-plan-actions"><button type="button" class="btn" id="lmPlanCancel">Annuller</button><button type="button" class="btn primary" id="lmPlanConfirm">Bekræft pakkeændring</button></div>
+    <div class="lm-plan-actions"><button type="button" class="btn" id="lmPlanCancel">Annuller</button><button type="button" class="btn primary" id="lmPlanConfirm" disabled>Bekræft pakkeændring</button></div>
   </div>`;
   document.body.appendChild(m);
   $('#lmPlanCancel').onclick=()=>m.remove();
+  $('#lmPlanTermsLink').onclick=openPaymentTerms;
+  $('#lmPlanTermsAccept').onchange=e=>{$('#lmPlanConfirm').disabled=!e.target.checked};
   $('#lmPlanConfirm').onclick=()=>confirmPlanChange(target);
 }
 
