@@ -441,6 +441,8 @@ async function startApp(){
       if(!isInternal){
         $('authScreen')?.classList.add('hidden');
         $('appShell')?.classList.add('hidden');
+        window.dispatchEvent(new CustomEvent('lm:onboarding-required'));
+        setTimeout(()=>window.dispatchEvent(new CustomEvent('lm:onboarding-required')),100);
         return;
       }
       showApp();
