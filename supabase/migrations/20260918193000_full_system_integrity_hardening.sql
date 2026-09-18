@@ -5,7 +5,15 @@
 -- 4) Reject malformed contact email values.
 -- 5) Close stale agent-run rows automatically.
 
-do $$
+-- Historical repair runs under migration privileges, while several business triggers
+-- intentionally require an authenticated tenant session. Disable USER triggers only for
+-- these one-time normalization statements; all constraints remain active.
+alter table public.crm_leads disable trigger user;
+alter table public.crm_contacts disable trigger user;
+alter table public.crm_activities disable trigger user;
+alter table public.crm_offers disable trigger user;
+
+do $
 declare
   v_source_company uuid := '6c63056c-2ee7-4929-9a39-3e664d32d92b';
   v_target_client uuid := '9b6b08bd-e9ce-40c3-8ffa-aa18e859d3af';
@@ -72,6 +80,11 @@ set email=null
 where email is not null
   and btrim(email)<>''
   and position('@' in email)=0;
+
+alter table public.crm_leads enable trigger user;
+alter table public.crm_contacts enable trigger user;
+alter table public.crm_activities enable trigger user;
+alter table public.crm_offers enable trigger user;
 
 do $$
 begin
