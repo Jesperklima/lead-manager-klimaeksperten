@@ -96,6 +96,7 @@ node --check saas-credit-check-v1.js
 node --check saas-regression-center-v1.js
 node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
+node scripts/test-pipeline-drag.js
 node scripts/test-regression-guards.js
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
