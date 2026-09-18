@@ -77,6 +77,7 @@ PY
 node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
 node --check lead-manager-theme-v2.js
+node --check api/app.js
 python3 - <<'PY'
 import base64, hashlib
 from pathlib import Path
