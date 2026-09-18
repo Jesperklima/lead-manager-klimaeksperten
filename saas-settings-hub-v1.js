@@ -418,10 +418,11 @@ async function confirmPlanChange(target){
   try{
     const d=await planEdge({action:'change',plan_code:target,payment_terms_accepted:true,payment_terms_version:PAYMENT_TERMS_VERSION});
     billingState=null;
-    if(msg)msg.textContent='Pakken er ændret, og regningen er oprettet til næste faktura.';
+    if(msg)msg.textContent='Pakken er ændret.';
     if(typeof toast==='function')toast('Pakke ændret til '+planName(target));
     await loadBilling(true);
-    setTimeout(()=>location.reload(),900);
+    $('#lmPlanModal')?.remove();
+    setTimeout(()=>location.reload(),250);
   }catch(e){
     if(msg)msg.textContent=e?.message||String(e);
     btn.disabled=false;
