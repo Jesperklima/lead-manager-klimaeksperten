@@ -14,12 +14,12 @@
     "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
     "snapshot": "lead_manager_canonical_baseline_20260827_1242"
   },
-  "repository_bytes": 186718,
-  "repository_md5": "0b60513a29794c53f7c38269d94abef7",
-  "change": "fix pipeline drag-and-drop reliability",
+  "repository_bytes": 188078,
+  "repository_md5": "c6a698df9a4968f67984f94ea81f1b2b",
+  "change": "use pointer-based pipeline dragging and dark readable quick-status UI",
   "previous_repository": {
-    "bytes": 185619,
-    "md5": "1f48ae0360aadf743a1529fd022e5e0e",
-    "change": "apply premium dark Lead Manager design system across the application"
+    "bytes": 186718,
+    "md5": "0b60513a29794c53f7c38269d94abef7",
+    "change": "fix pipeline drag-and-drop reliability"
   }
 }
