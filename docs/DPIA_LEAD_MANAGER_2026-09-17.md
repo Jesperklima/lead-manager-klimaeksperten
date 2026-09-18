@@ -5,7 +5,7 @@
 **Version:** 1.0  
 **Dato:** 17. september 2026  
 **Status:** Udarbejdet – afventer formelt sign-off  
-**Dokumentejer:** Lead Manager / Klimaeksperten ApS  
+**Dokumentejer:** Skarp Studio / Lead Manager  
 **Review:** Skal genvurderes ved væsentlige ændringer i datakilder, AI-funktioner, mailintegrationer, kreditfunktioner eller kundetyper.
 
 > Denne DPIA er et operationelt compliance-dokument for Lead Manager. Den beskriver den aktuelle løsning og de kendte risici og kontroller. Den er ikke en juridisk garanti eller myndighedsgodkendelse.
@@ -37,7 +37,7 @@ DPIA'en følger GDPR artikel 35-principperne og EDPB's DPIA-struktur: beskrivels
 
 Lead Manager kan anvendes i to roller:
 
-1. **Klimaeksperten/Lead Manager som dataansvarlig** for egne leads, egne kontaktdata, egne mailflows og egen salgsaktivitet.
+1. **Skarp Studio / Lead Manager som dataansvarlig** for egne leads, egne kontaktdata, egne mailflows og egen salgsaktivitet.
 2. **Lead Manager som databehandler** for eksterne kunder, hvor kunden er dataansvarlig for egne leads, kontaktpersoner, mails og behandlingsformål.
 
 Rollefordelingen skal fremgå af kundeaftale/databehandleraftale.
