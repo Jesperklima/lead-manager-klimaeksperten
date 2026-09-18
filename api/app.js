@@ -10,7 +10,7 @@ module.exports = async function handler(req, res) {
     html = html.replaceAll('<option>STATUS UKLAR</option></select>', '<option>STATUS UKLAR</option><option>LUKKET</option></select>');
     html = html.replace("const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','STATUS UKLAR'];", "const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','LUKKET','STATUS UKLAR'];");
     html = html.replace("return {auth,from:(table)=>new Query(table)};","const rpc=async(fn,args={})=>{await refreshIfNeeded();const r=await request('/rest/v1/rpc/'+encodeURIComponent(fn),{method:'POST',body:args});return {data:r.data,error:r.error}};return {auth,from:(table)=>new Query(table),rpc};");
-    html = html.replace(/<script[^>]+src="\\/saas-[^"]+"[^>]*><\\/script>/g, '');
+    html = html.replace(new RegExp('<script[^>]+src="/saas-[^"]+"[^>]*><\\/script>','g'), '');
     // Central access bootstrap owns auth startup. Do not let the legacy inline boot race onboarding.
     html = html.replace('authInit();', '/* authInit deferred to access-bootstrap-v1.js */');
     html = html.replaceAll('ensureGmailSetup();','');
