@@ -16,7 +16,12 @@ async function controlledStartApp(){
  bootPromise=(async()=>{
   const loading=document.getElementById('loading');if(loading)loading.classList.remove('hidden');
   try{
-   const access=await centralBootstrap();window.LM_ACCESS=access;
+   let access=await centralBootstrap();
+   const activating=new URLSearchParams(location.search).get('activated')==='1';
+   if(activating&&access.authenticated&&access.next_route==='onboarding'){
+    for(let i=0;i<5&&access.next_route==='onboarding';i++){await new Promise(r=>setTimeout(r,300));access=await centralBootstrap()}
+   }
+   window.LM_ACCESS=access;
    if(!access.authenticated){showAuth();return}
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
    if(access.next_route==='onboarding'){
@@ -24,6 +29,7 @@ async function controlledStartApp(){
     window.dispatchEvent(new CustomEvent('lm:central-onboarding-required',{detail:access}));
     return;
    }
+   if(activating){const u=new URL(location.href);u.searchParams.delete('activated');history.replaceState({},'',u.pathname+(u.search||''))}
    let clientId=access.workspace_id||null;
    if(access.platform_admin){
     const preferred=localStorage.getItem('lm_admin_client_id')||'';
@@ -35,8 +41,9 @@ async function controlledStartApp(){
    state.client=cr.data[0];
    const maps=await supabase.from('crm_users').select('*').eq('email',state.session?.user?.email||'');state.userMap=maps.data?.find(x=>x.client_id===clientId)||maps.data?.[0]||null;
    document.body.dataset.lmRole=access.role||'';document.body.dataset.lmPlatformAdmin=access.platform_admin?'1':'0';
+   document.getElementById('lmOb4')?.remove();document.getElementById('lmObError')?.remove();
    showApp();if(document.getElementById('brandClient'))document.getElementById('brandClient').textContent=state.client.name+' · '+(access.platform_admin?'Platform admin':'Kundeworkspace');
-   await loadAll();
+   try{await loadAll()}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
   }catch(e){console.error('Central adgangskontrol',e);showAuth('Lead Manager kunne ikke kontrollere din adgang. '+(e.message||e));}
   finally{if(loading)loading.classList.add('hidden');bootPromise=null}
  })();return bootPromise;
