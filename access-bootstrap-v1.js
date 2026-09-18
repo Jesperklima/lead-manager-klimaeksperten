@@ -11,6 +11,23 @@ async function centralBootstrap(){
  if(!r.ok)throw new Error(d.error||('Adgangskontrol fejlede ('+r.status+')'));
  return d;
 }
+async function openWorkspace(access){
+ let clientId=access.workspace_id||null;
+ if(access.platform_admin){
+  const preferred=localStorage.getItem('lm_admin_client_id')||'';
+  if(preferred){const q=await supabase.from('crm_clients').select('*').eq('id',preferred);if(q.data?.length)clientId=preferred}
+  if(!clientId){const email=state.session?.user?.email||'';const m=await supabase.from('crm_users').select('*').eq('email',email);clientId=m.data?.[0]?.client_id||null}
+ }
+ if(!clientId)throw new Error('Intet workspace kunne vælges.');
+ const cr=await supabase.from('crm_clients').select('*').eq('id',clientId);if(cr.error||!cr.data?.length)throw new Error(cr.error?.message||'Workspace kunne ikke hentes');
+ state.client=cr.data[0];
+ const maps=await supabase.from('crm_users').select('*').eq('email',state.session?.user?.email||'');state.userMap=maps.data?.find(x=>x.client_id===clientId)||maps.data?.[0]||null;
+ document.body.dataset.lmRole=access.role||'';document.body.dataset.lmPlatformAdmin=access.platform_admin?'1':'0';
+ document.getElementById('lmOb4')?.remove();document.getElementById('lmObError')?.remove();document.getElementById('lmBootRescueError')?.remove();
+ showApp();
+ if(document.getElementById('brandClient'))document.getElementById('brandClient').textContent=state.client.name+' · '+(access.platform_admin?'Platform admin':'Kundeworkspace');
+ try{await loadAll()}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
+}
 async function controlledStartApp(){
  if(bootPromise)return bootPromise;
  bootPromise=(async()=>{
@@ -30,25 +47,32 @@ async function controlledStartApp(){
     return;
    }
    if(activating){const u=new URL(location.href);u.searchParams.delete('activated');history.replaceState({},'',u.pathname+(u.search||''))}
-   let clientId=access.workspace_id||null;
-   if(access.platform_admin){
-    const preferred=localStorage.getItem('lm_admin_client_id')||'';
-    if(preferred){const q=await supabase.from('crm_clients').select('*').eq('id',preferred);if(q.data?.length)clientId=preferred}
-    if(!clientId){const email=state.session?.user?.email||'';const m=await supabase.from('crm_users').select('*').eq('email',email);clientId=m.data?.[0]?.client_id||null}
-   }
-   if(!clientId)throw new Error('Intet workspace kunne vælges.');
-   const cr=await supabase.from('crm_clients').select('*').eq('id',clientId);if(cr.error||!cr.data?.length)throw new Error(cr.error?.message||'Workspace kunne ikke hentes');
-   state.client=cr.data[0];
-   const maps=await supabase.from('crm_users').select('*').eq('email',state.session?.user?.email||'');state.userMap=maps.data?.find(x=>x.client_id===clientId)||maps.data?.[0]||null;
-   document.body.dataset.lmRole=access.role||'';document.body.dataset.lmPlatformAdmin=access.platform_admin?'1':'0';
-   document.getElementById('lmOb4')?.remove();document.getElementById('lmObError')?.remove();
-   showApp();if(document.getElementById('brandClient'))document.getElementById('brandClient').textContent=state.client.name+' · '+(access.platform_admin?'Platform admin':'Kundeworkspace');
-   try{await loadAll()}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
+   await openWorkspace(access);
   }catch(e){console.error('Central adgangskontrol',e);showAuth('Lead Manager kunne ikke kontrollere din adgang. '+(e.message||e));}
   finally{if(loading)loading.classList.add('hidden');bootPromise=null}
  })();return bootPromise;
 }
+async function rescueActiveWorkspace(){
+ const app=document.getElementById('appShell');if(!app||!app.classList.contains('hidden'))return;
+ try{
+  const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)return;
+  state.session=session;
+  const access=await centralBootstrap();window.LM_ACCESS=access;
+  if(access.authenticated&&access.next_route==='app'){
+   await openWorkspace(access);
+   app.classList.remove('hidden');document.getElementById('authScreen')?.classList.add('hidden');
+  }
+ }catch(e){
+  console.error('Workspace rescue',e);
+  if(document.getElementById('lmBootRescueError'))return;
+  const x=document.createElement('div');x.id='lmBootRescueError';x.style.cssText='position:fixed;inset:0;z-index:15000;background:#f5f7fb;display:grid;place-items:center;padding:24px';
+  x.innerHTML='<div style="max-width:620px;background:#fff;padding:28px;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.12)"><h2>Lead Manager kunne ikke åbne workspace</h2><p id="lmBootRescueMsg"></p><button class="btn primary" type="button" onclick="location.reload()">Prøv igen</button></div>';
+  document.body.appendChild(x);document.getElementById('lmBootRescueMsg').textContent=e?.message||String(e);
+ }
+}
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp};
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace};
 authInit();
+setTimeout(rescueActiveWorkspace,900);
+setTimeout(rescueActiveWorkspace,2200);
 })();
