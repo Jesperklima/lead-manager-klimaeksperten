@@ -110,7 +110,7 @@ grep -q "function dashboardNow" executive-dashboard-v1.js
 grep -q "method:'HEAD'" executive-dashboard-v1.js
 grep -q "serverClockMs" executive-dashboard-v1.js
 grep -Eq "saas-credit-check-v1.js\?v=[0-9A-Za-z_-]+" api/app.js
-grep -Eq "saas-regression-center-v1.js\?v=[0-9A-Za-z_-]+" api/app.js
+grep -Eq "saas-regression-center-v1.js\?v=[0-9A-Za-z_-]+" access-bootstrap-v1.js
 grep -q "functions/v1/credit-check" saas-credit-check-v1.js
 grep -q "Tjekket opretter ikke et lead" saas-credit-check-v1.js
 grep -q "ikke RKI" saas-credit-check-v1.js
