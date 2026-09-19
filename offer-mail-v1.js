@@ -57,7 +57,7 @@
     modal.addEventListener('click',event=>{if(event.target===modal)modal.classList.remove('open')});
     byId('sendOfferMail').onclick=sendMail;
     byId('offerMailContactChoice').onchange=()=>applySelectedMinubaContact();
-    byId('offerMailContactName').addEventListener('input',()=>syncContactName(true));
+    byId('offerMailContactName').addEventListener('input',()=>syncContactName(true));document.dispatchEvent(new CustomEvent('lm:offer-mail-ready'));
   }
 
   function ensureButton(){
@@ -151,7 +151,7 @@
     const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
     byId('offerMailMeta').textContent=[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · ');
     byId('offerMailTo').value=to;byId('offerMailContactName').value=String(o.contact_person||'');byId('offerMailSubject').value=`Opfølgning på tilbud ${ref}`;byId('offerMailBody').value=`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`;byId('offerMailFollow').value=byId('oFollow')?.value||o.follow_up_date||plusDays(7);byId('offerMailSender').textContent=`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`;
-    updateComposerFromOffer(o);byId('offerMailModal').classList.add('open');enrichFromMinuba(o);setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
+    updateComposerFromOffer(o);byId('offerMailModal').classList.add('open');document.dispatchEvent(new CustomEvent('lm:offer-mail-opened',{detail:{offer_id:o.id}}));enrichFromMinuba(o);setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
   }
 
   async function sendMail(){
@@ -173,5 +173,9 @@
     }catch(error){alert('Mailen blev ikke sendt: '+(error?.message||String(error)))}finally{button.disabled=false;button.textContent=old}
   }
 
-  const observer=new MutationObserver(()=>ensureButton());observer.observe(document.documentElement,{subtree:true,childList:true});document.addEventListener('click',()=>setTimeout(ensureButton,0),true);ensureModal();ensureButton();
+  function observeOfferModal(){const modal=byId('offerModal');if(!modal||modal.dataset.offerMailObserved==='1')return;modal.dataset.offerMailObserved='1';new MutationObserver(()=>ensureButton()).observe(modal,{subtree:true,childList:true})}
+  function refresh(){ensureModal();ensureButton();observeOfferModal()}
+  window.addEventListener('lm:data-refreshed',refresh);window.addEventListener('lm:client-data-ready',refresh);
+  document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="offers"],[data-view="offerpipeline"]'))queueMicrotask(refresh)});
+  refresh();
 })();
