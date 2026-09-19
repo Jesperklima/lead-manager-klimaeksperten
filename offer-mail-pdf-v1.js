@@ -39,7 +39,7 @@
       if(result?.error)throw new Error(result.error.message||String(result.error));
       const data=result?.data??result;
       if(!data?.ok)throw new Error(data?.error||'Mailen kunne ikke sendes.');
-      byId('offerMailModal')?.classList.remove('open');
+      byId('offerMailModal')?.classList.remove('open');window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
       if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});
       if(typeof openOffer==='function')openOffer(o.id);
       if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name}`);
@@ -56,9 +56,10 @@
     button.onclick=sendWithPdf;button.dataset.pdfOfferSend='1';
   }
 
-  let mountObserver=null,mountTimer=null;
-  function arm(){wire();if(byId('sendOfferMail')?.dataset.pdfOfferSend==='1'){mountObserver?.disconnect();mountObserver=null;if(mountTimer){clearTimeout(mountTimer);mountTimer=null}return}if(mountObserver)return;const root=document.body||document.documentElement;mountObserver=new MutationObserver(()=>{wire();if(byId('sendOfferMail')?.dataset.pdfOfferSend==='1'){mountObserver.disconnect();mountObserver=null}});mountObserver.observe(root,{subtree:true,childList:true});mountTimer=setTimeout(()=>{mountObserver?.disconnect();mountObserver=null;mountTimer=null},10000)}
-  window.addEventListener('lm:data-refreshed',()=>setTimeout(arm,0));
-  document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#sendOfferMail,[data-open-offer]'))setTimeout(arm,0)},true);
-  setTimeout(arm,100);
+  const schedule=()=>setTimeout(wire,0);
+  window.addEventListener('lm:offer-mail-ready',schedule);
+  window.addEventListener('lm:offer-mail-opened',schedule);
+  window.addEventListener('lm:data-refreshed',schedule);
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
+  setTimeout(wire,100);
 })();

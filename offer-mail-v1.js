@@ -34,6 +34,9 @@
     return String(details||'').replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig'),'').replace(/^\s*[·,;|-]+\s*|\s*[·,;|-]+\s*$/g,'').trim();
   }
   function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  function emitOfferMailLifecycle(name){window.dispatchEvent(new CustomEvent(name,{detail:{offer_id:offer()?.id||null}}))}
+  function openOfferMailModal(){const modal=byId('offerMailModal');if(!modal)return;modal.classList.add('open');emitOfferMailLifecycle('lm:offer-mail-opened')}
+  function closeOfferMailModal(){const modal=byId('offerMailModal');if(!modal)return;modal.classList.remove('open');emitOfferMailLifecycle('lm:offer-mail-closed')}
 
   function ensureModal(){
     if(byId('offerMailModal'))return;
@@ -53,11 +56,12 @@
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" id="cancelOfferMail">Annuller</button><button class="btn primary" id="sendOfferMail">Send mail</button></div>
     </div>`;
     document.body.appendChild(modal);
-    byId('cancelOfferMail').onclick=()=>modal.classList.remove('open');
-    modal.addEventListener('click',event=>{if(event.target===modal)modal.classList.remove('open')});
+    byId('cancelOfferMail').onclick=closeOfferMailModal;
+    modal.addEventListener('click',event=>{if(event.target===modal)closeOfferMailModal()});
     byId('sendOfferMail').onclick=sendMail;
     byId('offerMailContactChoice').onchange=()=>applySelectedMinubaContact();
     byId('offerMailContactName').addEventListener('input',()=>syncContactName(true));
+    emitOfferMailLifecycle('lm:offer-mail-ready');
   }
 
   function ensureButton(){
@@ -151,7 +155,7 @@
     const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
     byId('offerMailMeta').textContent=[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · ');
     byId('offerMailTo').value=to;byId('offerMailContactName').value=String(o.contact_person||'');byId('offerMailSubject').value=`Opfølgning på tilbud ${ref}`;byId('offerMailBody').value=`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`;byId('offerMailFollow').value=byId('oFollow')?.value||o.follow_up_date||plusDays(7);byId('offerMailSender').textContent=`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`;
-    updateComposerFromOffer(o);byId('offerMailModal').classList.add('open');enrichFromMinuba(o);setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
+    updateComposerFromOffer(o);openOfferMailModal();enrichFromMinuba(o);setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
   }
 
   async function sendMail(){
@@ -169,7 +173,7 @@
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const result=await callProtectedEdge('gmail-direct-send',{client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,follow_up_date:follow||null,ai_generated:false,ai_model:null});
       if(result?.error)throw new Error(result.error.message||String(result.error));
-      byId('offerMailModal').classList.remove('open');if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});if(typeof openOffer==='function')openOffer(o.id);if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
+      closeOfferMailModal();if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});if(typeof openOffer==='function')openOffer(o.id);if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
     }catch(error){alert('Mailen blev ikke sendt: '+(error?.message||String(error)))}finally{button.disabled=false;button.textContent=old}
   }
 
