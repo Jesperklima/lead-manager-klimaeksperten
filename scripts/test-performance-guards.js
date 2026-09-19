@@ -113,5 +113,8 @@ if(!perf.includes("select('id',{count:'exact',head:true})"))fail('startup mail c
 if(!perf.includes(".eq('status','pending').order('created_at'"))fail('startup approvals pending-only query missing');
 if(!perf.includes("window.__LM_MAIL_COUNT"))fail('mail count cache missing');
 if(!index.includes("Number.isFinite(window.__LM_MAIL_COUNT)"))fail('dashboard mail count cache wiring missing');
+if(!perf.includes("partialStartupKeys=new Set(['activities','mail','approvals','offers'])"))fail('offers not marked partial at startup');
+if(!perf.includes("minuba_sync_state':'*'"))fail('light offer column list missing');
+if(/select\(light\?'[^']*minuba_raw/.test(perf))fail('heavy minuba_raw returned to startup offers query');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');
