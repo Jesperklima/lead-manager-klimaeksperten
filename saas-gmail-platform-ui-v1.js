@@ -22,8 +22,9 @@ async function render(force=false){const c=card(),id=cid();if(!c||!id||busy)retu
 function activeSettings(){return !!document.getElementById('leadmanager')?.classList.contains('active')}
 function schedule(force=false,delay=0){setTimeout(()=>{if(force||activeSettings())render(force)},delay)}
 document.addEventListener('click',e=>{const b=e.target.closest?.('.nav button[data-view="leadmanager"]');if(b)schedule(false,0)},true);
-window.addEventListener('lm:client-switched',()=>{lastKey='';lastCheckedAt=0;lastClientId='';schedule(true,60)});
-window.addEventListener('lm:mail-connected',()=>{lastKey='';lastCheckedAt=0;schedule(true,50)});
+function oauthReturn(){const q=new URLSearchParams(location.search);return !!(q.get('gmail')||q.get('google'))}
+window.addEventListener('lm:client-switched',()=>{lastKey='';lastCheckedAt=0;lastClientId='';if(activeSettings()||oauthReturn())schedule(true,60)});
+window.addEventListener('lm:mail-connected',()=>{lastKey='';lastCheckedAt=0;if(activeSettings())schedule(true,50)});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&activeSettings())schedule(false,0)});
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>schedule(true,350),{once:true});else schedule(true,350);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{if(activeSettings()||oauthReturn())schedule(true,350)},{once:true});else if(activeSettings()||oauthReturn())schedule(true,350);
 })();
