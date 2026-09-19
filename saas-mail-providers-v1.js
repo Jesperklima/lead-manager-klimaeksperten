@@ -1,5 +1,6 @@
 (()=>{
 'use strict';
+window.__LM_MAIL_PROVIDERS_V1=true;
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=s=>document.querySelector(s);
@@ -109,8 +110,10 @@ async function connectGoogle(account){
 }
 async function removeAccount(id){if(!id||busy)return;if(!confirm('Fjern denne mailforbindelse fra Lead Manager?'))return;try{await edge('mail-provider-auth',{action:'remove',client_id:state.client.id,integration_id:id});setMessage('Mailforbindelsen er fjernet.',false,true);await check();try{if(typeof loadAll==='function')await loadAll()}catch{}}catch(e){setMessage('Kunne ikke fjerne forbindelsen: '+(e.message||e),true)}}
 function handleOAuthCallback(){const q=new URLSearchParams(location.search);const ms=q.get('microsoft'),gm=q.get('gmail')||q.get('google');if(ms){setMessage(ms==='connected'?'✓ Microsoft-kontoen er forbundet.':q.get('microsoft_message')||'Microsoft-forbindelsen fejlede.',ms!=='connected',ms==='connected');q.delete('microsoft');q.delete('microsoft_message')}if(gm){setMessage(gm==='connected'?'✓ Google-kontoen er forbundet.':q.get('gmail_message')||q.get('google_message')||'Google-forbindelsen fejlede.',gm!=='connected',gm==='connected');q.delete('gmail');q.delete('google');q.delete('gmail_message');q.delete('google_message')}const qs=q.toString();if(ms||gm)history.replaceState({},document.title,location.pathname+(qs?'?'+qs:'')+location.hash)}
-function boot(){if(inject()){window.dispatchEvent(new CustomEvent('lm:mail-provider-ready'));const old=$('#lmMicrosoftCard');if(old)old.style.display='none';return}if(typeof state!=='undefined'&&state?.client&&!$('#lmMailProviderCard'))inject()}
+function settingsActive(){return !!$('#leadmanager')?.classList.contains('active')}
+function oauthReturn(){const q=new URLSearchParams(location.search);return !!(q.get('microsoft')||q.get('gmail')||q.get('google'))}
+function boot(){if(!settingsActive()&&!oauthReturn())return;if(inject()){window.dispatchEvent(new CustomEvent('lm:mail-provider-ready'));const old=$('#lmMicrosoftCard');if(old)old.style.display='none';return}if(typeof state!=='undefined'&&state?.client&&!$('#lmMailProviderCard'))inject()}
 window.addEventListener('load',()=>setTimeout(boot,100));setTimeout(boot,300);
-window.addEventListener('lm:client-data-ready',boot);window.addEventListener('lm:data-refreshed',boot);
+window.addEventListener('lm:client-data-ready',()=>{if(settingsActive()||oauthReturn())boot()});
 document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="leadmanager"]'))queueMicrotask(boot)});
 })();
