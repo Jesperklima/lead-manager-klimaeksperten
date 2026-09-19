@@ -121,9 +121,19 @@ function installSmartLoader(){
     refreshClientId=cid;
     const thisRefresh=(async()=>{
       if(forceFull){
-        const out=await originalLoadAll();
-        if(state?.client?.id!==cid)return out;
-        fullLoaded=true;dirtyTables.clear();lastRefreshAt=Date.now();updateSyncLabel(13,performance.now()-started);return out
+        const keys=Object.keys(keyToTable);
+        const results=await Promise.all(keys.map(async key=>[key,await queryFor(key,cid)]));
+        if(state?.client?.id!==cid)return;
+        for(const [key,r] of results){
+          if(r?.error){console.error('perf full refresh '+key,r.error);if(typeof toast==='function')toast('Fejl ved '+key);continue}
+          state[key]=r?.data||[];
+        }
+        fullLoaded=true;dirtyTables.clear();lastRefreshAt=Date.now();
+        renderView();
+        refreshOpenSurface(keys);
+        updateSyncLabel(keys.length,performance.now()-started);
+        window.dispatchEvent(new CustomEvent('lm:data-refreshed',{detail:{keys,full:true,duration_ms:Math.round(performance.now()-started),client_id:cid}}));
+        return;
       }
       let keys=[...new Set([...dirtyTables].map(t=>tableToKey[t]).filter(Boolean))];dirtyTables.clear();
       if(!keys.length)keys=keysForActiveView();
