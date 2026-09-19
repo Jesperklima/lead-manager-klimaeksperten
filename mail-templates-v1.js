@@ -179,7 +179,7 @@
 
   function watch(){ensureComposerControls();ensureManager();applyDefaultWhenOpened()}
   let modalObserver=null,armTimer=null;
-  function arm(){
+  function arm(attempt=0){
     watch();
     const targets=[byId('offerMailModal'),byId('mailModal')].filter(Boolean);
     if(targets.length){
@@ -189,7 +189,7 @@
       if(armTimer){clearTimeout(armTimer);armTimer=null}
       return;
     }
-    if(!armTimer)armTimer=setTimeout(()=>{armTimer=null;arm()},250);
+    if(attempt<20&&!armTimer)armTimer=setTimeout(()=>{armTimer=null;arm(attempt+1)},250);
   }
   window.addEventListener('lm:client-data-ready',()=>setTimeout(arm,0));
   window.addEventListener('lm:data-refreshed',()=>setTimeout(watch,0));
