@@ -18,9 +18,12 @@ async function render(force=false){const c=card(),id=cid();if(!c||!id||busy)retu
  if(launch.public_launch_ready===true||launch.available===true){badge(c,launch.public_launch_ready===true?'Klar':'Intern test');body(c,`<div class="gmail-direct-note"><strong>${launch.public_launch_ready===true?'Gmail er klar til kundetilkobling.':'Gmail er kun åben for intern test endnu.'}</strong><div class="sub" style="margin-top:4px">Kunden skal kun godkende sin egen Google-konto. OAuth Client ID/Secret administreres centralt af Lead Manager.</div></div><div class="split" style="margin-top:10px"><button type="button" class="btn primary" id="lmGmailConnect">Forbind Gmail</button></div><div class="sub" id="lmGmailPlatformMsg" style="margin-top:8px"></div>`);c.querySelector('#lmGmailConnect')?.addEventListener('click',()=>startConnect(c));return}
  badge(c,'Afventer Google');body(c,`<div class="notice"><strong>Gmail er ikke åbnet til brede kundekonti endnu.</strong><div style="margin-top:5px">OAuth-verifikation: ${esc(launch.oauth_status||'required')} · sikkerhedsassessment: ${esc(launch.security_status||'required')}.</div><div class="sub" style="margin-top:6px">Kunden skal ikke gøre noget nu. Microsoft 365, One.com eller anden mail kan bruges i mellemtiden. Når Google-gaten er godkendt centralt, bliver “Forbind Gmail” automatisk tilgængelig.</div></div><div class="sub" id="lmGmailPlatformMsg" style="margin-top:8px"></div>`)
  }catch(e){badge(c,'Statusfejl','bad');body(c,`<div class="notice">Gmail-status kunne ikke hentes: ${esc(e.message||e)}</div>`)}finally{busy=false}}
-new MutationObserver(()=>setTimeout(()=>render(false),0)).observe(document.documentElement,{subtree:true,childList:true});
-document.addEventListener('click',()=>setTimeout(()=>render(false),30),true);
-window.addEventListener('lm:client-switched',()=>{lastKey='';setTimeout(()=>render(true),80)});
-setInterval(()=>render(false),5000);
+function activeSettings(){return !!document.getElementById('leadmanager')?.classList.contains('active')}
+function refresh(force=false){if(activeSettings())void render(force)}
+window.addEventListener('lm:client-switched',()=>{lastKey='';setTimeout(()=>refresh(true),80)});
+window.addEventListener('lm:client-data-ready',()=>setTimeout(()=>refresh(true),50));
+window.addEventListener('lm:mail-connected',()=>{lastKey='';refresh(true)});
+window.addEventListener('focus',()=>refresh(false));
+document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="leadmanager"]'))setTimeout(()=>refresh(false),0)});
 setTimeout(()=>render(true),500);
 })();
