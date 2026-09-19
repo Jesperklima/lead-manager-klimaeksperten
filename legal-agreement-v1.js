@@ -4,7 +4,7 @@ const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let state=null,busy=false;
+let state=null,busy=false,refreshTimer=null,refreshPromise=null;
 async function session(){if(typeof supabase==='undefined')return null;const r=await supabase.auth.getSession();return r.data&&r.data.session?r.data.session:null}
 async function edge(payload){
   const s=await session();if(!s||!s.access_token)throw new Error('Login-session mangler');
@@ -40,7 +40,8 @@ function banner(msg,button){
   const o=$('lmLegalOpen');if(o)o.addEventListener('click',openModal);
 }
 async function refresh(){
-  try{
+  if(refreshPromise)return refreshPromise;
+  refreshPromise=(async()=>{try{
     const s=await session();if(!s){clear();return}
     state=await edge({action:'status'});
     if(!state||!state.agreement_required){clear();return}
@@ -49,8 +50,10 @@ async function refresh(){
     if(!state.provider_identity_complete){banner('Databehandleraftalen er klargjort, men kan ikke accepteres før Lead Managers juridiske udbyderidentitet er verificeret.',null);return}
     if(!['owner','admin'].includes(role)){banner('Databehandleraftalen afventer accept fra en ejer/admin på jeres konto.',null);return}
     banner('Databehandleraftalen mangler accept. Gennemse og accepter den registrerede version.','Gennemse aftale');
-  }catch(e){console.warn('legal agreement status',e)}
+  }catch(e){console.warn('legal agreement status',e)}})();
+  try{return await refreshPromise}finally{refreshPromise=null}
 }
+function scheduleRefresh(delay=0){if(refreshTimer)clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{refreshTimer=null;refresh()},delay)}
 async function openModal(){
   if(busy)return;busy=true;
   try{
@@ -71,13 +74,13 @@ async function openModal(){
       try{
         await edge({action:'accept',accept_ack:true,version:d.agreement.version,template_hash:d.agreement.template_hash});
         $('lmLegalMsg').textContent='✓ Aftalen er accepteret og dokumenteret.';
-        setTimeout(()=>{m.remove();refresh()},700);
+        setTimeout(()=>{m.remove();scheduleRefresh(0)},700);
       }catch(e){$('lmLegalMsg').textContent=e.message||String(e);$('lmLegalAccept').disabled=false}
     };
   }catch(e){console.warn('legal agreement preview',e);banner(e.message||'Aftalen kunne ikke åbnes.',null)}
   finally{busy=false}
 }
-window.addEventListener('lm:central-onboarding-required',()=>setTimeout(refresh,1200));
-if(typeof supabase!=='undefined'&&supabase.auth&&supabase.auth.onAuthStateChange)supabase.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'&&s)setTimeout(refresh,1200);if(ev==='SIGNED_OUT')clear()});
-setTimeout(refresh,1400);setTimeout(refresh,4000);
+window.addEventListener('lm:central-onboarding-required',()=>scheduleRefresh(900));
+if(typeof supabase!=='undefined'&&supabase.auth&&supabase.auth.onAuthStateChange)supabase.auth.onAuthStateChange((ev,s)=>{if(ev==='SIGNED_IN'&&s)scheduleRefresh(900);if(ev==='SIGNED_OUT'){if(refreshTimer)clearTimeout(refreshTimer);refreshTimer=null;clear()}});
+scheduleRefresh(1600);
 })();
