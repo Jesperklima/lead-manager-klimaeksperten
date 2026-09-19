@@ -57,10 +57,13 @@ function queryFor(key,cid,{light=false}={}){
     case 'companies': return supabase.from('crm_companies').select('*').eq('client_id',cid).order('name');
     case 'contacts': return supabase.from('crm_contacts').select('*').eq('client_id',cid);
     case 'leads': return supabase.from('crm_leads').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
-    case 'activities':
-      return supabase.from('crm_activities')
+    case 'activities': {
+      const q=supabase.from('crm_activities')
         .select(light?'id,type,summary,metadata,lead_id,company_id,created_at':'*')
-        .eq('client_id',cid).order('created_at',{ascending:false}).limit(500);
+        .eq('client_id',cid);
+      if(light)q.gte('created_at',new Date(Date.now()-45*86400000).toISOString());
+      return q.order('created_at',{ascending:false}).limit(500);
+    }
     case 'mail':
       return light
         ? supabase.from('crm_mail_messages').select('id',{count:'exact',head:true}).eq('client_id',cid)
