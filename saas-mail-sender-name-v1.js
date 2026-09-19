@@ -53,5 +53,10 @@ window.fetch=async function(input,init){
 };
 function bindConnect(){const b=$('#lmMailProviderConnect');if(!b||b.dataset.senderNameBound)return;b.dataset.senderNameBound='1';b.addEventListener('pointerdown',()=>saveName(false),true);b.addEventListener('focus',()=>saveName(false),true)}
 function boot(){inject();bindConnect()}
-window.addEventListener('load',()=>setTimeout(boot,120));setTimeout(boot,300);let tries=0;const timer=setInterval(()=>{tries++;boot();if($('#lmMailSenderName')||tries>50)clearInterval(timer)},300);
+function schedule(){setTimeout(boot,0)}
+window.addEventListener('load',()=>setTimeout(boot,120));
+window.addEventListener('lm:client-data-ready',schedule);
+window.addEventListener('lm:client-switched',schedule);
+document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="leadmanager"]'))schedule()},true);
+setTimeout(boot,300);
 })();

@@ -49,7 +49,7 @@
     busy=true;
     try{
       const result=await rpc(lead.id,answer.code,answer.detail);
-      if(typeof loadAll==='function')await loadAll();
+      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('leads','activities','tasks');else if(typeof loadAll==='function')await loadAll({keys:['leads','activities','tasks'],force:true});
       if(typeof openLead==='function'&&document.getElementById('drawer')?.classList.contains('open'))openLead(lead.id);
       if(typeof toast==='function')toast(result?.learned_into_profile?'Lead markeret ikke relevant · søgeprofilen er skærpet':'Lead markeret ikke relevant · virksomheden er blokeret fremover');
       return true;
@@ -76,7 +76,8 @@
     };
   }
   function install(){patchDrag();patchDrawer()}
-  document.addEventListener('click',()=>setTimeout(install,0),true);
-  new MutationObserver(()=>install()).observe(document.documentElement,{subtree:true,childList:true});
-  setInterval(install,800);setTimeout(install,100);
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-lead],.leadcard,.pipeline-card,[data-executive-lead]'))setTimeout(install,0)},true);
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(install,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(install,0));
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,80),{once:true});else setTimeout(install,80);
 })();

@@ -178,8 +178,21 @@
   }
 
   function watch(){ensureComposerControls();ensureManager();applyDefaultWhenOpened()}
-  new MutationObserver(()=>setTimeout(watch,20)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  document.addEventListener('click',()=>setTimeout(watch,20),true);
-  setInterval(watch,800);
-  setTimeout(watch,300);
+  let modalObserver=null,armTimer=null;
+  function arm(attempt=0){
+    watch();
+    const targets=[byId('offerMailModal'),byId('mailModal')].filter(Boolean);
+    if(targets.length){
+      modalObserver?.disconnect();
+      modalObserver=new MutationObserver(()=>setTimeout(watch,0));
+      targets.forEach(t=>modalObserver.observe(t,{attributes:true,attributeFilter:['class'],childList:true,subtree:true}));
+      if(armTimer){clearTimeout(armTimer);armTimer=null}
+      return;
+    }
+    if(attempt<20&&!armTimer)armTimer=setTimeout(()=>{armTimer=null;arm(attempt+1)},250);
+  }
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(arm,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(watch,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],[data-mail],.nav button[data-view="mail"],.nav button[data-view="leadmanager"]'))setTimeout(arm,0)},true);
+  setTimeout(arm,300);
 })();

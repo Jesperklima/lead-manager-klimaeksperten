@@ -98,6 +98,10 @@ node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 node scripts/test-pipeline-drag.js
 node scripts/test-regression-guards.js
+node scripts/test-performance-guards.js
+node scripts/test-inline-scripts.js
+find . -maxdepth 1 -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+find api scripts -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
 grep -q 'lead-manager-theme-v2.css' index.html
@@ -108,8 +112,8 @@ done
 grep -q "function dashboardNow" executive-dashboard-v1.js
 grep -q "method:'HEAD'" executive-dashboard-v1.js
 grep -q "serverClockMs" executive-dashboard-v1.js
-grep -q "saas-credit-check-v1.js?v=20260902-1" api/app.js
-grep -q "saas-regression-center-v1.js?v=20260909-1" api/app.js
+grep -q "saas-credit-check-v1.js?v=" api/app.js
+grep -q "saas-regression-center-v1.js?v=" api/app.js
 grep -q "functions/v1/credit-check" saas-credit-check-v1.js
 grep -q "Tjekket opretter ikke et lead" saas-credit-check-v1.js
 grep -q "ikke RKI" saas-credit-check-v1.js

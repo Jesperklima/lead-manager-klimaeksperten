@@ -3,7 +3,7 @@ const must=(file,markers)=>{const s=fs.readFileSync(file,'utf8');for(const m of 
 
 must('api/app.js',[
   "const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','LUKKET','STATUS UKLAR']",
-  'saas-regression-center-v1.js?v=20260909-1'
+  'saas-regression-center-v1.js?v='
 ]);
 
 must('lead-manager-theme-v2.css',[

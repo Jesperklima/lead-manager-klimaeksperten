@@ -60,5 +60,7 @@ async function rotate(id){if(!confirm('Den gamle webhook nøgle stopper med at v
 async function saveCreds(id){const a=document.querySelector(`[data-access="${id}"]`),s=document.querySelector(`[data-appsecret="${id}"]`);const access=a?.value.trim(),secret=s?.value.trim();if(!access&&!secret)return msg('Indsæt mindst én credential.');if(access){const r=await supabase.rpc('crm_marketing_store_secret',{p_connection_id:id,p_kind:'access_token',p_value:access});if(r.error)return msg(r.error.message)}if(secret){const r=await supabase.rpc('crm_marketing_store_secret',{p_connection_id:id,p_kind:'app_secret',p_value:secret});if(r.error)return msg(r.error.message)}if(a)a.value='';if(s)s.value='';await load();msg('Platform adgangen er gemt sikkert.')}
 function wire(){$('mkConnRefresh').onclick=load;$('mkConnCreate').onclick=createConn}
 function init(){if(!ensure()){setTimeout(init,400);return}load()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();setTimeout(init,1000);setInterval(()=>{$('marketingLeads')?.classList.contains('active')&&load()},15000);
+document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="marketingLeads"]'))setTimeout(()=>{ensure();load()},0)},true);
+window.addEventListener('lm:client-switched',()=>{C.partners=[];C.connections=[];C.freshKeys.clear();setTimeout(()=>{ensure();load()},60)});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();setTimeout(init,1000);
 })();

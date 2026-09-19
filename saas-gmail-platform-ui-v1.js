@@ -2,7 +2,8 @@
 'use strict';
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
-let busy=false,lastKey='';
+let busy=false,lastKey='',lastCheckedAt=0,lastClientId='';
+const STATUS_TTL=60*1000;
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 async function session(){try{const {data}=await supabase.auth.getSession();return data?.session||null}catch{return null}}
 async function edge(payload){const s=await session();if(!s?.access_token)throw new Error('Login-session mangler');const r=await fetch(`${API}/functions/v1/gmail-direct-auth`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+s.access_token,'Content-Type':'application/json'},body:JSON.stringify(payload)});const t=await r.text();let d={};try{d=t?JSON.parse(t):{}}catch{d={error:t}}if(!r.ok)throw Object.assign(new Error(d.error||`HTTP ${r.status}`),{code:d.code,status:r.status,data:d});return d}
@@ -13,14 +14,17 @@ function badge(c,text,kind=''){const b=c.querySelector('#gmailDirectBadge');if(!
 function body(c,html){let b=c.querySelector('#gmailDirectBody');if(!b){b=document.createElement('div');b.id='gmailDirectBody';c.appendChild(b)}b.innerHTML=html}
 function title(c){const head=c.querySelector('.gmail-direct-head>div');if(head)head.innerHTML='<strong>Gmail · Lead Manager platform</strong><div class="sub">Kunden forbinder sin egen Google-konto til Lead Managers fælles OAuth-app.</div>'}
 async function startConnect(c){if(busy)return;busy=true;const msg=c.querySelector('#lmGmailPlatformMsg');if(msg)msg.textContent='Åbner Google-godkendelse…';try{const d=await edge({action:'start',client_id:cid(),account:configuredAccount(),return_url:location.href});if(!d.authorize_url)throw new Error('Google-loginlink blev ikke oprettet');location.assign(d.authorize_url)}catch(e){if(msg)msg.textContent=e.message||String(e);busy=false}}
-async function render(force=false){const c=card(),id=cid();if(!c||!id||busy)return;title(c);busy=true;try{const d=await edge({action:'status',client_id:id}),launch=d.launch||{},ready=d.ready===true,key=[id,d.ready,d.direct_send_status,launch.public_launch_ready,launch.available,launch.oauth_status,launch.security_status,d.account].join('|');if(!force&&key===lastKey){busy=false;return}lastKey=key;
+async function render(force=false){const c=card(),id=cid();if(!c||!id||busy)return;const now=Date.now();if(!force&&String(lastClientId)===String(id)&&now-lastCheckedAt<STATUS_TTL)return;title(c);busy=true;try{const d=await edge({action:'status',client_id:id}),launch=d.launch||{},ready=d.ready===true,key=[id,d.ready,d.direct_send_status,launch.public_launch_ready,launch.available,launch.oauth_status,launch.security_status,d.account].join('|');lastCheckedAt=Date.now();lastClientId=id;if(!force&&key===lastKey)return;lastKey=key;
  if(ready){badge(c,'Forbundet','ok');body(c,`<div class="gmail-direct-note"><strong>✓ Gmail er forbundet</strong><div class="sub" style="margin-top:4px">Konto: ${esc(d.account||configuredAccount()||'Google-konto')} · OAuth håndteres centralt af Lead Manager. Kunden skal ikke oprette Client ID eller Client Secret.</div></div><div class="split" style="margin-top:10px"><button type="button" class="btn" id="lmGmailReconnect">Forbind igen</button></div><div class="sub" id="lmGmailPlatformMsg" style="margin-top:8px"></div>`);c.querySelector('#lmGmailReconnect')?.addEventListener('click',()=>startConnect(c));return}
  if(launch.public_launch_ready===true||launch.available===true){badge(c,launch.public_launch_ready===true?'Klar':'Intern test');body(c,`<div class="gmail-direct-note"><strong>${launch.public_launch_ready===true?'Gmail er klar til kundetilkobling.':'Gmail er kun åben for intern test endnu.'}</strong><div class="sub" style="margin-top:4px">Kunden skal kun godkende sin egen Google-konto. OAuth Client ID/Secret administreres centralt af Lead Manager.</div></div><div class="split" style="margin-top:10px"><button type="button" class="btn primary" id="lmGmailConnect">Forbind Gmail</button></div><div class="sub" id="lmGmailPlatformMsg" style="margin-top:8px"></div>`);c.querySelector('#lmGmailConnect')?.addEventListener('click',()=>startConnect(c));return}
  badge(c,'Afventer Google');body(c,`<div class="notice"><strong>Gmail er ikke åbnet til brede kundekonti endnu.</strong><div style="margin-top:5px">OAuth-verifikation: ${esc(launch.oauth_status||'required')} · sikkerhedsassessment: ${esc(launch.security_status||'required')}.</div><div class="sub" style="margin-top:6px">Kunden skal ikke gøre noget nu. Microsoft 365, One.com eller anden mail kan bruges i mellemtiden. Når Google-gaten er godkendt centralt, bliver “Forbind Gmail” automatisk tilgængelig.</div></div><div class="sub" id="lmGmailPlatformMsg" style="margin-top:8px"></div>`)
  }catch(e){badge(c,'Statusfejl','bad');body(c,`<div class="notice">Gmail-status kunne ikke hentes: ${esc(e.message||e)}</div>`)}finally{busy=false}}
-new MutationObserver(()=>setTimeout(()=>render(false),0)).observe(document.documentElement,{subtree:true,childList:true});
-document.addEventListener('click',()=>setTimeout(()=>render(false),30),true);
-window.addEventListener('lm:client-switched',()=>{lastKey='';setTimeout(()=>render(true),80)});
-setInterval(()=>render(false),5000);
-setTimeout(()=>render(true),500);
+function activeSettings(){return !!document.getElementById('leadmanager')?.classList.contains('active')}
+function schedule(force=false,delay=0){setTimeout(()=>{if(force||activeSettings())render(force)},delay)}
+document.addEventListener('click',e=>{const b=e.target.closest?.('.nav button[data-view="leadmanager"]');if(b)schedule(false,0)},true);
+function oauthReturn(){const q=new URLSearchParams(location.search);return !!(q.get('gmail')||q.get('google'))}
+window.addEventListener('lm:client-switched',()=>{lastKey='';lastCheckedAt=0;lastClientId='';if(activeSettings()||oauthReturn())schedule(true,60)});
+window.addEventListener('lm:mail-connected',()=>{lastKey='';lastCheckedAt=0;if(activeSettings())schedule(true,50)});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&activeSettings())schedule(false,0)});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{if(activeSettings()||oauthReturn())schedule(true,350)},{once:true});else if(activeSettings()||oauthReturn())schedule(true,350);
 })();

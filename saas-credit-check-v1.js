@@ -108,9 +108,14 @@
     installView();installLeadBlock();const drawer=document.getElementById('drawer'),open=drawer?.classList.contains('open');let lead=null;try{lead=currentLead}catch{}
     if(!open||!lead?.id){lastLeadId='';return}if(lead.id!==lastLeadId){lastLeadId=lead.id;setTimeout(()=>checkLead(false),150)}
   }
-  function init(){installStyles();installView();installLeadBlock();watchLead()}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-  document.addEventListener('click',()=>setTimeout(watchLead,20),true);
-  new MutationObserver(watchLead).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  setInterval(watchLead,800);
+  function wrapOpenLead(){
+    if(typeof window.openLead!=='function'||window.openLead.__creditWatch)return;
+    const original=window.openLead;
+    const wrapped=function(...args){const result=original.apply(this,args);setTimeout(watchLead,0);return result};
+    wrapped.__creditWatch=true;wrapped.__original=original;window.openLead=wrapped;
+  }
+  function init(){installStyles();installView();installLeadBlock();wrapOpenLead();watchLead()}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  window.addEventListener('lm:client-data-ready',()=>{lastLeadId='';wrapOpenLead();setTimeout(watchLead,0)});
+  window.addEventListener('lm:data-refreshed',()=>{wrapOpenLead();if(document.getElementById('drawer')?.classList.contains('open'))setTimeout(watchLead,0)});
 })();
