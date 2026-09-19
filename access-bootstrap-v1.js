@@ -24,14 +24,14 @@ function ensureAdminBundles(){
 }
 function ensureSettingsHub(){
  if(settingsHubPromise)return settingsHubPromise;
- const scripts=['/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4'];
+ const scripts=['/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3'];
  if(window.LM_ACCESS?.platform_admin!==true)scripts.unshift('/saas-settings-hub-v1.js?v=20260919-14');
  settingsHubPromise=Promise.all(scripts.map(loadLazyScript)).catch(error=>{settingsHubPromise=null;throw error});
  return settingsHubPromise;
 }
-function mailOAuthCallback(){
+function settingsReturnCallback(){
  const q=new URLSearchParams(location.search);
- return !!(q.get('microsoft')||q.get('gmail')||q.get('google'));
+ return !!(q.get('microsoft')||q.get('gmail')||q.get('google')||q.has('minuba'));
 }
 function ensureRegressionCenter(){
  if(regressionCenterPromise)return regressionCenterPromise;
@@ -143,7 +143,7 @@ window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:resc
 document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
 document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="feedback"]'))ensureRegressionCenter().catch(error=>console.warn('regression lazy load',error))},true);
 async function initAccessBootstrap(){
- if(mailOAuthCallback())await ensureSettingsHub();
+ if(settingsReturnCallback())await ensureSettingsHub();
  if(onboardingToken()){
   await ensureOnboardingScript();
   try{if(window.__LM_ONBOARDING_CLAIM_PROMISE)await window.__LM_ONBOARDING_CLAIM_PROMISE}catch(error){console.warn('Onboarding invitation init',error)}
