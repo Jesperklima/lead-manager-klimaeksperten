@@ -137,5 +137,8 @@ if(platformAdmin.includes("supabase.rpc('crm_is_platform_admin'"))fail('platform
 if(platformAdmin.includes('style();await loadSettings()'))fail('platform system-mail status returned to startup');
 if(!platformAdmin.includes('lm:access-ready'))fail('platform admin access event wiring missing');
 if(!app.includes('saas-platform-admin-v1.js?v=20260919-4'))fail('platform admin cache version not bumped');
+if(adminUsers.includes('async function probe()')||adminUsers.includes('probe()'))fail('admin users startup probe returned');
+if(!adminUsers.includes('ensureCard();updateSummary()'))fail('admin users lazy card mount missing');
+if(!app.includes('saas-admin-users-v1.js?v=20260919-3'))fail('admin users cache version not bumped');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');

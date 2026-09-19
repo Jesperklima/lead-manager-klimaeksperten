@@ -4,7 +4,7 @@ const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let data=null,busy=false,checked=false;
+let data=null,busy=false;
 
 async function session(){if(typeof supabase==='undefined')return null;const {data}=await supabase.auth.getSession();return data?.session||null}
 async function edge(payload){const s=await session();if(!s?.access_token)throw new Error('Login-session mangler');const r=await fetch(`${API}/functions/v1/saas-admin-users`,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify(payload)});const raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={error:raw}}if(!r.ok){const e=new Error(d.error||`HTTP ${r.status}`);e.status=r.status;throw e}return d}
@@ -32,11 +32,10 @@ async function savePlan(btn){if(busy)return;const id=btn.dataset.client,card=btn
 
 async function saveUser(row,patch){if(busy||!row)return;const id=row.dataset.client,email=row.dataset.email;if(!id||!email)return;busy=true;row.classList.add('lmau-spinner');setMsg(`Gemmer ændring for ${email}…`);try{await edge({action:'update_user',client_id:id,email,...patch});setMsg(`✓ ${email} er opdateret.`,true);await refresh()}catch(e){setMsg('Kunne ikke ændre bruger: '+(e.message||e));await refresh().catch(()=>{})}finally{busy=false;row.classList.remove('lmau-spinner')}}
 
-async function probe(){if(checked)return;try{const d=await edge({action:'list'});checked=true;data=d;if(d?.is_platform_admin){ensureCard();updateSummary()}}catch(e){checked=true;if(e.status!==403)console.warn('admin users probe',e)}}
 function init(){
   if(typeof supabase==='undefined'||typeof state==='undefined'||!state?.session||typeof window.LM_ACCESS==='undefined')return;
-  if(window.LM_ACCESS?.platform_admin!==true){checked=true;return}
-  probe()
+  if(window.LM_ACCESS?.platform_admin!==true)return;
+  ensureCard();updateSummary()
 }
 window.addEventListener('lm:workspace-ready',init);
 window.addEventListener('lm:access-ready',()=>{if(state?.session&&state?.client)init()});
