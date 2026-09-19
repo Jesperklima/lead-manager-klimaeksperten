@@ -13,15 +13,23 @@ async function centralBootstrap(){
 }
 async function openWorkspace(access){
  let clientId=access.workspace_id||null;
+ const email=state.session?.user?.email||'';
  if(access.platform_admin){
-  const preferred=localStorage.getItem('lm_admin_client_id')||'';
-  if(preferred){const q=await supabase.from('crm_clients').select('*').eq('id',preferred);if(q.data?.length)clientId=preferred}
-  if(!clientId){const email=state.session?.user?.email||'';const m=await supabase.from('crm_users').select('*').eq('email',email);clientId=m.data?.[0]?.client_id||null}
+  const preferred=localStorage.getItem('lm_admin_active_client_v1')||localStorage.getItem('lm_admin_client_id')||'';
+  if(preferred)clientId=preferred;
  }
  if(!clientId)throw new Error('Intet workspace kunne vælges.');
- const cr=await supabase.from('crm_clients').select('*').eq('id',clientId);if(cr.error||!cr.data?.length)throw new Error(cr.error?.message||'Workspace kunne ikke hentes');
+ let [cr,maps]=await Promise.all([
+  supabase.from('crm_clients').select('*').eq('id',clientId),
+  supabase.from('crm_users').select('*').eq('email',email)
+ ]);
+ if((cr.error||!cr.data?.length)&&access.platform_admin&&access.workspace_id&&String(access.workspace_id)!==String(clientId)){
+  clientId=access.workspace_id;
+  cr=await supabase.from('crm_clients').select('*').eq('id',clientId);
+ }
+ if(cr.error||!cr.data?.length)throw new Error(cr.error?.message||'Workspace kunne ikke hentes');
  state.client=cr.data[0];
- const maps=await supabase.from('crm_users').select('*').eq('email',state.session?.user?.email||'');state.userMap=maps.data?.find(x=>x.client_id===clientId)||maps.data?.[0]||null;
+ state.userMap=maps.data?.find(x=>x.client_id===clientId)||maps.data?.[0]||null;
  document.body.dataset.lmRole=access.role||'';document.body.dataset.lmPlatformAdmin=access.platform_admin?'1':'0';
  document.getElementById('lmOb4')?.remove();document.getElementById('lmObError')?.remove();document.getElementById('lmBootRescueError')?.remove();
  showApp();
