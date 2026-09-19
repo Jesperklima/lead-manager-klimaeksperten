@@ -21,11 +21,9 @@ async function stop(expired=false){const old=current;if(!old)return;save(null);t
 function decorate(){const modal=$('lmAdminUsersModal');if(!modal)return;modal.querySelectorAll('.lmau-user').forEach(row=>{if(row.querySelector('.lmi-actions'))return;const clientId=row.dataset.client,email=row.dataset.email;if(!clientId||!email)return;const a=document.createElement('div');a.className='lmi-actions';a.innerHTML='<button type="button" class="lmi-view">Vis som</button><button type="button" class="lmi-support">Support som</button>';a.querySelector('.lmi-view').onclick=()=>start(clientId,email,'view');a.querySelector('.lmi-support').onclick=()=>start(clientId,email,'support');const target=row.lastElementChild;target?.appendChild(a)})}
 function blockWrites(e){if(current?.mode!=='view')return;const t=e.target.closest?.('button,input,select,textarea,[contenteditable="true"]');if(!t)return;if(t.closest('#lmImpersonationBar'))return;if(t.closest('.nav')||t.matches('[data-view]'))return;e.preventDefault();e.stopImmediatePropagation();if(typeof toast==='function')toast('Read-only: du ser systemet som kunden. Brug “Support som” for at ændre noget.')}
 document.addEventListener('click',blockWrites,true);document.addEventListener('change',blockWrites,true);document.addEventListener('input',blockWrites,true);
-let mo=null,moStop=null;
-function observeAdminModal(){mo?.disconnect();mo=null;if(moStop){clearTimeout(moStop);moStop=null}const modal=$('lmAdminUsersModal');if(!modal)return false;decorate();mo=new MutationObserver(()=>decorate());mo.observe(modal,{subtree:true,childList:true});return true}
-function armAdminModal(){if(observeAdminModal())return;let tries=0;const retry=()=>{tries++;if(observeAdminModal()||tries>=8)return;moStop=setTimeout(retry,250)};moStop=setTimeout(retry,100)}
-function init(){load();decorate();armAdminModal()}
+function init(){load();decorate()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-window.addEventListener('lm:client-data-ready',()=>setTimeout(()=>{decorate();armAdminModal()},0));
+window.addEventListener('lm:admin-users-rendered',decorate);
+window.addEventListener('lm:client-data-ready',()=>setTimeout(decorate,0));
 window.addEventListener('lm:client-switched',()=>{if(current&&!isExpired()&&state?.client?.id!==current.client_id)switchClient(current.client_id)});
 })();
