@@ -43,4 +43,27 @@ for(const [file,pattern] of Object.entries({
   const s=fs.readFileSync(file,'utf8');
   if(pattern.test(s))throw new Error('Aggressive legacy polling returned in '+file);
 }
+
+const read=file=>fs.readFileSync(file,'utf8');
+const index=read('index.html');
+const fail=m=>{throw new Error(m)};
+
+if(/setInterval\s*\(/.test(index))fail('unexpected permanent interval in index.html');
+if(!index.includes('window.__LM_FULL_CUSTOMER_V4=true'))fail('authoritative lead drawer runtime marker missing');
+if(index.includes("setTimeout(()=>renderFull(name,true),800)"))fail('duplicate lead drawer fallback render returned');
+if(!index.includes("state?.companies||[]"))fail('lead drawer no longer reuses loaded company state');
+
+const customerControls=read('saas-customer-controls-v1.js');
+if(!customerControls.includes('__LM_CUSTOMER_CONTEXT'))fail('shared customer context cache missing');
+if(!customerControls.includes('bootPromise'))fail('shared customer context request dedupe missing');
+if(/functions\/v1\/saas-onboarding/.test(read('saas-feedback-v1.js')))fail('feedback performs duplicate onboarding status request');
+if(/functions\/v1\/saas-onboarding/.test(read('saas-regression-center-v1.js')))fail('regression center performs duplicate onboarding status request');
+if(read('saas-onboarding-v5.js').includes('setTimeout(boot,1500)'))fail('onboarding legacy startup retries returned');
+if(!read('saas-settings-hub-v1.js').includes('if(settingsActive())loadBilling(false)'))fail('billing is no longer lazy');
+if(!read('saas-compliance-admin-v1.js').includes('lm:system-opened'))fail('compliance is no longer lazy to System view');
+if(!read('saas-platform-admin-v1.js').includes('status hentes i System'))fail('platform system status is no longer lazy');
+if(!read('saas-mail-providers-v1.js').includes('settingsActive()'))fail('mail provider settings startup is no longer lazy');
+if(!read('saas-minuba-v1.js').includes('settingsActive()'))fail('Minuba settings startup is no longer lazy');
+if(!read('saas-gmail-platform-ui-v1.js').includes('activeSettings()'))fail('Gmail status startup is no longer lazy');
+
 console.log('PASS: active runtime is event-driven; only intentional low-frequency timers remain');
