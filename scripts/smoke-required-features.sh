@@ -98,6 +98,7 @@ node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 node scripts/test-pipeline-drag.js
 node scripts/test-regression-guards.js
+node scripts/test-performance-guards.js
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
 grep -q 'lead-manager-theme-v2.css' index.html
