@@ -152,5 +152,14 @@ if(!customerControls.includes("const local=hydrateFromAccess();if(local)return l
 if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer controls cache version not bumped');
 const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
 if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
+const accessBootstrap=read('access-bootstrap-v1.js');
+if(!accessBootstrap.includes("supabase.rpc('crm_session_bootstrap')"))fail('direct session bootstrap RPC missing');
+if(accessBootstrap.includes('/functions/v1/session-bootstrap'))fail('session bootstrap Edge Function returned to startup');
+if(accessBootstrap.includes("supabase.from('crm_users')"))fail('crm_users startup query returned');
+if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(clientId)'))fail('bootstrap client reuse missing');
+const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
+if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
+if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-4'))fail('access bootstrap cache version not bumped');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');
