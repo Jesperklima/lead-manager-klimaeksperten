@@ -47,6 +47,7 @@ async function controlledStartApp(){
     for(let i=0;i<5&&access.next_route==='onboarding';i++){await new Promise(r=>setTimeout(r,300));access=await centralBootstrap()}
    }
    window.LM_ACCESS=access;
+   window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
    if(!access.authenticated){showAuth();return}
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
    if(access.next_route==='onboarding'){
@@ -66,7 +67,7 @@ async function rescueActiveWorkspace(){
  rescuePromise=(async()=>{try{
   const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)return;
   state.session=session;
-  const access=await centralBootstrap();window.LM_ACCESS=access;
+  const access=await centralBootstrap();window.LM_ACCESS=access;window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
   if(access.authenticated&&access.next_route==='app'){
    await openWorkspace(access);
    app.classList.remove('hidden');document.getElementById('authScreen')?.classList.add('hidden');
