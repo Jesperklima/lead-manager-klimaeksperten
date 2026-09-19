@@ -1,5 +1,6 @@
 (()=>{
   'use strict';
+  if(window.__LM_DATE_PICKER_V1)return;window.__LM_DATE_PICKER_V1=true;
 
   const TARGET_IDS=new Set(['oFollow','offerMailFollow']);
 
