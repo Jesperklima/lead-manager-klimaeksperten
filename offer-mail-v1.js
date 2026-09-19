@@ -169,9 +169,14 @@
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const result=await callProtectedEdge('gmail-direct-send',{client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,follow_up_date:follow||null,ai_generated:false,ai_model:null});
       if(result?.error)throw new Error(result.error.message||String(result.error));
-      byId('offerMailModal').classList.remove('open');if(typeof loadAll==='function')await loadAll();if(typeof openOffer==='function')openOffer(o.id);if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
+      byId('offerMailModal').classList.remove('open');if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});if(typeof openOffer==='function')openOffer(o.id);if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
     }catch(error){alert('Mailen blev ikke sendt: '+(error?.message||String(error)))}finally{button.disabled=false;button.textContent=old}
   }
 
-  const observer=new MutationObserver(()=>ensureButton());observer.observe(document.documentElement,{subtree:true,childList:true});document.addEventListener('click',()=>setTimeout(ensureButton,0),true);ensureModal();ensureButton();
+  let mountObserver=null,mountTimer=null;
+  function arm(){ensureModal();ensureButton();if(byId('sendOfferMail')){mountObserver?.disconnect();mountObserver=null;if(mountTimer){clearTimeout(mountTimer);mountTimer=null}return}if(mountObserver)return;const root=document.body||document.documentElement;mountObserver=new MutationObserver(()=>{ensureModal();ensureButton();if(byId('sendOfferMail')){mountObserver.disconnect();mountObserver=null}});mountObserver.observe(root,{subtree:true,childList:true});mountTimer=setTimeout(()=>{mountObserver?.disconnect();mountObserver=null;mountTimer=null},10000)}
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(arm,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(arm,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],[data-open-offer],.offer-pipe-card'))setTimeout(arm,0)},true);
+  arm();
 })();
