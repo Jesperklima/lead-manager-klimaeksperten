@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null,regressionCenterPromise=null,feedbackBundlePromise=null,creditCheckPromise=null;
+let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null,regressionCenterPromise=null,feedbackBundlePromise=null,creditCheckPromise=null,offerSearchPromise=null;
 const ADMIN_BUNDLES=[
  '/saas-platform-admin-v1.js?v=20260919-4',
  '/saas-compliance-admin-v1.js?v=20260919-6',
@@ -50,6 +50,11 @@ function ensureCreditCheck(){
  if(creditCheckPromise)return creditCheckPromise;
  creditCheckPromise=loadLazyScript('/saas-credit-check-v1.js?v=20260919-3').catch(error=>{creditCheckPromise=null;throw error});
  return creditCheckPromise;
+}
+function ensureOfferSearch(){
+ if(offerSearchPromise)return offerSearchPromise;
+ offerSearchPromise=loadLazyScript('/saas-offer-search-controls-v2.js?v=20260919-4').catch(error=>{offerSearchPromise=null;throw error});
+ return offerSearchPromise;
 }
 function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
 function ensureOnboardingScript(){
@@ -147,11 +152,12 @@ async function rescueActiveWorkspace(){
  return rescuePromise;
 }
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle,loadCredit:ensureCreditCheck};
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle,loadCredit:ensureCreditCheck,loadOfferSearch:ensureOfferSearch};
 document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
 document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="feedback"]'))return;ensureFeedbackBundle().then(()=>window.dispatchEvent(new Event('lm:feedback-open-request'))).catch(error=>console.warn('feedback lazy load',error))},true);
 document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="creditcheck"]'))return;ensureCreditCheck().then(()=>window.dispatchEvent(new CustomEvent('lm:creditcheck-open-request'))).catch(error=>console.warn('credit check lazy load',error))},true);
 window.addEventListener('lm:lead-opened',()=>ensureCreditCheck().catch(error=>console.warn('credit check lead load',error)));
+document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="offers"],.nav button[data-view="offerpipeline"],[data-open-offer],.offer-pipe-card,[data-executive-offer]'))return;ensureOfferSearch().catch(error=>console.warn('offer search lazy load',error))},true);
 async function initAccessBootstrap(){
  if(settingsReturnCallback())await ensureSettingsHub();
  if(onboardingToken()){
