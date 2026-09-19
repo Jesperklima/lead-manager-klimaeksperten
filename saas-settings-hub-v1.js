@@ -461,9 +461,14 @@ function rehome(){
   renderAccount();selectTab(currentTab);heading();
 }
 
+function settingsActive(){return !!$('#leadmanager')?.classList.contains('active')}
 function schedule(){
-  if(scheduled)return;scheduled=true;
+  if(!settingsActive()||scheduled)return;scheduled=true;
   requestAnimationFrame(()=>{scheduled=false;rehome()});
+}
+function activateSettings(){
+  if(!settingsActive())return;
+  rehome();heading();loadBilling(false);armMountObserver();
 }
 function armMountObserver(){
   observer?.disconnect();observer=null;
@@ -483,11 +488,11 @@ function armMountObserver(){
 function boot(){
   if(typeof window.LM_ACCESS==='undefined'||typeof state==='undefined'||!state?.client){setTimeout(boot,150);return}
   navLabel();if(!isCustomer())return;
-  rehome();loadBilling(false);armMountObserver();
-  $('.nav button[data-view="leadmanager"]')?.addEventListener('click',()=>setTimeout(()=>{rehome();heading();armMountObserver()},0));
-  document.querySelectorAll('.nav button:not([data-view="leadmanager"])').forEach(b=>b.addEventListener('click',()=>setTimeout(heading,0)));
+  $('.nav button[data-view="leadmanager"]')?.addEventListener('click',()=>setTimeout(activateSettings,0));
+  document.querySelectorAll('.nav button:not([data-view="leadmanager"])').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{if(settingsActive())heading()},0)));
   window.addEventListener('lm:data-refreshed',schedule);
-  window.addEventListener('lm:client-data-ready',()=>{schedule();armMountObserver()});
+  window.addEventListener('lm:client-data-ready',()=>{if(settingsActive())setTimeout(activateSettings,0)});
+  if(settingsActive())activateSettings();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

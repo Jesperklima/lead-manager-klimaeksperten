@@ -115,11 +115,12 @@ function render(data,error){const el=card();if(!el)return;if(error){el.innerHTML
    finally{identityBusy=false;if(b)b.disabled=false}
  },{once:true});
 }
-async function load(force=false){if(!admin()||!host()||busy)return;const id=clientId();if(!id)return;if(!force&&lastClient===id&&lastData){render(lastData);return}busy=true;try{const [dash,identity]=await Promise.all([supabase.rpc('crm_compliance_dashboard',{p_client_id:id}),legalAdminEdge({action:'status'}).catch(()=>null)]);if(dash.error)throw dash.error;if(identity)lastIdentity=identity;lastClient=id;lastData=dash.data;render(dash.data)}catch(e){render(null,e?.message||String(e))}finally{busy=false}}
-function tick(){if(admin()&&host()){card();load(false)}}
-window.addEventListener('lm:client-switched',()=>{lastClient=null;lastData=null;setTimeout(()=>{card();load(true)},50)});
-window.addEventListener('lm:client-data-ready',()=>setTimeout(tick,0));
+function activeHost(){const h=host();return !!h?.closest('.view')?.classList.contains('active')}
+async function load(force=false){if(!admin()||!host()||!activeHost()||busy)return;const id=clientId();if(!id)return;if(!force&&lastClient===id&&lastData){render(lastData);return}busy=true;try{const [dash,identity]=await Promise.all([supabase.rpc('crm_compliance_dashboard',{p_client_id:id}),legalAdminEdge({action:'status'}).catch(()=>null)]);if(dash.error)throw dash.error;if(identity)lastIdentity=identity;lastClient=id;lastData=dash.data;render(dash.data)}catch(e){render(null,e?.message||String(e))}finally{busy=false}}
+function tick(){if(admin()&&host()&&activeHost()){card();load(false)}}
+window.addEventListener('lm:client-switched',()=>{lastClient=null;lastData=null;if(activeHost())setTimeout(()=>{card();load(true)},50)});
+window.addEventListener('lm:client-data-ready',()=>{if(activeHost())setTimeout(tick,0)});
 document.addEventListener('click',e=>{if(e.target.closest?.('.nav button'))setTimeout(tick,0)},true);
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(tick,400),{once:true});else setTimeout(tick,400);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{if(activeHost())setTimeout(tick,200)},{once:true});else if(activeHost())setTimeout(tick,200);
 window.LMComplianceAdmin={refresh:()=>load(true)};
 })();
