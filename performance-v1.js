@@ -12,7 +12,7 @@ const tableToKey={
 const keyToTable=Object.fromEntries(Object.entries(tableToKey).map(([table,key])=>[key,table]));
 const allKeys=Object.keys(keyToTable);
 const startupKeys=['companies','leads','activities','offers','approvals','tasks','mail'];
-const partialStartupKeys=new Set(['activities','mail','approvals']);
+const partialStartupKeys=new Set(['activities','mail','approvals','offers']);
 const viewRefreshKeys={
   dashboard:['companies','leads','activities','offers','approvals','tasks','mail'],
   leads:['companies','contacts','leads'],
@@ -66,7 +66,7 @@ function queryFor(key,cid,{light=false}={}){
         ? supabase.from('crm_mail_messages').select('id',{count:'exact',head:true}).eq('client_id',cid)
         : supabase.from('crm_mail_messages').select('*',{count:'exact'}).eq('client_id',cid).order('message_at',{ascending:false}).limit(300);
     case 'opps': return supabase.from('crm_opportunities').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
-    case 'offers': return supabase.from('crm_offers').select('*').eq('client_id',cid).order('follow_up_date',{ascending:true});
+    case 'offers': return supabase.from('crm_offers').select(light?'id,client_id,company_id,lead_id,opportunity_id,offer_ref,customer_name,installation_address,sent_date,follow_up_date,follow_up_month,follow_up_owner,contact_person,contact_details,status,status_reason,current_comment,source_file,source_sheet,source_row,data_warning,created_at,updated_at,manual_lock,status_source,status_updated_at,minuba_status,minuba_record_type,minuba_order_number,minuba_last_checked_at,minuba_last_seen_at,minuba_sync_state':'*').eq('client_id',cid).order('follow_up_date',{ascending:true});
     case 'approvals':
       return light
         ? supabase.from('crm_approvals').select('id,status,created_at').eq('client_id',cid).eq('status','pending').order('created_at',{ascending:false})
