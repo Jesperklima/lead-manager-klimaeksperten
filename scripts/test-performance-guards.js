@@ -163,10 +163,12 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260919-5'))fail('access bootstrap cache version not bumped');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-6'))fail('access bootstrap cache version not bumped');
 if(!accessBootstrap.includes("script.src='/saas-onboarding-v5.js?v=20260919-5'"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
+if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');
+if(!accessBootstrap.includes("['onboarding','denied','login'].includes(window.LM_ACCESS?.next_route||'')"))fail('rescue route guard missing');
 const startupSnapshotMigration=read('supabase/migrations/20260919154500_startup_snapshot_rpc.sql');
 if(!startupSnapshotMigration.includes('crm_startup_snapshot(p_client_id uuid)'))fail('startup snapshot RPC migration missing');
 if(!startupSnapshotMigration.includes('crm_has_client_access(p_client_id)'))fail('startup snapshot access guard missing');

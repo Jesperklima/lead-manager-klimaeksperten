@@ -79,6 +79,8 @@ async function controlledStartApp(){
 }
 async function rescueActiveWorkspace(){
  if(rescuePromise)return rescuePromise;
+ if(bootPromise)return null;
+ if(['onboarding','denied','login'].includes(window.LM_ACCESS?.next_route||''))return null;
  const app=document.getElementById('appShell');if(!app||!app.classList.contains('hidden'))return;
  rescuePromise=(async()=>{try{
   const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)return;
