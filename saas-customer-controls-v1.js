@@ -51,5 +51,6 @@ document.addEventListener('click',e=>{const b=e.target.closest?.('.nav button');
 window.addEventListener('load',()=>setTimeout(()=>boot(false),50));
 if(typeof supabase!=='undefined'&&supabase.auth?.onAuthStateChange)supabase.auth.onAuthStateChange((_event,s)=>{if(s)setTimeout(()=>boot(false),50)});
 window.addEventListener('lm:client-switched',()=>{ctx=null;bootClientId='';window.__LM_CUSTOMER_CONTEXT=null;window.__LM_SAAS_PLAN=null;setTimeout(()=>boot(true),0)});
+window.addEventListener('lm:data-refreshed',()=>{if(!ctx)setTimeout(()=>boot(false),0)});
 setTimeout(()=>boot(false),150);
 })();
