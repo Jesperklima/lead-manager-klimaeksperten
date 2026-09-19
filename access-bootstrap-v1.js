@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null;
+let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null;
 const ADMIN_BUNDLES=[
  '/saas-platform-admin-v1.js?v=20260919-4',
  '/saas-compliance-admin-v1.js?v=20260919-6',
@@ -20,6 +20,12 @@ function ensureAdminBundles(){
  if(adminBundlesPromise)return adminBundlesPromise;
  adminBundlesPromise=Promise.all(ADMIN_BUNDLES.map(loadLazyScript)).catch(error=>{adminBundlesPromise=null;throw error});
  return adminBundlesPromise;
+}
+function ensureSettingsHub(){
+ if(window.LM_ACCESS?.platform_admin===true)return Promise.resolve();
+ if(settingsHubPromise)return settingsHubPromise;
+ settingsHubPromise=loadLazyScript('/saas-settings-hub-v1.js?v=20260919-14').catch(error=>{settingsHubPromise=null;throw error});
+ return settingsHubPromise;
 }
 function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
 function ensureOnboardingScript(){
@@ -70,6 +76,7 @@ async function openWorkspace(access){
  if(document.getElementById('brandClient'))document.getElementById('brandClient').textContent=state.client.name+' · '+(access.platform_admin?'Platform admin':'Kundeworkspace');
  try{await loadAll({startup:true})}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
  window.dispatchEvent(new CustomEvent('lm:workspace-ready',{detail:{client_id:state.client?.id||clientId,platform_admin:!!access.platform_admin}}));
+ if(!access.platform_admin&&document.getElementById('leadmanager')?.classList.contains('active'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error));
 }
 async function controlledStartApp(){
  if(bootPromise)return bootPromise;
@@ -121,7 +128,8 @@ async function rescueActiveWorkspace(){
  return rescuePromise;
 }
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles};
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub};
+document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
 async function initAccessBootstrap(){
  if(onboardingToken()){
   await ensureOnboardingScript();
