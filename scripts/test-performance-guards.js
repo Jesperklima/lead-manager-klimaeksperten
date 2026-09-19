@@ -132,5 +132,10 @@ if(onboarding.includes('setTimeout(boot,0);setTimeout(boot,500);setTimeout(boot,
 if(onboarding.includes("if(ev==='SIGNED_IN'&&s){setTimeout(boot,0)"))fail('onboarding SIGNED_IN retry burst returned');
 if(!onboarding.includes("lm:central-onboarding-required"))fail('central onboarding trigger missing');
 if(!app.includes('saas-onboarding-v5.js?v=20260919-3'))fail('onboarding asset cache version not bumped');
+const platformAdmin=read('saas-platform-admin-v1.js');
+if(platformAdmin.includes("supabase.rpc('crm_is_platform_admin'"))fail('platform-admin permission RPC returned');
+if(platformAdmin.includes('style();await loadSettings()'))fail('platform system-mail status returned to startup');
+if(!platformAdmin.includes('lm:access-ready'))fail('platform admin access event wiring missing');
+if(!app.includes('saas-platform-admin-v1.js?v=20260919-4'))fail('platform admin cache version not bumped');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');
