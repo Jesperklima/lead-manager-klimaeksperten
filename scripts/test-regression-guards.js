@@ -2,8 +2,12 @@ const fs=require('fs');
 const must=(file,markers)=>{const s=fs.readFileSync(file,'utf8');for(const m of markers){if(!s.includes(m))throw new Error(`${file}: missing regression marker: ${m}`)}};
 
 must('api/app.js',[
-  "const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','LUKKET','STATUS UKLAR']",
-  'saas-regression-center-v1.js?v='
+  "const OFFER_PIPE_STATUSES=['I GANG','PÅ PAUSE','VUNDET','TABT','LUKKET','STATUS UKLAR']"
+]);
+
+must('access-bootstrap-v1.js',[
+  'saas-regression-center-v1.js?v=',
+  'loadRegression:ensureRegressionCenter'
 ]);
 
 must('lead-manager-theme-v2.css',[

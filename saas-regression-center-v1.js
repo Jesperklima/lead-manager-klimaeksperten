@@ -32,5 +32,5 @@ async function boot(force=false){
 document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="feedback"]'))setTimeout(()=>boot(false),0)},true);
 window.addEventListener('lm:feedback-rendered',()=>{if(feedbackActive())setTimeout(()=>{if(internal)ensureCard();else boot(false)},0)});
 window.addEventListener('lm:client-switched',()=>{internal=false;bootedClient=''});
-if(!window.LMAccess&&feedbackActive())setTimeout(()=>boot(false),0);
+if(feedbackActive())setTimeout(()=>boot(false),0);
 })();
