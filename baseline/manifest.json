@@ -14,12 +14,12 @@
     "md5": "a9d6fe79e1e3625392b7bdb3598006ef",
     "snapshot": "lead_manager_canonical_baseline_20260827_1242"
   },
-  "repository_bytes": 189925,
-  "repository_md5": "a7f039c99af47a7667cd7059aa034510",
-  "change": "keep pipeline drag attached globally and update dropped cards without full CRM rerender",
+  "repository_bytes": 190895,
+  "change": "sync verified repository baseline to current index before whole-app runtime performance optimization",
   "previous_repository": {
-    "bytes": 188078,
-    "md5": "c6a698df9a4968f67984f94ea81f1b2b",
-    "change": "use pointer-based pipeline dragging and dark readable quick-status UI"
-  }
+    "bytes": 189925,
+    "md5": "a7f039c99af47a7667cd7059aa034510",
+    "change": "keep pipeline drag attached globally and update dropped cards without full CRM rerender"
+  },
+  "repository_git_blob_sha": "6e9da474f836302440bcfc271141f0950697c27e"
 }
