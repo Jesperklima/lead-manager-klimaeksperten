@@ -469,8 +469,8 @@ function schedule(){
 function boot(){
   if(typeof window.LM_ACCESS==='undefined'||typeof state==='undefined'||!state?.client){setTimeout(boot,150);return}
   navLabel();if(!isCustomer())return;
-  rehome();loadBilling(false);
-  $('.nav button[data-view="leadmanager"]')?.addEventListener('click',()=>setTimeout(()=>{rehome();heading()},0));
+  rehome();if(settingsActive())loadBilling(false);
+  $('.nav button[data-view="leadmanager"]')?.addEventListener('click',()=>setTimeout(()=>{rehome();heading();loadBilling(false)},0));
   document.querySelectorAll('.nav button:not([data-view="leadmanager"])').forEach(b=>b.addEventListener('click',()=>setTimeout(heading,0)));
   window.addEventListener('lm:data-refreshed',schedule);
   window.addEventListener('lm:client-data-ready',schedule);
