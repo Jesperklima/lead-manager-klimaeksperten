@@ -450,7 +450,7 @@ async function startApp(){
       }
       showApp();
       setText('brandClient',state.client.name+' · Pilot');
-      await loadAll();
+      await loadAll({startup:true});
     }catch(error){
       console.error('Lead Manager opstart fejlede',error);
       toast(error?.message||'CRM-data kunne ikke hentes');
@@ -461,22 +461,39 @@ async function startApp(){
   })();
   return startAppPromise;
 }
-async function loadAll(){const cid=state.client.id;const results=await Promise.all([
- supabase.from('crm_companies').select('*').eq('client_id',cid).order('name'),
- supabase.from('crm_contacts').select('*').eq('client_id',cid),
- supabase.from('crm_leads').select('*').eq('client_id',cid).order('updated_at',{ascending:false}),
- supabase.from('crm_activities').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500),
- supabase.from('crm_mail_messages').select('*').eq('client_id',cid).order('message_at',{ascending:false}).limit(300),
- supabase.from('crm_opportunities').select('*').eq('client_id',cid).order('updated_at',{ascending:false}),
- supabase.from('crm_offers').select('*').eq('client_id',cid).order('follow_up_date',{ascending:true}),
- supabase.from('crm_approvals').select('*').eq('client_id',cid).order('created_at',{ascending:false}),
- supabase.from('crm_agent_runs').select('*').eq('client_id',cid).order('started_at',{ascending:false}).limit(100),
- supabase.from('crm_tasks').select('*').eq('client_id',cid).order('scheduled_at',{ascending:true}),
- supabase.from('crm_agent_requests').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(100),
- supabase.from('crm_sales_intelligence').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500),
- supabase.from('crm_integrations').select('*').eq('client_id',cid)
-]);
- const keys=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];results.forEach((r,i)=>{if(r.error){console.error(keys[i],r.error);toast(`Fejl ved ${keys[i]}`)}else state[keys[i]]=r.data||[]});render();setText('syncState','● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));}
+const BASE_CRM_KEYS=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];
+const BASE_STARTUP_KEYS=['companies','leads','activities','offers','approvals','tasks','mail'];
+function baseCrmQuery(key,cid){
+  if(key==='companies')return supabase.from('crm_companies').select('*').eq('client_id',cid).order('name');
+  if(key==='contacts')return supabase.from('crm_contacts').select('*').eq('client_id',cid);
+  if(key==='leads')return supabase.from('crm_leads').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
+  if(key==='activities')return supabase.from('crm_activities').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500);
+  if(key==='mail')return supabase.from('crm_mail_messages').select('*').eq('client_id',cid).order('message_at',{ascending:false}).limit(300);
+  if(key==='opps')return supabase.from('crm_opportunities').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
+  if(key==='offers')return supabase.from('crm_offers').select('*').eq('client_id',cid).order('follow_up_date',{ascending:true});
+  if(key==='approvals')return supabase.from('crm_approvals').select('*').eq('client_id',cid).order('created_at',{ascending:false});
+  if(key==='runs')return supabase.from('crm_agent_runs').select('*').eq('client_id',cid).order('started_at',{ascending:false}).limit(100);
+  if(key==='tasks')return supabase.from('crm_tasks').select('*').eq('client_id',cid).order('scheduled_at',{ascending:true});
+  if(key==='requests')return supabase.from('crm_agent_requests').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(100);
+  if(key==='intelligence')return supabase.from('crm_sales_intelligence').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500);
+  if(key==='integrations')return supabase.from('crm_integrations').select('*').eq('client_id',cid);
+  return null;
+}
+async function loadAll(options={}){
+  const cid=state.client.id;
+  const keys=Array.isArray(options?.keys)&&options.keys.length
+    ? [...new Set(options.keys.filter(k=>BASE_CRM_KEYS.includes(k)))]
+    : options?.startup===true ? BASE_STARTUP_KEYS : BASE_CRM_KEYS;
+  const results=await Promise.all(keys.map(key=>baseCrmQuery(key,cid)));
+  results.forEach((r,i)=>{const key=keys[i];if(r?.error){console.error(key,r.error);toast('Fejl ved '+key)}else state[key]=r?.data||[]});
+  const same=String(window.__LM_BASE_CLIENT_ID||'')===String(cid);
+  const previous=same&&Array.isArray(window.__LM_BASE_LOADED_KEYS)?window.__LM_BASE_LOADED_KEYS:[];
+  window.__LM_BASE_CLIENT_ID=cid;
+  window.__LM_BASE_LOADED_KEYS=[...new Set([...previous,...keys])];
+  if(options?.startup===true)window.__LM_BASE_STARTUP_READY=true;
+  render();
+  setText('syncState','● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));
+}
 async function refreshCrmKeys(...keys){if(window.__LM_PERF?.refreshKeys)return window.__LM_PERF.refreshKeys(...keys);return loadAll()}
 $('refreshBtn').onclick=async()=>{await loadAll();toast('CRM opdateret')};
 
