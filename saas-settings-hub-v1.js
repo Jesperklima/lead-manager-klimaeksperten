@@ -465,20 +465,29 @@ function schedule(){
   if(scheduled)return;scheduled=true;
   requestAnimationFrame(()=>{scheduled=false;rehome()});
 }
+function armMountObserver(){
+  observer?.disconnect();observer=null;
+  const root=$('#leadmanager');if(!root)return;
+  let idleTimer=null;
+  observer=new MutationObserver(mutations=>{
+    const external=mutations.some(m=>!m.target?.closest?.('#lmSettingsAccountCard'));
+    if(!external)return;
+    schedule();
+    if(idleTimer)clearTimeout(idleTimer);
+    idleTimer=setTimeout(()=>{observer?.disconnect();observer=null},1200);
+  });
+  observer.observe(root,{childList:true,subtree:true});
+  setTimeout(()=>{observer?.disconnect();observer=null},6000);
+}
 
 function boot(){
   if(typeof window.LM_ACCESS==='undefined'||typeof state==='undefined'||!state?.client){setTimeout(boot,150);return}
   navLabel();if(!isCustomer())return;
-  rehome();loadBilling(false);
-  $('.nav button[data-view="leadmanager"]')?.addEventListener('click',()=>setTimeout(()=>{rehome();heading()},0));
+  rehome();loadBilling(false);armMountObserver();
+  $('.nav button[data-view="leadmanager"]')?.addEventListener('click',()=>setTimeout(()=>{rehome();heading();armMountObserver()},0));
   document.querySelectorAll('.nav button:not([data-view="leadmanager"])').forEach(b=>b.addEventListener('click',()=>setTimeout(heading,0)));
   window.addEventListener('lm:data-refreshed',schedule);
-  window.addEventListener('lm:client-data-ready',schedule);
-  observer=new MutationObserver(mutations=>{
-    const external=mutations.some(m=>!m.target?.closest?.('#lmSettingsAccountCard'));
-    if(external)schedule();
-  });
-  observer.observe($('#leadmanager'),{childList:true,subtree:true});
+  window.addEventListener('lm:client-data-ready',()=>{schedule();armMountObserver()});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
