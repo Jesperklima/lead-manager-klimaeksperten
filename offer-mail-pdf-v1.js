@@ -56,8 +56,9 @@
     button.onclick=sendWithPdf;button.dataset.pdfOfferSend='1';
   }
 
-  new MutationObserver(()=>setTimeout(wire,10)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  document.addEventListener('click',()=>setTimeout(wire,15),true);
-  setInterval(()=>{if(byId('offerMailModal')?.classList.contains('open'))wire()},500);
-  setTimeout(wire,100);
+  let mountObserver=null,mountTimer=null;
+  function arm(){wire();if(byId('sendOfferMail')?.dataset.pdfOfferSend==='1'){mountObserver?.disconnect();mountObserver=null;if(mountTimer){clearTimeout(mountTimer);mountTimer=null}return}if(mountObserver)return;const root=document.body||document.documentElement;mountObserver=new MutationObserver(()=>{wire();if(byId('sendOfferMail')?.dataset.pdfOfferSend==='1'){mountObserver.disconnect();mountObserver=null}});mountObserver.observe(root,{subtree:true,childList:true});mountTimer=setTimeout(()=>{mountObserver?.disconnect();mountObserver=null;mountTimer=null},10000)}
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(arm,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#sendOfferMail,[data-open-offer]'))setTimeout(arm,0)},true);
+  setTimeout(arm,100);
 })();
