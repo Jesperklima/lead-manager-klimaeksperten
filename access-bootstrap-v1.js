@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null,regressionCenterPromise=null;
+let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null,regressionCenterPromise=null,feedbackBundlePromise=null;
 const ADMIN_BUNDLES=[
  '/saas-platform-admin-v1.js?v=20260919-4',
  '/saas-compliance-admin-v1.js?v=20260919-6',
@@ -37,6 +37,14 @@ function ensureRegressionCenter(){
  if(regressionCenterPromise)return regressionCenterPromise;
  regressionCenterPromise=loadLazyScript('/saas-regression-center-v1.js?v=20260919-4').catch(error=>{regressionCenterPromise=null;throw error});
  return regressionCenterPromise;
+}
+function ensureFeedbackBundle(){
+ if(feedbackBundlePromise)return feedbackBundlePromise;
+ feedbackBundlePromise=Promise.all([
+  loadLazyScript('/saas-feedback-v1.js?v=20260919-5'),
+  ensureRegressionCenter()
+ ]).catch(error=>{feedbackBundlePromise=null;throw error});
+ return feedbackBundlePromise;
 }
 function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
 function ensureOnboardingScript(){
@@ -134,9 +142,9 @@ async function rescueActiveWorkspace(){
  return rescuePromise;
 }
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter};
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle};
 document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
-document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="feedback"]'))ensureRegressionCenter().catch(error=>console.warn('regression lazy load',error))},true);
+document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="feedback"]'))return;ensureFeedbackBundle().then(()=>window.dispatchEvent(new Event('lm:feedback-open-request'))).catch(error=>console.warn('feedback lazy load',error))},true);
 async function initAccessBootstrap(){
  if(settingsReturnCallback())await ensureSettingsHub();
  if(onboardingToken()){
