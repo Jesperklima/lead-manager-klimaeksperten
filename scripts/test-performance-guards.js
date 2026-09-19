@@ -49,6 +49,8 @@ if(!access.includes('lm:workspace-ready'))fail('workspace-ready event missing');
 if(app.includes('saas-microsoft-v1.js'))fail('obsolete standalone Microsoft UI returned');
 
 const indexObserverCount=(index.match(/new\s+MutationObserver/g)||[]).length;
-if(indexObserverCount>4)fail('index MutationObserver count regressed: '+indexObserverCount);
+if(indexObserverCount!==0)fail('index MutationObserver count regressed: '+indexObserverCount);
+if(!index.includes("function openMailModal()")||!index.includes("function closeMailModal()"))fail('mail modal lifecycle helpers missing');
+if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup');
