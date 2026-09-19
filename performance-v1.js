@@ -45,6 +45,7 @@ let lastRefreshAt=0;
 function resetForClient(cid){
   if(String(loadedClientId||'')===String(cid||''))return;
   loadedClientId=cid||null;
+  window.__LM_MAIL_COUNT=0;
   startupReady=false;
   loadedAt.clear();
   partialLoaded.clear();
@@ -61,15 +62,15 @@ function queryFor(key,cid,{light=false}={}){
         .select(light?'id,type,summary,metadata,lead_id,company_id,created_at':'*')
         .eq('client_id',cid).order('created_at',{ascending:false}).limit(500);
     case 'mail':
-      return supabase.from('crm_mail_messages')
-        .select(light?'id':'*')
-        .eq('client_id',cid).order('message_at',{ascending:false}).limit(300);
+      return light
+        ? supabase.from('crm_mail_messages').select('id',{count:'exact',head:true}).eq('client_id',cid)
+        : supabase.from('crm_mail_messages').select('*',{count:'exact'}).eq('client_id',cid).order('message_at',{ascending:false}).limit(300);
     case 'opps': return supabase.from('crm_opportunities').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
     case 'offers': return supabase.from('crm_offers').select('*').eq('client_id',cid).order('follow_up_date',{ascending:true});
     case 'approvals':
-      return supabase.from('crm_approvals')
-        .select(light?'id,status,created_at':'*')
-        .eq('client_id',cid).order('created_at',{ascending:false});
+      return light
+        ? supabase.from('crm_approvals').select('id,status,created_at').eq('client_id',cid).eq('status','pending').order('created_at',{ascending:false})
+        : supabase.from('crm_approvals').select('*').eq('client_id',cid).order('created_at',{ascending:false});
     case 'runs': return supabase.from('crm_agent_runs').select('*').eq('client_id',cid).order('started_at',{ascending:false}).limit(100);
     case 'tasks': return supabase.from('crm_tasks').select('*').eq('client_id',cid).order('scheduled_at',{ascending:true});
     case 'requests': return supabase.from('crm_agent_requests').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(100);
@@ -220,7 +221,8 @@ function installSmartLoader(){
           if(typeof toast==='function')toast('Fejl ved '+key);
           continue;
         }
-        state[key]=r?.data||[];
+        if(key==='mail'&&Number.isFinite(r?.count))window.__LM_MAIL_COUNT=r.count;
+        state[key]=key==='mail'&&light?[]:(r?.data||[]);
         loadedAt.set(key,Date.now());
         if(light)partialLoaded.add(key);else partialLoaded.delete(key);
         dirtyTables.delete(keyToTable[key]);
