@@ -21,8 +21,8 @@ async function stop(expired=false){const old=current;if(!old)return;save(null);t
 function decorate(){const modal=$('lmAdminUsersModal');if(!modal)return;modal.querySelectorAll('.lmau-user').forEach(row=>{if(row.querySelector('.lmi-actions'))return;const clientId=row.dataset.client,email=row.dataset.email;if(!clientId||!email)return;const a=document.createElement('div');a.className='lmi-actions';a.innerHTML='<button type="button" class="lmi-view">Vis som</button><button type="button" class="lmi-support">Support som</button>';a.querySelector('.lmi-view').onclick=()=>start(clientId,email,'view');a.querySelector('.lmi-support').onclick=()=>start(clientId,email,'support');const target=row.lastElementChild;target?.appendChild(a)})}
 function blockWrites(e){if(current?.mode!=='view')return;const t=e.target.closest?.('button,input,select,textarea,[contenteditable="true"]');if(!t)return;if(t.closest('#lmImpersonationBar'))return;if(t.closest('.nav')||t.matches('[data-view]'))return;e.preventDefault();e.stopImmediatePropagation();if(typeof toast==='function')toast('Read-only: du ser systemet som kunden. Brug “Support som” for at ændre noget.')}
 document.addEventListener('click',blockWrites,true);document.addEventListener('change',blockWrites,true);document.addEventListener('input',blockWrites,true);
-const mo=new MutationObserver(()=>decorate());
-function init(){load();decorate();mo.observe(document.body,{subtree:true,childList:true})}
+function init(){load();decorate()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+window.addEventListener('lm:admin-users-rendered',decorate);
 window.addEventListener('lm:client-switched',()=>{if(current&&!isExpired()&&state?.client?.id!==current.client_id)switchClient(current.client_id)});
 })();
