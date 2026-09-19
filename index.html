@@ -133,7 +133,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
 
 <div id="appShell" class="app hidden">
 <aside class="side"><div class="brand">Lead Manager<small id="brandClient">Klimaeksperten · Pilot</small></div><div class="nav">
-<button class="active" data-view="dashboard">Dashboard</button><button data-view="leads">Alle leads</button><button data-view="pipeline">Pipeline</button><button data-view="offers">Tilbud</button><button data-view="offerpipeline">Tilbudspipeline</button><button data-view="calendar">Kalender</button><button data-view="mail">Mail</button><button data-view="activity">Aktivitetslog</button><button data-view="activityReport">Aktivitetsrapport</button><button data-view="approvals">Godkendelser</button><button data-view="leadmanager">Indstillinger</button><button data-view="feedback">Feedback & idéer</button><button data-view="agents">Agenter</button>
+<button class="active" data-view="dashboard">Dashboard</button><button data-view="leads">Alle leads</button><button data-view="pipeline">Pipeline</button><button data-view="offers">Tilbud</button><button data-view="offerpipeline">Tilbudspipeline</button><button data-view="calendar">Kalender</button><button data-view="mail">Mail</button><button data-view="activity">Aktivitetslog</button><button data-view="activityReport">Aktivitetsrapport</button><button data-view="approvals">Godkendelser</button><button data-view="creditcheck">Kreditcheck</button><button data-view="leadmanager">Indstillinger</button><button data-view="feedback">Feedback & idéer</button><button data-view="agents">Agenter</button>
 </div><div class="sidefoot"><span id="userEmail"></span><br><button id="logoutBtn" class="btn small" style="margin-top:8px">Log ud</button></div></aside>
 <main class="main">
 <div class="top"><div><h1 id="title">Dashboard</h1><div class="sub" id="subtitle">Alt omkring leads, opfølgning og aktiviteter samlet ét sted.</div></div><div class="topactions"><span id="syncState" class="pill">● Live CRM</span><button class="btn" id="refreshBtn">Opdatér</button><button class="btn primary" id="newLead">+ Nyt lead</button></div></div>
@@ -239,7 +239,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
   <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Dato</th><th>Type</th><th>Virksomhed</th><th>Detalje</th><th>Aktør</th></tr></thead><tbody id="reportRows"></tbody></table></div>
 </section>
 <section id="approvals" class="view"><div class="card"><h2 style="margin-top:0">Godkendelsescenter</h2><div class="sub">Handlinger der kræver godkendelse, samles her.</div><div id="approvalFeed" style="margin-top:12px"></div></div></section>
-<section id="leadmanager" class="view">
+<section id="creditcheck" class="view"></section>\n<section id="leadmanager" class="view">
   <div class="grid2">
     <div class="card"><h2 style="margin-top:0">Lead Manager</h2><div class="sub">Skriv en kommando til CRM'et. Interne ændringer journalføres; eksterne mails går altid via godkendelsescenteret.</div><div class="field"><textarea id="lmCommand" rows="5" placeholder="Fx: Hvad skal jeg ringe på i dag? · Flyt mine fleksible opfølgninger fra torsdag til fredag · Lav et mailudkast til Hotel Kirstine"></textarea></div><button class="btn primary" id="sendLmCommand">Send til Lead Manager</button></div>
     <div class="card"><h2 style="margin-top:0">Seneste svar</h2><div id="lmResponses"></div></div>
