@@ -1,5 +1,6 @@
 (()=>{
 'use strict';
+if(window.__LM_FEEDBACK_V1)return;window.__LM_FEEDBACK_V1=true;
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -30,7 +31,10 @@ async function boot(force=false){
   bootPromise=(async()=>{try{const s=await session();if(!s)return null;const r=await fetch(API+'/functions/v1/saas-onboarding',{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify({action:'status'})}),raw=await r.text();if(!r.ok)return null;ctx=raw?JSON.parse(raw):null;bootedClient=cid;window.__LM_FEEDBACK_CTX=ctx;inject();return ctx}catch(e){console.warn('feedback boot',e);return null}})();
   try{return await bootPromise}finally{bootPromise=null}
 }
+async function openRequested(){await boot(false);inject();openFeedback()}
 function mountWithoutNetwork(){try{if(typeof state!=='undefined'&&state?.client)inject()}catch{}}
+window.addEventListener('lm:feedback-open-request',()=>{openRequested().catch(e=>console.warn('feedback open',e))});
+window.LMFeedback={open:openRequested,boot};
 rememberView();
 window.addEventListener('lm:workspace-ready',()=>setTimeout(mountWithoutNetwork,0));
 window.addEventListener('lm:client-data-ready',()=>setTimeout(mountWithoutNetwork,0));
