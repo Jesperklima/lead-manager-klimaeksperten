@@ -2,7 +2,7 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let observer=null,currentTab='leads',scheduled=false,billingState=null,billingLoading=false,billingError='';
+let mountRun=0,currentTab='leads',scheduled=false,billingState=null,billingLoading=false,billingError='';
 
 function isCustomer(){return window.LM_ACCESS?.authenticated===true&&window.LM_ACCESS?.platform_admin!==true}
 function fmtKr(ore){return new Intl.NumberFormat('da-DK',{minimumFractionDigits:0,maximumFractionDigits:2}).format((Number(ore)||0)/100)+' kr./md.'}
@@ -466,23 +466,14 @@ function schedule(){
   if(!settingsActive()||scheduled)return;scheduled=true;
   requestAnimationFrame(()=>{scheduled=false;rehome()});
 }
+function runMountPasses(){
+  const run=++mountRun;
+  const delays=[0,100,300,700,1400];
+  for(const delay of delays)setTimeout(()=>{if(run!==mountRun||!settingsActive())return;rehome()},delay);
+}
 function activateSettings(){
   if(!settingsActive())return;
-  rehome();heading();loadBilling(false);armMountObserver();
-}
-function armMountObserver(){
-  observer?.disconnect();observer=null;
-  const root=$('#leadmanager');if(!root)return;
-  let idleTimer=null;
-  observer=new MutationObserver(mutations=>{
-    const external=mutations.some(m=>!m.target?.closest?.('#lmSettingsAccountCard'));
-    if(!external)return;
-    schedule();
-    if(idleTimer)clearTimeout(idleTimer);
-    idleTimer=setTimeout(()=>{observer?.disconnect();observer=null},1200);
-  });
-  observer.observe(root,{childList:true,subtree:true});
-  setTimeout(()=>{observer?.disconnect();observer=null},6000);
+  rehome();heading();loadBilling(false);runMountPasses();
 }
 
 function boot(){
