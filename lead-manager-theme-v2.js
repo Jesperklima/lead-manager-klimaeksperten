@@ -142,13 +142,8 @@
   }
 
   function observeViews(){
-    const shell=document.getElementById('appShell');
-    if(!shell)return;
-    const observer=new MutationObserver(mutations=>{
-      if(mutations.some(m=>m.type==='attributes'&&m.attributeName==='class'))syncSearchPlaceholder();
-    });
-    document.querySelectorAll('.view').forEach(view=>observer.observe(view,{attributes:true}));
     document.querySelectorAll('.nav button').forEach(button=>button.addEventListener('click',()=>requestAnimationFrame(syncSearchPlaceholder)));
+    window.addEventListener('lm:client-data-ready',()=>requestAnimationFrame(syncSearchPlaceholder));
   }
 
   function init(){
