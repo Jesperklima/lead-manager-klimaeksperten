@@ -67,6 +67,7 @@ if(!mailTemplates.includes('lm:offer-mail-opened'))fail('mail templates offer-ma
 if(!offerPdf.includes('lm:offer-mail-ready'))fail('offer PDF lifecycle wiring missing');
 const feedback=read('saas-feedback-v1.js');
 const regression=read('saas-regression-center-v1.js');
+const accessBootstrap=read('access-bootstrap-v1.js');
 if(/new\s+MutationObserver/.test(regression))fail('regression center MutationObserver returned');
 if(!feedback.includes('lm:feedback-rendered'))fail('feedback rendered lifecycle event missing');
 if(feedback.includes("lm:workspace-ready',()=>setTimeout(()=>boot(false)"))fail('feedback context fetch returned to workspace startup');
@@ -162,7 +163,6 @@ if(!customerControls.includes("const local=hydrateFromAccess();if(local)return l
 if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer controls cache version not bumped');
 const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
 if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
-const accessBootstrap=read('access-bootstrap-v1.js');
 if(!accessBootstrap.includes('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3'))fail('onboarding mail sync missing from onboarding lazy loader');
 if(!accessBootstrap.includes("supabase.rpc('crm_session_bootstrap')"))fail('direct session bootstrap RPC missing');
 if(accessBootstrap.includes('/functions/v1/session-bootstrap'))fail('session bootstrap Edge Function returned to startup');
