@@ -178,8 +178,19 @@
   }
 
   function watch(){ensureComposerControls();ensureManager();applyDefaultWhenOpened()}
-  new MutationObserver(()=>setTimeout(watch,20)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  document.addEventListener('click',()=>setTimeout(watch,20),true);
-  setInterval(watch,800);
-  setTimeout(watch,300);
+  let mountObserver=null,mountTimer=null;
+  function armMount(){
+    watch();
+    const leadReady=!!byId('leadTemplateSelect'),offerReady=!!byId('offerTemplateSelect');
+    if(leadReady&&offerReady){mountObserver?.disconnect();mountObserver=null;if(mountTimer){clearTimeout(mountTimer);mountTimer=null}return}
+    if(mountObserver)return;
+    const root=document.body||document.documentElement;
+    mountObserver=new MutationObserver(()=>{watch();if(byId('leadTemplateSelect')&&byId('offerTemplateSelect')){mountObserver?.disconnect();mountObserver=null}});
+    mountObserver.observe(root,{subtree:true,childList:true});
+    mountTimer=setTimeout(()=>{mountObserver?.disconnect();mountObserver=null;mountTimer=null},8000);
+  }
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(armMount,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(watch,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('#openMailComposer,[data-open-offer],#openOfferMail,#mailModal,#offerMailModal,.nav button[data-view="mail"],.nav button[data-view="offers"],.nav button[data-view="offerpipeline"]'))setTimeout(armMount,0)},true);
+  setTimeout(armMount,300);
 })();
