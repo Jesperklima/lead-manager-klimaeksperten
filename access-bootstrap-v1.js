@@ -1,6 +1,26 @@
 (()=>{
 'use strict';
-let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null;
+let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null;
+const ADMIN_BUNDLES=[
+ '/saas-platform-admin-v1.js?v=20260919-4',
+ '/saas-compliance-admin-v1.js?v=20260919-6',
+ '/saas-admin-client-switcher-v1.js?v=20260919-2',
+ '/saas-admin-users-v1.js?v=20260919-3',
+ '/saas-impersonation-v1.js?v=20260919-2'
+];
+function loadLazyScript(src){
+ return new Promise((resolve,reject)=>{
+  if(document.querySelector('script[src="'+src+'"]')){resolve();return}
+  const script=document.createElement('script');script.src=src;script.async=true;
+  script.onload=()=>resolve();script.onerror=()=>reject(new Error('Modul kunne ikke indlæses: '+src));
+  document.head.appendChild(script);
+ });
+}
+function ensureAdminBundles(){
+ if(adminBundlesPromise)return adminBundlesPromise;
+ adminBundlesPromise=Promise.all(ADMIN_BUNDLES.map(loadLazyScript)).catch(error=>{adminBundlesPromise=null;throw error});
+ return adminBundlesPromise;
+}
 function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
 function ensureOnboardingScript(){
  if(window.__LM_ONBOARDING_V5)return Promise.resolve();
@@ -62,6 +82,7 @@ async function controlledStartApp(){
     for(let i=0;i<5&&access.next_route==='onboarding';i++){await new Promise(r=>setTimeout(r,300));access=await centralBootstrap()}
    }
    window.LM_ACCESS=access;
+   if(access.platform_admin)await ensureAdminBundles();
    window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
    if(!access.authenticated){showAuth();return}
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
@@ -85,7 +106,7 @@ async function rescueActiveWorkspace(){
  rescuePromise=(async()=>{try{
   const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)return;
   state.session=session;
-  const access=await centralBootstrap();window.LM_ACCESS=access;window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
+  const access=await centralBootstrap();window.LM_ACCESS=access;if(access.platform_admin)await ensureAdminBundles();window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
   if(access.authenticated&&access.next_route==='app'){
    await openWorkspace(access);
    app.classList.remove('hidden');document.getElementById('authScreen')?.classList.add('hidden');
@@ -100,7 +121,7 @@ async function rescueActiveWorkspace(){
  return rescuePromise;
 }
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript};
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles};
 async function initAccessBootstrap(){
  if(onboardingToken()){
   await ensureOnboardingScript();
