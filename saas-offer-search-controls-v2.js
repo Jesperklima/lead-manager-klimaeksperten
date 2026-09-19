@@ -1,4 +1,5 @@
 (()=>{
+  if(window.__LM_OFFER_SEARCH_V2)return;window.__LM_OFFER_SEARCH_V2=true;
   const norm=v=>String(v??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9@.+-]+/g,' ').replace(/\s+/g,' ').trim();
   const tokens=q=>norm(q).split(' ').filter(Boolean);
   const matches=(hay,q)=>{const ts=tokens(q);if(!ts.length)return true;const h=norm(hay);return ts.every(t=>h.includes(t));};
