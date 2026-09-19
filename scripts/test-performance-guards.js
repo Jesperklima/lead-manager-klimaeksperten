@@ -80,6 +80,7 @@ if(!settingsHub.includes('function runMountPasses()'))fail('settings determinist
 const onboardingMailSync=read('saas-onboarding-mail-account-sync-v1.js');
 if(/new\s+MutationObserver/.test(onboardingMailSync))fail('onboarding mail sync MutationObserver returned');
 if(!onboardingMailSync.includes('const delays=[0,100,250,500,1000,2000,4000,7000,11000]'))fail('onboarding deterministic retry schedule missing');
+if(app.includes('<script src="/saas-onboarding-mail-account-sync-v1.js'))fail('onboarding mail sync returned to static startup');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 const activeRuntime=new Set();
@@ -89,7 +90,7 @@ for(const source of [index,app]){
 const executive=read('executive-dashboard-v1.js');
 activeRuntime.add('executive-dashboard-v1.js');
 for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
-const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js','saas-minuba-v1.js'];
+const lazyRuntime=['saas-onboarding-v5.js','saas-onboarding-mail-account-sync-v1.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js','saas-minuba-v1.js'];
 for(const file of lazyRuntime)activeRuntime.add(file);
 
 const intervalAllow=new Set(['executive-dashboard-v1.js']);
@@ -156,6 +157,7 @@ if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer con
 const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
 if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
 const accessBootstrap=read('access-bootstrap-v1.js');
+if(!accessBootstrap.includes('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3'))fail('onboarding mail sync missing from onboarding lazy loader');
 if(!accessBootstrap.includes("supabase.rpc('crm_session_bootstrap')"))fail('direct session bootstrap RPC missing');
 if(accessBootstrap.includes('/functions/v1/session-bootstrap'))fail('session bootstrap Edge Function returned to startup');
 if(accessBootstrap.includes("supabase.from('crm_users')"))fail('crm_users startup query returned');
@@ -163,8 +165,8 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260919-12'))fail('access bootstrap cache version not bumped');
-if(!accessBootstrap.includes("script.src='/saas-onboarding-v5.js?v=20260919-5'"))fail('lazy onboarding loader missing');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-13'))fail('access bootstrap cache version not bumped');
+if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v5.js?v=20260919-5')"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');

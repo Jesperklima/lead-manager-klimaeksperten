@@ -40,16 +40,11 @@ function ensureRegressionCenter(){
 }
 function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
 function ensureOnboardingScript(){
- if(window.__LM_ONBOARDING_V5)return Promise.resolve();
  if(onboardingScriptPromise)return onboardingScriptPromise;
- onboardingScriptPromise=new Promise((resolve,reject)=>{
-  const script=document.createElement('script');
-  script.src='/saas-onboarding-v5.js?v=20260919-5';
-  script.async=true;
-  script.onload=()=>resolve();
-  script.onerror=()=>{onboardingScriptPromise=null;reject(new Error('Onboarding-modulet kunne ikke indlæses'))};
-  document.head.appendChild(script);
- });
+ onboardingScriptPromise=(async()=>{
+  if(!window.__LM_ONBOARDING_V5)await loadLazyScript('/saas-onboarding-v5.js?v=20260919-5');
+  await loadLazyScript('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3');
+ })().catch(error=>{onboardingScriptPromise=null;throw error});
  return onboardingScriptPromise;
 }
 async function centralBootstrap(){
