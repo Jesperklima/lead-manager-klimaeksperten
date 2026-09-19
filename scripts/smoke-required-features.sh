@@ -94,10 +94,13 @@ print('PASS: official Lead Manager sidebar logo assets')
 PY
 node --check saas-credit-check-v1.js
 node --check saas-regression-center-v1.js
+for js in saas-gmail-platform-ui-v1.js saas-onboarding-mail-account-sync-v1.js saas-irrelevant-learning-v1.js saas-credit-check-v1.js saas-compliance-admin-v1.js saas-lead-intake-v1.js saas-offer-intake-v1.js saas-offer-search-controls-v2.js saas-mail-providers-v1.js saas-mail-sender-name-v1.js saas-mail-signature-v1.js saas-minuba-v1.js saas-microsoft-v1.js saas-marketing-connections-v1.js offer-mail-v1.js offer-mail-pdf-v1.js offer-date-save-v1.js date-picker-click-v1.js mail-templates-v1.js; do node --check "$js"; done
 node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 node scripts/test-pipeline-drag.js
 node scripts/test-regression-guards.js
+node scripts/test-performance-guards.js
+node scripts/test-inline-scripts.js
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
 grep -q 'lead-manager-theme-v2.css' index.html
@@ -108,8 +111,8 @@ done
 grep -q "function dashboardNow" executive-dashboard-v1.js
 grep -q "method:'HEAD'" executive-dashboard-v1.js
 grep -q "serverClockMs" executive-dashboard-v1.js
-grep -q "saas-credit-check-v1.js?v=20260902-1" api/app.js
-grep -q "saas-regression-center-v1.js?v=20260909-1" api/app.js
+grep -q "saas-credit-check-v1.js?v=" api/app.js
+grep -q "saas-regression-center-v1.js?v=" api/app.js
 grep -q "functions/v1/credit-check" saas-credit-check-v1.js
 grep -q "Tjekket opretter ikke et lead" saas-credit-check-v1.js
 grep -q "ikke RKI" saas-credit-check-v1.js

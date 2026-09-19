@@ -22,7 +22,7 @@ function userRow(c,u){const pending=!u.activated;return `<div class="lmau-user" 
 function clientCard(c){const p=c.plan?.plan_code||'';const internal=p==='internal';const users=(c.users||[]).map(u=>userRow(c,u)).join('')||'<div class="lmau-empty">Ingen brugere fundet.</div>';return `<div class="lmau-client" data-client-card="${esc(c.id)}"><div class="lmau-client-top"><div><strong style="font-size:16px">${esc(c.name)}</strong><div class="lmau-muted">${internal?'Platform / intern konto':'Kundekonto'} · ${c.users?.length||0} bruger(e)</div></div><div class="lmau-plan"><label class="lmau-muted">Pakke</label>${internal?`<span class="pill">Intern</span>`:`<select class="lmau-plan-select" data-client="${esc(c.id)}"><option value="start" ${p==='start'?'selected':''}>Start</option><option value="pro" ${p==='pro'?'selected':''}>Pro</option><option value="business" ${p==='business'?'selected':''}>Business</option></select><button class="btn lmau-plan-save" type="button" data-client="${esc(c.id)}" data-original="${esc(p)}">Gem pakke</button>`}</div></div><div class="lmau-users">${users}</div></div>`}
 
 function bindModal(){document.querySelectorAll('.lmau-plan-save').forEach(btn=>btn.onclick=()=>savePlan(btn));document.querySelectorAll('.lmau-role').forEach(sel=>sel.onchange=()=>saveUser(sel.closest('.lmau-user'),{role:sel.value}));document.querySelectorAll('.lmau-active').forEach(cb=>cb.onchange=()=>saveUser(cb.closest('.lmau-user'),{active:cb.checked}));}
-function renderModal(){const modal=$('lmAdminUsersModal');if(!modal||!data)return;const body=modal.querySelector('.lmau-body');body.innerHTML=data.clients.map(clientCard).join('');bindModal();updateSummary()}
+function renderModal(){const modal=$('lmAdminUsersModal');if(!modal||!data)return;const body=modal.querySelector('.lmau-body');body.innerHTML=data.clients.map(clientCard).join('');bindModal();updateSummary();window.dispatchEvent(new CustomEvent('lm:admin-users-rendered'))}
 function setMsg(t,ok=false){const m=$('lmAdminUsersMsg');if(m){m.textContent=t;m.style.color=ok?'#166534':'#475569'}}
 async function refresh(){data=await edge({action:'list'});renderModal();updateSummary();return data}
 
@@ -32,8 +32,7 @@ async function savePlan(btn){if(busy)return;const id=btn.dataset.client,card=btn
 
 async function saveUser(row,patch){if(busy||!row)return;const id=row.dataset.client,email=row.dataset.email;if(!id||!email)return;busy=true;row.classList.add('lmau-spinner');setMsg(`Gemmer ændring for ${email}…`);try{await edge({action:'update_user',client_id:id,email,...patch});setMsg(`✓ ${email} er opdateret.`,true);await refresh()}catch(e){setMsg('Kunne ikke ændre bruger: '+(e.message||e));await refresh().catch(()=>{})}finally{busy=false;row.classList.remove('lmau-spinner')}}
 
-async function probe(){if(checked)return;try{const d=await edge({action:'list'});checked=true;data=d;if(d?.is_platform_admin){ensureCard();updateSummary()}}catch(e){checked=true;if(e.status!==403)console.warn('admin users probe',e)}}
-function init(){if(typeof supabase==='undefined'||typeof state==='undefined'||!state?.session){setTimeout(init,500);return}probe()}
+function init(){if(typeof supabase==='undefined'||typeof state==='undefined'||!state?.session||typeof window.LM_ACCESS==='undefined'){setTimeout(init,250);return}checked=true;if(window.LM_ACCESS?.platform_admin===true)ensureCard()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-window.addEventListener('lm:client-switched',()=>{if(data){ensureCard();updateSummary()}});
+window.addEventListener('lm:client-switched',()=>{if(window.LM_ACCESS?.platform_admin===true){ensureCard();if(data)updateSummary()}});
 })();

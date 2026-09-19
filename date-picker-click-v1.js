@@ -61,7 +61,9 @@
   }
 
   scan();
-  new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true});
-  document.addEventListener('click',()=>setTimeout(scan,0),true);
-  setInterval(scan,800);
+  document.addEventListener('lm:offer-mail-ready',scan);
+  document.addEventListener('lm:offer-mail-opened',scan);
+  window.addEventListener('lm:data-refreshed',scan);
+  const offerModal=document.getElementById('offerModal');
+  if(offerModal)new MutationObserver(scan).observe(offerModal,{subtree:true,childList:true});
 })();

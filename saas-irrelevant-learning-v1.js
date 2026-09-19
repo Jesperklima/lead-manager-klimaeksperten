@@ -76,7 +76,14 @@
     };
   }
   function install(){patchDrag();patchDrawer()}
-  document.addEventListener('click',()=>setTimeout(install,0),true);
-  new MutationObserver(()=>install()).observe(document.documentElement,{subtree:true,childList:true});
-  setInterval(install,800);setTimeout(install,100);
+  function observeDrawer(){
+    const drawer=document.getElementById('drawer');if(!drawer||drawer.dataset.irrelevantObserved==='1')return;
+    drawer.dataset.irrelevantObserved='1';
+    new MutationObserver(()=>patchDrawer()).observe(drawer,{subtree:true,childList:true});
+  }
+  function refresh(){install();observeDrawer()}
+  window.addEventListener('lm:data-refreshed',refresh);
+  window.addEventListener('lm:client-data-ready',refresh);
+  document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="leads"],[data-view="pipeline"]'))queueMicrotask(refresh)});
+  setTimeout(refresh,100);
 })();

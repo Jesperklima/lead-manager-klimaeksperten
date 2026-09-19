@@ -177,9 +177,16 @@
     }else if(byId('leadTemplateSelect'))byId('leadTemplateSelect').dataset.defaultApplied='';
   }
 
-  function watch(){ensureComposerControls();ensureManager();applyDefaultWhenOpened()}
-  new MutationObserver(()=>setTimeout(watch,20)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  document.addEventListener('click',()=>setTimeout(watch,20),true);
-  setInterval(watch,800);
-  setTimeout(watch,300);
+  function watch(){ensureComposerControls();ensureManager();void applyDefaultWhenOpened()}
+  function observeModal(id){
+    const modal=byId(id);if(!modal||modal.dataset.mailTemplateObserved==='1')return;
+    modal.dataset.mailTemplateObserved='1';
+    new MutationObserver(watch).observe(modal,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
+  }
+  function refresh(){watch();observeModal('mailModal');observeModal('offerMailModal')}
+  document.addEventListener('lm:offer-mail-ready',refresh);
+  document.addEventListener('lm:offer-mail-opened',refresh);
+  window.addEventListener('lm:data-refreshed',refresh);
+  window.addEventListener('lm:client-data-ready',()=>{loadedForClient='';templates=[];refresh()});
+  setTimeout(refresh,300);
 })();

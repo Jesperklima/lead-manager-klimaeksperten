@@ -4,7 +4,7 @@ const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let state=null,busy=false;
+let state=null,busy=false,refreshPromise=null,lastRefreshAt=0;
 async function session(){if(typeof supabase==='undefined')return null;const r=await supabase.auth.getSession();return r.data&&r.data.session?r.data.session:null}
 async function edge(payload){
   const s=await session();if(!s||!s.access_token)throw new Error('Login-session mangler');
@@ -39,7 +39,10 @@ function banner(msg,button){
   b.innerHTML='<div><strong>Juridisk aftale</strong><div style="margin-top:2px">'+esc(msg)+'</div></div>'+(button?'<button id="lmLegalOpen" type="button">'+esc(button)+'</button>':'');
   const o=$('lmLegalOpen');if(o)o.addEventListener('click',openModal);
 }
-async function refresh(){
+async function refresh(force=false){
+  if(refreshPromise)return refreshPromise;
+  if(!force&&lastRefreshAt&&Date.now()-lastRefreshAt<10000)return state;
+  refreshPromise=(async()=>{
   try{
     const s=await session();if(!s){clear();return}
     state=await edge({action:'status'});
@@ -50,6 +53,10 @@ async function refresh(){
     if(!['owner','admin'].includes(role)){banner('Databehandleraftalen afventer accept fra en ejer/admin på jeres konto.',null);return}
     banner('Databehandleraftalen mangler accept. Gennemse og accepter den registrerede version.','Gennemse aftale');
   }catch(e){console.warn('legal agreement status',e)}
+  finally{lastRefreshAt=Date.now()}
+  return state
+  })();
+  try{return await refreshPromise}finally{refreshPromise=null}
 }
 async function openModal(){
   if(busy)return;busy=true;

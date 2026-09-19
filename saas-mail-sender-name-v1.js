@@ -53,5 +53,6 @@ window.fetch=async function(input,init){
 };
 function bindConnect(){const b=$('#lmMailProviderConnect');if(!b||b.dataset.senderNameBound)return;b.dataset.senderNameBound='1';b.addEventListener('pointerdown',()=>saveName(false),true);b.addEventListener('focus',()=>saveName(false),true)}
 function boot(){inject();bindConnect()}
-window.addEventListener('load',()=>setTimeout(boot,120));setTimeout(boot,300);let tries=0;const timer=setInterval(()=>{tries++;boot();if($('#lmMailSenderName')||tries>50)clearInterval(timer)},300);
+window.addEventListener('load',()=>setTimeout(boot,120));setTimeout(boot,300);
+window.addEventListener('lm:mail-provider-ready',boot);window.addEventListener('lm:client-data-ready',boot);
 })();

@@ -56,8 +56,7 @@
     button.onclick=sendWithPdf;button.dataset.pdfOfferSend='1';
   }
 
-  new MutationObserver(()=>setTimeout(wire,10)).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  document.addEventListener('click',()=>setTimeout(wire,15),true);
-  setInterval(()=>{if(byId('offerMailModal')?.classList.contains('open'))wire()},500);
+  document.addEventListener('lm:offer-mail-ready',wire);
+  document.addEventListener('lm:offer-mail-opened',wire);
   setTimeout(wire,100);
 })();

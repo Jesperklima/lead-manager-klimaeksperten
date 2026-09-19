@@ -76,5 +76,5 @@
   function bind(){const input=byId('oFollow');if(input&&input.dataset.offerDateFix!=='1'){input.dataset.offerDateFix='1';const changed=()=>message('Valgt: '+formatDate(input.value||null)+' · gemmes med “Gem tilbud”');input.addEventListener('input',changed);input.addEventListener('change',changed);input.addEventListener('blur',changed)}}
   document.addEventListener('pointerdown',e=>{if(e.target?.closest?.('#saveOffer'))dateAtClick=String(byId('oFollow')?.value||'').trim()},true);
   document.addEventListener('click',e=>{if(!e.target?.closest?.('#saveOffer'))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();void save()},true);
-  bind();new MutationObserver(bind).observe(document.documentElement,{subtree:true,childList:true});
+  bind();const offerModal=byId('offerModal');if(offerModal)new MutationObserver(bind).observe(offerModal,{subtree:true,childList:true});window.addEventListener('lm:data-refreshed',bind);
 })();

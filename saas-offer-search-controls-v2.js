@@ -120,5 +120,9 @@
     wireSafeOfferSave();wireSafePipelineDrop();
   }
   wire();
-  new MutationObserver(()=>wire()).observe(document.documentElement,{subtree:true,childList:true});
+  window.addEventListener('lm:data-refreshed',wire);
+  window.addEventListener('lm:client-data-ready',wire);
+  document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="offers"],[data-view="offerpipeline"]'))queueMicrotask(wire)});
+  const offerModal=document.getElementById('offerModal');
+  if(offerModal)new MutationObserver(wire).observe(offerModal,{subtree:true,childList:true});
 })();
