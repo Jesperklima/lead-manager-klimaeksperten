@@ -2,7 +2,7 @@
 'use strict';
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
-let bootPromise=null;
+let bootPromise=null,rescuePromise=null;
 async function centralBootstrap(){
  const {data:{session}}=await supabase.auth.getSession();
  if(!session?.access_token)return {authenticated:false,next_route:'login'};
@@ -34,7 +34,7 @@ async function openWorkspace(access){
  document.getElementById('lmOb4')?.remove();document.getElementById('lmObError')?.remove();document.getElementById('lmBootRescueError')?.remove();
  showApp();
  if(document.getElementById('brandClient'))document.getElementById('brandClient').textContent=state.client.name+' · '+(access.platform_admin?'Platform admin':'Kundeworkspace');
- try{await loadAll()}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
+ try{await loadAll({startup:true})}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
 }
 async function controlledStartApp(){
  if(bootPromise)return bootPromise;
@@ -61,8 +61,9 @@ async function controlledStartApp(){
  })();return bootPromise;
 }
 async function rescueActiveWorkspace(){
+ if(rescuePromise)return rescuePromise;
  const app=document.getElementById('appShell');if(!app||!app.classList.contains('hidden'))return;
- try{
+ rescuePromise=(async()=>{try{
   const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)return;
   state.session=session;
   const access=await centralBootstrap();window.LM_ACCESS=access;
@@ -76,7 +77,8 @@ async function rescueActiveWorkspace(){
   const x=document.createElement('div');x.id='lmBootRescueError';x.style.cssText='position:fixed;inset:0;z-index:15000;background:#f5f7fb;display:grid;place-items:center;padding:24px';
   x.innerHTML='<div style="max-width:620px;background:#fff;padding:28px;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.12)"><h2>Lead Manager kunne ikke åbne workspace</h2><p id="lmBootRescueMsg"></p><button class="btn primary" type="button" onclick="location.reload()">Prøv igen</button></div>';
   document.body.appendChild(x);document.getElementById('lmBootRescueMsg').textContent=e?.message||String(e);
- }
+ }finally{rescuePromise=null}})();
+ return rescuePromise;
 }
 startApp=controlledStartApp;
 window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace};

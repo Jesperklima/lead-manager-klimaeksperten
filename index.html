@@ -866,7 +866,7 @@ $('saveOpenAIKey').onclick=async()=>{
 };
 $('checkOpenAIStatus').onclick=checkOpenAIAuthStatus;
 
-authInit();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{if(!window.LMAccess)authInit()},{once:true});else if(!window.LMAccess)authInit();
 
 </script>
 <script id="lm-mail-followup-v1">
