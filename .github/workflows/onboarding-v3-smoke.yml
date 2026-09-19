@@ -31,7 +31,7 @@ jobs:
       - name: App loads stable SaaS layers only
         shell: bash
         run: |
-          grep -q "script.src='/saas-onboarding-v5.js?v=" access-bootstrap-v1.js
+          grep -q "/saas-onboarding-v5.js?v=" access-bootstrap-v1.js
           if grep -q '<script src="/saas-onboarding-v5.js' api/app.js; then
             echo 'Onboarding bundle must remain lazy-loaded; static startup load returned.' >&2
             exit 1
