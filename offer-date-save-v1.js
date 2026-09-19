@@ -61,7 +61,7 @@
 
       if(o.status!==status&&typeof logOfferActivity==='function')await logOfferActivity(o,'Tilbudsstatus',`${o.status} → ${status} (manuel gem)`,{previous:o.status,next:status,manual:true,method:'verified_offer_save'});
       if(normalizeDate(o.follow_up_date||null)!==date&&typeof logOfferActivity==='function')await logOfferActivity(o,'Planlægning',`Tilbudsopfølgning flyttet til ${date||'ingen dato'}`,{previous:normalizeDate(o.follow_up_date||null),next:date,manual:true,method:'verified_offer_save'});
-      if(typeof loadAll==='function')await loadAll();
+      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','activities'],force:true});
       const check=(state.offers||[]).find(x=>x.id===o.id);
       const reloadedDate=normalizeDate(check?.follow_up_date||null);
       if(reloadedDate!==date){
@@ -76,5 +76,8 @@
   function bind(){const input=byId('oFollow');if(input&&input.dataset.offerDateFix!=='1'){input.dataset.offerDateFix='1';const changed=()=>message('Valgt: '+formatDate(input.value||null)+' · gemmes med “Gem tilbud”');input.addEventListener('input',changed);input.addEventListener('change',changed);input.addEventListener('blur',changed)}}
   document.addEventListener('pointerdown',e=>{if(e.target?.closest?.('#saveOffer'))dateAtClick=String(byId('oFollow')?.value||'').trim()},true);
   document.addEventListener('click',e=>{if(!e.target?.closest?.('#saveOffer'))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();void save()},true);
-  bind();new MutationObserver(bind).observe(document.documentElement,{subtree:true,childList:true});
+  bind();
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(bind,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(bind,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-offer],.offer-pipe-card'))setTimeout(bind,0)},true);
 })();
