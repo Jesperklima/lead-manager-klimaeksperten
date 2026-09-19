@@ -33,7 +33,13 @@ async function savePlan(btn){if(busy)return;const id=btn.dataset.client,card=btn
 async function saveUser(row,patch){if(busy||!row)return;const id=row.dataset.client,email=row.dataset.email;if(!id||!email)return;busy=true;row.classList.add('lmau-spinner');setMsg(`Gemmer ændring for ${email}…`);try{await edge({action:'update_user',client_id:id,email,...patch});setMsg(`✓ ${email} er opdateret.`,true);await refresh()}catch(e){setMsg('Kunne ikke ændre bruger: '+(e.message||e));await refresh().catch(()=>{})}finally{busy=false;row.classList.remove('lmau-spinner')}}
 
 async function probe(){if(checked)return;try{const d=await edge({action:'list'});checked=true;data=d;if(d?.is_platform_admin){ensureCard();updateSummary()}}catch(e){checked=true;if(e.status!==403)console.warn('admin users probe',e)}}
-function init(){if(typeof supabase==='undefined'||typeof state==='undefined'||!state?.session){setTimeout(init,500);return}probe()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+function init(){
+  if(typeof supabase==='undefined'||typeof state==='undefined'||!state?.session||typeof window.LM_ACCESS==='undefined')return;
+  if(window.LM_ACCESS?.platform_admin!==true){checked=true;return}
+  probe()
+}
+window.addEventListener('lm:workspace-ready',init);
+window.addEventListener('lm:access-ready',()=>{if(state?.session&&state?.client)init()});
+if(window.LM_ACCESS&&state?.session)queueMicrotask(init);
 window.addEventListener('lm:client-switched',()=>{if(data){ensureCard();updateSummary()}});
 })();
