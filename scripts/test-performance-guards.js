@@ -78,4 +78,22 @@ if(/new\s+MutationObserver/.test(onboardingMailSync))fail('onboarding mail sync 
 if(!onboardingMailSync.includes('const delays=[0,100,250,500,1000,2000,4000,7000,11000]'))fail('onboarding deterministic retry schedule missing');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
-console.log('PASS: performance guards, event-driven UI and lightweight startup');
+const activeRuntime=new Set();
+for(const source of [index,app]){
+  for(const m of source.matchAll(/<script[^>]+src=["']\/([^"'?]+\.js)(?:\?[^"']*)?["']/g))activeRuntime.add(m[1]);
+}
+const executive=read('executive-dashboard-v1.js');
+activeRuntime.add('executive-dashboard-v1.js');
+for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
+
+const intervalAllow=new Set(['executive-dashboard-v1.js']);
+for(const file of [...activeRuntime].sort()){
+  if(!fs.existsSync(file))fail('active runtime script missing from repository: '+file);
+  const src=read(file);
+  if(/new\s+MutationObserver/.test(src))fail(file+': active runtime MutationObserver returned');
+  if(/\bsetInterval\s*\(/.test(src)&&!intervalAllow.has(file))fail(file+': active runtime polling returned');
+  if(/observe\(document\.documentElement/.test(src))fail(file+': active runtime global document observer returned');
+}
+if(activeRuntime.size<25)fail('active runtime script audit unexpectedly small: '+activeRuntime.size);
+
+console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts');
