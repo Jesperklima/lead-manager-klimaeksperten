@@ -1,5 +1,6 @@
 (()=>{
   'use strict';
+  if(window.__LM_CREDIT_CHECK_V1)return;window.__LM_CREDIT_CHECK_V1=true;
   const API='https://ouqhostcsvdyrkjefiya.supabase.co';
   const APIKEY='sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
   let lastLeadId='',leadBusy=false,historyLoaded=false;
@@ -61,9 +62,11 @@
   }
   function installView(){
     const nav=document.querySelector('.nav'),leadManager=document.getElementById('leadmanager');if(!nav||!leadManager)return;
-    if(!document.getElementById('creditcheck')){
-      const section=document.createElement('section');section.id='creditcheck';section.className='view';section.innerHTML='<div class="cc-shell"><div class="card"><h2 style="margin:0 0 4px">Manuelt kreditcheck</h2><div class="sub">Skriv et CVR-nummer. Tjekket opretter ikke et lead.</div><form id="ccManualForm" class="cc-form" style="margin-top:16px"><div class="field"><label for="ccCvr">CVR-nummer</label><input id="ccCvr" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="8 cifre" required></div><div class="field"><label for="ccOrderValue">Forventet ordrebeløb (valgfrit)</label><input id="ccOrderValue" inputmode="numeric" type="number" min="0" step="1000" placeholder="Fx 175000"></div><button class="btn primary" id="ccRun" type="submit">Tjek virksomhed</button></form><div class="cc-help">Ordrebeløbet påvirker anbefalingen om depositum og forudbetaling – ikke virksomhedens grundscore.</div></div><div id="ccManualResult" style="margin-top:12px"></div><div class="card" style="margin-top:12px"><h2 style="margin:0 0 10px">Seneste manuelle tjek</h2><div id="ccHistory" class="cc-history"><div class="cc-loading">Henter historik…</div></div></div></div>';
-      leadManager.parentNode.insertBefore(section,leadManager);
+    let section=document.getElementById('creditcheck');
+    if(!section){section=document.createElement('section');section.id='creditcheck';section.className='view';leadManager.parentNode.insertBefore(section,leadManager)}
+    if(section.dataset.creditReady!=='1'){
+      section.dataset.creditReady='1';
+      section.innerHTML='<div class="cc-shell"><div class="card"><h2 style="margin:0 0 4px">Manuelt kreditcheck</h2><div class="sub">Skriv et CVR-nummer. Tjekket opretter ikke et lead.</div><form id="ccManualForm" class="cc-form" style="margin-top:16px"><div class="field"><label for="ccCvr">CVR-nummer</label><input id="ccCvr" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="8 cifre" required></div><div class="field"><label for="ccOrderValue">Forventet ordrebeløb (valgfrit)</label><input id="ccOrderValue" inputmode="numeric" type="number" min="0" step="1000" placeholder="Fx 175000"></div><button class="btn primary" id="ccRun" type="submit">Tjek virksomhed</button></form><div class="cc-help">Ordrebeløbet påvirker anbefalingen om depositum og forudbetaling – ikke virksomhedens grundscore.</div></div><div id="ccManualResult" style="margin-top:12px"></div><div class="card" style="margin-top:12px"><h2 style="margin:0 0 10px">Seneste manuelle tjek</h2><div id="ccHistory" class="cc-history"><div class="cc-loading">Henter historik…</div></div></div></div>';
       section.querySelector('#ccManualForm')?.addEventListener('submit',runManual);
       section.querySelector('#ccCvr')?.addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,8)});
     }
@@ -93,7 +96,9 @@
     const block=document.createElement('div');block.id='creditCheckBlock';block.className='card';block.style.cssText='margin-top:10px;padding:12px';block.innerHTML='<div class="cc-loading">Kreditcheck afventer lead…</div>';contact.insertAdjacentElement('afterend',block);
   }
   function openManual(cvr=''){
-    const button=document.querySelector('.nav button[data-view="creditcheck"]');button?.click();setTimeout(()=>{const input=document.getElementById('ccCvr');if(input){input.value=cvr;input.focus()}},40);
+    installStyles();installView();
+    const button=document.querySelector('.nav button[data-view="creditcheck"]');if(button)activateView(button);
+    setTimeout(()=>{const input=document.getElementById('ccCvr');if(input){input.value=cvr;input.focus()}},40);
   }
   async function checkLead(force=false){
     if(leadBusy)return;let lead=null,client=null,company={};try{lead=currentLead;client=state?.client;company=state?.companies?.find(x=>x.id===lead?.company_id)||{}}catch{}
@@ -116,6 +121,8 @@
   }
   function init(){installStyles();installView();installLeadBlock();wrapOpenLead();watchLead()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  window.addEventListener('lm:creditcheck-open-request',e=>openManual(String(e?.detail?.cvr||'')));
   window.addEventListener('lm:client-data-ready',()=>{lastLeadId='';wrapOpenLead();setTimeout(watchLead,0)});
   window.addEventListener('lm:data-refreshed',()=>{wrapOpenLead();if(document.getElementById('drawer')?.classList.contains('open'))setTimeout(watchLead,0)});
+  window.LMCreditCheck={open:openManual,watch:watchLead};
 })();
