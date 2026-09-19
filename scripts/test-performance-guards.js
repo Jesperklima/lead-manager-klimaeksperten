@@ -65,6 +65,11 @@ if(/new\s+MutationObserver/.test(offerPdf))fail('offer PDF MutationObserver retu
 if(!offerMail.includes('lm:offer-mail-opened')||!offerMail.includes('lm:offer-mail-ready'))fail('offer mail lifecycle events missing');
 if(!mailTemplates.includes('lm:offer-mail-opened'))fail('mail templates offer-mail lifecycle wiring missing');
 if(!offerPdf.includes('lm:offer-mail-ready'))fail('offer PDF lifecycle wiring missing');
+const feedback=read('saas-feedback-v1.js');
+const regression=read('saas-regression-center-v1.js');
+if(/new\s+MutationObserver/.test(regression))fail('regression center MutationObserver returned');
+if(!feedback.includes('lm:feedback-rendered'))fail('feedback rendered lifecycle event missing');
+if(!regression.includes('lm:feedback-rendered'))fail('regression center lifecycle wiring missing');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup');
