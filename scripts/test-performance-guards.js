@@ -73,6 +73,9 @@ if(!regression.includes('lm:feedback-rendered'))fail('regression center lifecycl
 const settingsHub=read('saas-settings-hub-v1.js');
 if(/new\s+MutationObserver/.test(settingsHub))fail('settings hub MutationObserver returned');
 if(!settingsHub.includes('function runMountPasses()'))fail('settings deterministic mount passes missing');
+const onboardingMailSync=read('saas-onboarding-mail-account-sync-v1.js');
+if(/new\s+MutationObserver/.test(onboardingMailSync))fail('onboarding mail sync MutationObserver returned');
+if(!onboardingMailSync.includes('const delays=[0,100,250,500,1000,2000,4000,7000,11000]'))fail('onboarding deterministic retry schedule missing');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup');
