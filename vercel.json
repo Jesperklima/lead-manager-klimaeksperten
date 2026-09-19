@@ -75,7 +75,8 @@
   },
   "git": {
     "deploymentEnabled": {
-      "perf/*": false
+      "perf/*": false,
+      "test/*": false
     }
   }
 }
