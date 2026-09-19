@@ -89,7 +89,7 @@ for(const source of [index,app]){
 const executive=read('executive-dashboard-v1.js');
 activeRuntime.add('executive-dashboard-v1.js');
 for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
-const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js'];
+const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-settings-hub-v1.js'];
 for(const file of lazyRuntime)activeRuntime.add(file);
 
 const intervalAllow=new Set(['executive-dashboard-v1.js']);
@@ -163,7 +163,7 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260919-7'))fail('access bootstrap cache version not bumped');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-8'))fail('access bootstrap cache version not bumped');
 if(!accessBootstrap.includes("script.src='/saas-onboarding-v5.js?v=20260919-5'"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
@@ -176,6 +176,11 @@ if(!accessBootstrap.includes('/saas-platform-admin-v1.js?v=20260919-4'))fail('pl
 if(!accessBootstrap.includes('/saas-admin-users-v1.js?v=20260919-3'))fail('admin users lazy cache version missing');
 if(!accessBootstrap.includes('if(access.platform_admin)await ensureAdminBundles()'))fail('platform admin lazy-bundle gate missing');
 if(!accessBootstrap.includes('loadAdmin:ensureAdminBundles'))fail('admin lazy loader is not exposed for recovery');
+if(app.includes('<script src="/saas-settings-hub-v1.js'))fail('settings hub returned to static startup');
+if(!accessBootstrap.includes("/saas-settings-hub-v1.js?v=20260919-14"))fail('settings hub lazy loader missing');
+if(!accessBootstrap.includes("data-view=\"leadmanager\""))fail('settings lazy navigation hook missing');
+if(!accessBootstrap.includes('loadSettings:ensureSettingsHub'))fail('settings lazy loader not exposed');
+if(!index.includes('<button data-view="leadmanager">Indstillinger</button>'))fail('settings nav label not baked into index');
 const startupSnapshotMigration=read('supabase/migrations/20260919154500_startup_snapshot_rpc.sql');
 if(!startupSnapshotMigration.includes('crm_startup_snapshot(p_client_id uuid)'))fail('startup snapshot RPC migration missing');
 if(!startupSnapshotMigration.includes('crm_has_client_access(p_client_id)'))fail('startup snapshot access guard missing');
