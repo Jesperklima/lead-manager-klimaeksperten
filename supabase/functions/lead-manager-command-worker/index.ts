@@ -16,12 +16,19 @@ function errorMessage(error:any,max=3000){
   }
   return clean(String(error),max)||'Ukendt fejl';
 }
+function hasTerminalWords(value:any){
+  return /(færdig|udført|installeret|monteret|leveret|afsluttet|ibrugtaget|tildelt|completed|installed|delivered|awarded|closed|contract[^a-zæøå]*(signed|awarded)|kontrakt[^a-zæøå]*(tildelt|indgået))/i.test(clean(value,2400));
+}
 function saysClosed(value:any){
   const text=clean(value,2400).toLowerCase();
-  if(!text)return false;
-  const terminal=/(færdig|udført|installeret|monteret|leveret|afsluttet|ibrugtaget|tildelt|completed|installed|delivered|awarded|closed|contract[^a-zæøå]*(signed|awarded)|kontrakt[^a-zæøå]*(tildelt|indgået))/i.test(text);
-  const negated=/(ikke|ej|endnu ikke)[^.;,]{0,35}(færdig|udført|installeret|monteret|leveret|afsluttet|ibrugtaget|tildelt|completed|installed|delivered|awarded|closed)/i.test(text);
-  return terminal&&!negated;
+  if(!text||!hasTerminalWords(text))return false;
+  const term='(?:færdig|udført|installeret|monteret|leveret|afsluttet|ibrugtaget|tildelt|completed|installed|delivered|awarded|closed)';
+  const negated=[
+    new RegExp('(?:ikke|ej|ingen|uden|mangler|manglende)[^.;]{0,120}'+term,'i'),
+    new RegExp('(?:dokumenterer|viser|bekræfter)[^.;]{0,50}(?:ikke|ingen)[^.;]{0,120}'+term,'i'),
+    /(?:ingen|ikke fundet|ikke dokumenteret)[^.;]{0,120}(?:afslutning|tildeling|udførelse|færdiggørelse|ibrugtagning)/i
+  ].some(re=>re.test(text));
+  return !negated;
 }
 const supported=new Set(['import_offers_from_mail','reconcile_offers_from_mail','scan_mail_sales_signals','source_freshness_check']);
 
@@ -268,9 +275,13 @@ Brug den officielle kilde først. Afgør om muligheden stadig er aktiv, eller om
     return safeResult;
   }
 
+  let latestStatus=clean(result.latest_official_status,1000);
+  if(!result.closed&&hasTerminalWords(latestStatus)&&!saysClosed(latestStatus)){
+    latestStatus='Ikke afsluttet, tildelt eller udført ifølge den seneste officielle kilde. '+latestStatus;
+  }
   const evidence={
     ...(lead.source_verification_evidence||{}),
-    latest_official_status:clean(result.latest_official_status,1000),
+    latest_official_status:latestStatus,
     status_checked_at:checkedAt,
     freshness_evidence:clean(result.evidence,2400),
     freshness_confidence:clean(result.confidence,30),
@@ -295,7 +306,7 @@ Brug den officielle kilde først. Afgør om muligheden stadig er aktiv, eller om
   if(updateError)throw updateError;
   await markDone(
     sb,job,
-    result.confidence==='low'?'Kilden kunne ikke verificeres sikkert og kræver manuel kontrol.':'Officiel kilde er genverificeret: '+clean(result.latest_official_status,800),
+    result.confidence==='low'?'Kilden kunne ikke verificeres sikkert og kræver manuel kontrol.':'Officiel kilde er genverificeret: '+latestStatus,
     result
   );
   return result;
