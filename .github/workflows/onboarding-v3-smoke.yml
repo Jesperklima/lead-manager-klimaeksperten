@@ -32,7 +32,11 @@ jobs:
         shell: bash
         run: |
           grep -q 'saas-onboarding-v5.js' api/app.js
-          grep -q 'saas-microsoft-v1.js' api/app.js
+          grep -q 'saas-mail-providers-v1.js' api/app.js
+          if grep -q '<script src="/saas-microsoft-v1.js' api/app.js; then
+            echo 'Standalone Microsoft settings UI was reintroduced; unified mail-provider owns Microsoft now.' >&2
+            exit 1
+          fi
           if grep -nE '<script[^>]+src="/saas-(onboarding-v2|generic-guard|package-guard|admin-invite|microsoft-guard)' api/app.js; then
             echo 'Old SaaS startup layer reintroduced.' >&2
             exit 1

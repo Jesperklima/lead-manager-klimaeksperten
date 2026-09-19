@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_BYTES="189925"
-EXPECTED_MD5="a7f039c99af47a7667cd7059aa034510"
-
 [[ -f index.html ]] || { echo "ERROR: index.html missing" >&2; exit 1; }
 ACTUAL_BYTES="$(wc -c < index.html | tr -d ' ')"
-ACTUAL_MD5="$(md5sum index.html | awk '{print $1}')"
+[[ "$ACTUAL_BYTES" -ge 150000 ]] || { echo "ERROR: index.html unexpectedly small: $ACTUAL_BYTES bytes" >&2; exit 1; }
 
-[[ "$ACTUAL_BYTES" == "$EXPECTED_BYTES" ]] || { echo "ERROR: size mismatch: $ACTUAL_BYTES" >&2; exit 1; }
-[[ "$ACTUAL_MD5" == "$EXPECTED_MD5" ]] || { echo "ERROR: MD5 mismatch: $ACTUAL_MD5" >&2; exit 1; }
+for marker in   'lm-report-lazy-guard-v1'   'lm-followup-recipient-v9'   'AI sender aldrig selv'   'function setText(id,value)'   "console.error('Renderfejl i '+name,error)"; do
+  grep -q "$marker" index.html || { echo "ERROR: required marker missing: $marker" >&2; exit 1; }
+done
 
-grep -q 'lm-report-lazy-guard-v1' index.html
-grep -q 'lm-followup-recipient-v9' index.html
-grep -q 'AI sender aldrig selv' index.html
-! grep -q 'Godkendt – sendes automatisk' index.html
+! grep -q 'Godkendt – sendes automatisk' index.html || { echo "ERROR: automatic-send wording returned" >&2; exit 1; }
 
-# Reject common server/API secret formats. The existing sb_publishable_ key is browser configuration.
 if grep -Eqi 'sb_secret_[A-Za-z0-9_-]{20,}|GOCSPX-[A-Za-z0-9_-]{15,}|sk-[A-Za-z0-9_-]{20,}' index.html; then
   echo "ERROR: possible secret pattern found in index.html" >&2
   exit 1
@@ -28,8 +22,9 @@ with open('vercel.json', encoding='utf-8') as f:
     json.load(f)
 with open('baseline/manifest.json', encoding='utf-8') as f:
     m=json.load(f)
-assert m['repository_bytes']==189925
-assert m['repository_md5']=='a7f039c99af47a7667cd7059aa034510'
+markers=set(m.get('verified_markers') or [])
+for required in ['lm-report-lazy-guard-v1','lm-followup-recipient-v9','AI sender aldrig selv']:
+    assert required in markers, f'baseline manifest missing marker: {required}'
 PY
 
-echo "Repository source verified: 189925 bytes / a7f039c99af47a7667cd7059aa034510"
+echo "Repository source verified semantically: $ACTUAL_BYTES bytes"

@@ -61,7 +61,7 @@
   }
 
   scan();
-  new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true});
-  document.addEventListener('click',()=>setTimeout(scan,0),true);
-  setInterval(scan,800);
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(scan,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(scan,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-lead],[data-open-offer],.leadcard,.offer-pipe-card,.calitem'))setTimeout(scan,0)},true);
 })();

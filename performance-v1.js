@@ -154,6 +154,14 @@ function hasFreshFullKey(key,maxAge=60000){
   const at=loadedAt.get(key)||0;
   return at>0&&(Date.now()-at)<maxAge;
 }
+function seedBaseLoaded(){
+  const cid=state?.client?.id||null;
+  if(!cid||String(window.__LM_BASE_CLIENT_ID||'')!==String(cid))return;
+  const keys=Array.isArray(window.__LM_BASE_LOADED_KEYS)?window.__LM_BASE_LOADED_KEYS:[];
+  const now=Date.now();
+  for(const key of keys)if(keyToTable[key])loadedAt.set(key,now);
+  if(window.__LM_BASE_STARTUP_READY===true)startupReady=true;
+}
 
 function installSmartLoader(){
   if(typeof window.loadAll!=='function'||window.loadAll.__lmPerfWrapped)return false;
@@ -270,6 +278,8 @@ function installNavigationRendering(){
 
 function boot(){
   if(typeof state==='undefined'||typeof supabase==='undefined'||typeof window.loadAll!=='function'){setTimeout(boot,25);return}
+  resetForClient(state?.client?.id||null);
+  seedBaseLoaded();
   installWriteTracker();
   installSmartLoader();
   installNavigationRendering();

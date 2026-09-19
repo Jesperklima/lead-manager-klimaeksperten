@@ -88,7 +88,7 @@
       btn.disabled=true;
       try{
         await saveManualOffer(o,newStatus,newDate,newComment,'manuel gem');
-        await loadAll();$('offerModal').classList.remove('open');currentOffer=null;toast('Tilbud opdateret');
+        if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('companies','offers');else await loadAll({keys:['companies','offers'],force:true});$('offerModal').classList.remove('open');currentOffer=null;toast('Tilbud opdateret');
       }catch(e){console.error('safe offer save failed',e);toast(e?.message||'Tilbuddet kunne ikke gemmes');}
       finally{btn.disabled=false;}
     };
@@ -98,8 +98,8 @@
     const o=typeof offerById==='function'?offerById(id):state.offers?.find(x=>x.id===id);if(!o||!targetStatus||o.status===targetStatus)return;
     try{
       await saveManualOffer(o,targetStatus,o.follow_up_date||null,o.current_comment||null,'pipeline drag & drop');
-      await loadAll();toast(`Tilbud ${o.offer_ref||''} flyttet til ${targetStatus}`);
-    }catch(e){console.error('safe offer pipeline move failed',e);toast(e?.message||'Tilbuddet kunne ikke flyttes');await loadAll();}
+      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('companies','offers');else await loadAll({keys:['companies','offers'],force:true});toast(`Tilbud ${o.offer_ref||''} flyttet til ${targetStatus}`);
+    }catch(e){console.error('safe offer pipeline move failed',e);toast(e?.message||'Tilbuddet kunne ikke flyttes');if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('companies','offers');else await loadAll({keys:['companies','offers'],force:true});}
   }
 
   function wireSafePipelineDrop(){
@@ -120,5 +120,7 @@
     wireSafeOfferSave();wireSafePipelineDrop();
   }
   wire();
-  new MutationObserver(()=>wire()).observe(document.documentElement,{subtree:true,childList:true});
+  window.addEventListener('lm:client-data-ready',()=>setTimeout(wire,0));
+  window.addEventListener('lm:data-refreshed',()=>setTimeout(wire,0));
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-offer],.offer-pipe-card,.nav button[data-view="offers"],.nav button[data-view="offerpipeline"]'))setTimeout(wire,0)},true);
 })();
