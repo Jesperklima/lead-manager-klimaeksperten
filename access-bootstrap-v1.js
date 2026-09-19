@@ -1,6 +1,20 @@
 (()=>{
 'use strict';
-let bootPromise=null,rescuePromise=null;
+let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null;
+function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
+function ensureOnboardingScript(){
+ if(window.__LM_ONBOARDING_V5)return Promise.resolve();
+ if(onboardingScriptPromise)return onboardingScriptPromise;
+ onboardingScriptPromise=new Promise((resolve,reject)=>{
+  const script=document.createElement('script');
+  script.src='/saas-onboarding-v5.js?v=20260919-5';
+  script.async=true;
+  script.onload=()=>resolve();
+  script.onerror=()=>{onboardingScriptPromise=null;reject(new Error('Onboarding-modulet kunne ikke indlæses'))};
+  document.head.appendChild(script);
+ });
+ return onboardingScriptPromise;
+}
 async function centralBootstrap(){
  const {data:{session}}=await supabase.auth.getSession();
  if(!session?.access_token)return {authenticated:false,next_route:'login'};
@@ -52,6 +66,7 @@ async function controlledStartApp(){
    if(!access.authenticated){showAuth();return}
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
    if(access.next_route==='onboarding'){
+    await ensureOnboardingScript();
     document.getElementById('authScreen')?.classList.add('hidden');document.getElementById('appShell')?.classList.add('hidden');
     window.dispatchEvent(new CustomEvent('lm:central-onboarding-required',{detail:access}));
     return;
@@ -83,8 +98,15 @@ async function rescueActiveWorkspace(){
  return rescuePromise;
 }
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace};
-authInit();
-setTimeout(rescueActiveWorkspace,900);
-setTimeout(rescueActiveWorkspace,2200);
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript};
+async function initAccessBootstrap(){
+ if(onboardingToken()){
+  await ensureOnboardingScript();
+  try{if(window.__LM_ONBOARDING_CLAIM_PROMISE)await window.__LM_ONBOARDING_CLAIM_PROMISE}catch(error){console.warn('Onboarding invitation init',error)}
+ }
+ authInit();
+ setTimeout(rescueActiveWorkspace,900);
+ setTimeout(rescueActiveWorkspace,2200);
+}
+initAccessBootstrap().catch(error=>{console.error('Access bootstrap init',error);showAuth('Lead Manager kunne ikke starte onboarding. '+(error?.message||error))});
 })();
