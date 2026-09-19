@@ -13,5 +13,10 @@ async function check(){if(checking||!state?.client)return;checking=true;const b=
 async function connect(){if(!state?.client)return;const b=$('#lmMinubaConnect');b.disabled=true;b.textContent='Åbner Minuba…';message('Du bliver nu sendt sikkert til Minuba for at logge ind og godkende forbindelsen.');try{const d=await edge('connect');if(!d?.authorize_url)throw new Error('Loginlink kunne ikke oprettes');location.assign(d.authorize_url)}catch(e){b.disabled=false;b.textContent='Forbind Minuba';message('Kunne ikke starte forbindelsen: '+(e.message||e),true)}}
 function handleCallback(){const q=new URLSearchParams(location.search),s=q.get('minuba'),reason=q.get('reason');if(!s)return;if(s==='connected'){status('✓ Minuba forbundet',true);message('Færdig. Lead Manager bruger nu virksomhedens Minuba automatisk.');try{if(typeof toast==='function')toast('Minuba er forbundet')}catch{}}else{status('Forbindelse fejlede');message('Minuba kunne ikke forbindes'+(reason?': '+reason:'.'),true)}q.delete('minuba');q.delete('reason');q.delete('detail');const qs=q.toString();history.replaceState({},document.title,location.pathname+(qs?'?'+qs:'')+location.hash);setTimeout(check,200)}
 function boot(){if(install())return;if(typeof state!=='undefined'&&state?.client)install()}
-window.addEventListener('load',()=>setTimeout(boot,140));setTimeout(boot,400);let tries=0;const timer=setInterval(()=>{tries++;boot();if(findCard()?.dataset.saasMinuba==='2'||tries>40)clearInterval(timer)},500);
+function schedule(){setTimeout(boot,0)}
+window.addEventListener('load',()=>setTimeout(boot,140));
+window.addEventListener('lm:client-data-ready',schedule);
+window.addEventListener('lm:client-switched',schedule);
+document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="leadmanager"]'))schedule()},true);
+setTimeout(boot,400);
 })();
