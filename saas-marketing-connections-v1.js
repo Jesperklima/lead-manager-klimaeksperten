@@ -59,6 +59,11 @@ async function createConn(){const partner=$('mkConnPartner').value,platform=$('m
 async function rotate(id){if(!confirm('Den gamle webhook nøgle stopper med at virke. Fortsæt?'))return;const {data,error}=await supabase.rpc('crm_marketing_rotate_webhook_key',{p_connection_id:id});if(error)return msg(error.message);C.freshKeys.set(id,data);render();msg('Ny webhook nøgle oprettet. Gem den nu.')}
 async function saveCreds(id){const a=document.querySelector(`[data-access="${id}"]`),s=document.querySelector(`[data-appsecret="${id}"]`);const access=a?.value.trim(),secret=s?.value.trim();if(!access&&!secret)return msg('Indsæt mindst én credential.');if(access){const r=await supabase.rpc('crm_marketing_store_secret',{p_connection_id:id,p_kind:'access_token',p_value:access});if(r.error)return msg(r.error.message)}if(secret){const r=await supabase.rpc('crm_marketing_store_secret',{p_connection_id:id,p_kind:'app_secret',p_value:secret});if(r.error)return msg(r.error.message)}if(a)a.value='';if(s)s.value='';await load();msg('Platform adgangen er gemt sikkert.')}
 function wire(){$('mkConnRefresh').onclick=load;$('mkConnCreate').onclick=createConn}
+function active(){return !!$('marketingLeads')?.classList.contains('active')}
 function init(){if(!ensure()){setTimeout(init,400);return}load()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();setTimeout(init,1000);setInterval(()=>{$('marketingLeads')?.classList.contains('active')&&load()},15000);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+setTimeout(init,1000);
+window.addEventListener('lm:client-data-ready',()=>{if(ensure()||active())load()});
+window.addEventListener('focus',()=>{if(active())load()});
+document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="marketingLeads"]'))setTimeout(()=>{ensure();load()},0)});
 })();
