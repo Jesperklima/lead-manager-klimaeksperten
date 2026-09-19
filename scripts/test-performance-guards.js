@@ -108,5 +108,10 @@ for(const m of index.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)){
   try{new Function(src)}catch(e){fail('index inline script '+inlineCount+' syntax error: '+e.message)}
 }
 if(inlineCount<10)fail('inline runtime syntax audit unexpectedly small: '+inlineCount);
+const perf=read('performance-v1.js');
+if(!perf.includes("select('id',{count:'exact',head:true})"))fail('startup mail count-only query missing');
+if(!perf.includes(".eq('status','pending').order('created_at'"))fail('startup approvals pending-only query missing');
+if(!perf.includes("window.__LM_MAIL_COUNT"))fail('mail count cache missing');
+if(!index.includes("Number.isFinite(window.__LM_MAIL_COUNT)"))fail('dashboard mail count cache wiring missing');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');
