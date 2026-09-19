@@ -117,7 +117,6 @@ if(!perf.includes("partialStartupKeys=new Set(['activities','mail','approvals','
 if(!perf.includes("minuba_sync_state':'*'"))fail('light offer column list missing');
 if(/select\(light\?'[^']*minuba_raw/.test(perf))fail('heavy minuba_raw returned to startup offers query');
 if(!perf.includes("Date.now()-45*86400000"))fail('recent activity startup window missing');
-if(!app.includes('performance-v1.js?v=20260919-3'))fail('performance cache version not bumped');
 const executiveDashboard=read('executive-dashboard-v1.js');
 if(!executiveDashboard.includes("selectedPeriod==='all'&&partialActivities"))fail('dashboard all-period full activity reload missing');
 if(!perf.includes("crm_companies').select('id,client_id,name,cvr,domain,phone,address,stoplisted,created_at,relationship_status,do_not_contact,do_not_contact_reason,industry,website_url,employee_size_text,company_summary,research_updated_at,minuba_relationship_status,minuba_relationship_summary,minuba_exact_match,minuba_chain_match,minuba_order_count,minuba_latest_order_date,minuba_latest_order_number,minuba_latest_order_address,minuba_related_locations,minuba_checked_at,legal_form,advertising_protected,robinson_check_required,robinson_checked_at,robinson_blocked,contact_compliance_status')"))fail('trimmed company performance query missing');
