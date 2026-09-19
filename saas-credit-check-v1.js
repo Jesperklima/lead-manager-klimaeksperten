@@ -108,9 +108,14 @@
     installView();installLeadBlock();const drawer=document.getElementById('drawer'),open=drawer?.classList.contains('open');let lead=null;try{lead=currentLead}catch{}
     if(!open||!lead?.id){lastLeadId='';return}if(lead.id!==lastLeadId){lastLeadId=lead.id;setTimeout(()=>checkLead(false),150)}
   }
-  function init(){installStyles();installView();installLeadBlock();watchLead()}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-  document.addEventListener('click',()=>setTimeout(watchLead,20),true);
-  new MutationObserver(watchLead).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
-  setInterval(watchLead,800);
+  function observeDrawer(){
+    const drawer=document.getElementById('drawer');if(!drawer||drawer.dataset.creditObserved==='1')return;
+    drawer.dataset.creditObserved='1';
+    new MutationObserver(watchLead).observe(drawer,{attributes:true,attributeFilter:['class'],childList:true,subtree:true});
+  }
+  function init(){installStyles();installView();installLeadBlock();observeDrawer();watchLead()}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  window.addEventListener('lm:data-refreshed',()=>{installView();installLeadBlock();observeDrawer();watchLead()});
+  window.addEventListener('lm:client-data-ready',()=>{lastLeadId='';historyLoaded=false;init()});
+  document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="creditcheck"]'))queueMicrotask(()=>{installView();loadHistory()})});
 })();
