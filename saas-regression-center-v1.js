@@ -5,7 +5,7 @@ const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const guardLabels={queued:'Skal forebygges',implementing:'Forebyggelse bygges',verified:'Verificeret'};
-let internal=false,busy=false,observer=null,bootPromise=null,bootedClient='';
+let internal=false,busy=false,bootPromise=null,bootedClient='';
 async function session(){if(typeof supabase==='undefined')return null;const {data}=await supabase.auth.getSession();return data?.session||null}
 async function call(path,payload){const s=await session();if(!s?.access_token)throw new Error('Login-session mangler');const r=await fetch(`${API}/functions/v1/${path}`,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify(payload)}),t=await r.text();let d={};try{d=t?JSON.parse(t):{}}catch{d={error:t}}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
 function style(){if($('#lmRegressionStyle'))return;const s=document.createElement('style');s.id='lmRegressionStyle';s.textContent=`
@@ -25,11 +25,12 @@ async function boot(force=false){
   bootPromise=(async()=>{try{
     let d=window.__LM_FEEDBACK_CTX||null;
     if(!d){const s=await session();if(!s)return;const r=await fetch(API+'/functions/v1/saas-onboarding',{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify({action:'status'})});if(!r.ok)return;d=await r.json()}
-    internal=d?.plan?.plan_code==='internal';bootedClient=cid;if(!internal)return;ensureCard();const sec=$('#feedback');if(sec&&!observer){observer=new MutationObserver(()=>setTimeout(ensureCard,30));observer.observe(sec,{childList:true})}
+    internal=d?.plan?.plan_code==='internal';bootedClient=cid;if(!internal)return;ensureCard()
   }catch(e){console.warn('regression center boot',e)}})();
   try{return await bootPromise}finally{bootPromise=null}
 }
 document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="feedback"]'))setTimeout(()=>boot(false),0)},true);
-window.addEventListener('lm:client-switched',()=>{internal=false;bootedClient='';observer?.disconnect();observer=null});
+window.addEventListener('lm:feedback-rendered',()=>{if(feedbackActive())setTimeout(()=>{if(internal)ensureCard();else boot(false)},0)});
+window.addEventListener('lm:client-switched',()=>{internal=false;bootedClient=''});
 if(!window.LMAccess&&feedbackActive())setTimeout(()=>boot(false),0);
 })();
