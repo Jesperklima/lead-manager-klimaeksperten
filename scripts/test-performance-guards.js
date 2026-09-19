@@ -81,7 +81,6 @@ const onboardingMailSync=read('saas-onboarding-mail-account-sync-v1.js');
 if(/new\s+MutationObserver/.test(onboardingMailSync))fail('onboarding mail sync MutationObserver returned');
 if(!onboardingMailSync.includes('const delays=[0,100,250,500,1000,2000,4000,7000,11000]'))fail('onboarding deterministic retry schedule missing');
 if(app.includes('<script src="/saas-onboarding-mail-account-sync-v1.js'))fail('onboarding mail sync returned to static startup');
-if(!accessBootstrap.includes('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3'))fail('onboarding mail sync missing from onboarding lazy loader');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 const activeRuntime=new Set();
@@ -158,6 +157,7 @@ if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer con
 const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
 if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
 const accessBootstrap=read('access-bootstrap-v1.js');
+if(!accessBootstrap.includes('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3'))fail('onboarding mail sync missing from onboarding lazy loader');
 if(!accessBootstrap.includes("supabase.rpc('crm_session_bootstrap')"))fail('direct session bootstrap RPC missing');
 if(accessBootstrap.includes('/functions/v1/session-bootstrap'))fail('session bootstrap Edge Function returned to startup');
 if(accessBootstrap.includes("supabase.from('crm_users')"))fail('crm_users startup query returned');
@@ -166,7 +166,7 @@ const sessionClientMigration=read('supabase/migrations/20260919152500_session_bo
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
 if(!app.includes('access-bootstrap-v1.js?v=20260919-13'))fail('access bootstrap cache version not bumped');
-if(!accessBootstrap.includes("script.src='/saas-onboarding-v5.js?v=20260919-5'"))fail('lazy onboarding loader missing');
+if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v5.js?v=20260919-5')"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');
