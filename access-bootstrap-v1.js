@@ -53,7 +53,10 @@ function ensureCreditCheck(){
 }
 function ensureOfferSearch(){
  if(offerSearchPromise)return offerSearchPromise;
- offerSearchPromise=loadLazyScript('/saas-offer-search-controls-v2.js?v=20260919-4').catch(error=>{offerSearchPromise=null;throw error});
+ offerSearchPromise=Promise.all([
+  loadLazyScript('/saas-offer-search-controls-v2.js?v=20260919-4'),
+  loadLazyScript('/date-picker-click-v1.js?v=20260919-4')
+ ]).catch(error=>{offerSearchPromise=null;throw error});
  return offerSearchPromise;
 }
 function onboardingToken(){return new URLSearchParams(location.search).get('onboarding')||''}
