@@ -145,5 +145,12 @@ if(legalAgreement.includes('setTimeout(refresh,1400);setTimeout(refresh,4000)'))
 if(!legalAgreement.includes('function scheduleRefresh(delay=0)'))fail('legal refresh coalescer missing');
 if(!legalAgreement.includes('if(refreshPromise)return refreshPromise'))fail('legal in-flight coalescing missing');
 if(!app.includes('legal-agreement-v1.js?v=20260919-3'))fail('legal agreement cache version not bumped');
+const customerControls=read('saas-customer-controls-v1.js');
+if(!customerControls.includes('function accessPlan()'))fail('customer controls access-plan helper missing');
+if(!customerControls.includes('function hydrateFromAccess()'))fail('customer controls bootstrap-plan hydration missing');
+if(!customerControls.includes("const local=hydrateFromAccess();if(local)return local"))fail('customer controls still require onboarding status at startup');
+if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer controls cache version not bumped');
+const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
+if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');

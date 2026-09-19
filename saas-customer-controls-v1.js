@@ -11,6 +11,17 @@ const SIGNALS=['Nyt projekt eller ny lokation','Nybyggeri eller renovering','Vir
 const EXCLUSIONS=['Private forbrugere','Konkurrenter','Eksisterende kunder','Enkeltmandsvirksomheder','Virksomheder uden offentlig kontaktmulighed'];
 const MODES={company_targets:'Virksomheder jeg kan sælge til',documented_need:'Virksomheder med dokumenteret behov',projects:'Konkrete projekter / opgaver',tenders:'Offentlige udbud / opgaver'};
 let ctx=null,busy=false,bootPromise=null,bootedClient='';
+function accessPlan(){
+  const access=window.LM_ACCESS||null;
+  if(access?.platform_admin===true)return {plan_code:'internal'};
+  return access?.plan&&typeof access.plan==='object'?access.plan:null;
+}
+function hydrateFromAccess(){
+  const cid=String(state?.client?.id||''),plan=accessPlan();
+  if(!cid||!plan)return null;
+  ctx={...(ctx||{}),plan,client:state.client||ctx?.client||{},membership:{...(ctx?.membership||{}),role:window.LM_ACCESS?.role||'',email:state?.session?.user?.email||''}};
+  bootedClient=cid;window.__LM_SAAS_PLAN=plan;applyGating();injectSettingsButton();return ctx;
+}
 async function session(){if(typeof supabase==='undefined')return null;const {data}=await supabase.auth.getSession();return data?.session||null}
 async function edge(name,payload={}){const s=await session();if(!s?.access_token)throw new Error('Login-session mangler');const r=await fetch(`${API}/functions/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify(payload)}),raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={error:raw}}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
 function hide(el,yes=true){if(el)el.classList.toggle('hidden',!!yes)}
@@ -41,7 +52,10 @@ function openSettings(){if(busy||!ctx)return;style();let d=existingDraft();const
 async function saveSettings(d){if(busy)return;busy=true;const msg=$('#lmccMsg'),btn=$('#lmccSave');btn.disabled=true;msg.textContent='Gemmer…';try{const c=ctx.client||{},s=c.settings||{};const industries=uniq([...d.industries,...split($('#lmccOtherIndustries').value)]),lead_modes=d.lead_modes;if(!industries.length)throw new Error('Vælg mindst én branche.');if(!lead_modes.length)throw new Error('Vælg mindst én leadtype.');const geoMode=$('#lmccGeoMode').value,geo=geoMode==='selected'?uniq(split($('#lmccGeo').value)):[];if(geoMode==='selected'&&!geo.length)throw new Error('Angiv mindst ét geografisk område.');const payload={action:'complete',company_name:c.name,website:c.website||'',cvr:c.cvr||'',contact_name:s.contact_name||'',business_email:s.mail||ctx.membership?.email||'',phone:s.phone||'',address:s.company_address||'',postcode:s.postcode||'',city:s.city||'',services:Array.isArray(c.services)?c.services:[],industries,lead_modes,customer_types:uniq(split($('#lmccCustomerTypes').value)),task_types:uniq(split($('#lmccTasks').value)),employee_min:$('#lmccEmpMin').value,employee_max:$('#lmccEmpMax').value,project_value_min:$('#lmccProjectMin').value,project_value_max:$('#lmccProjectMax').value,ideal_signals:d.ideal_signals,geography_mode:geoMode,geography_values:geo,exclusions:d.exclusions,mail_provider:s.mail_provider_preference||s.mail_provider||'later'};await edge('saas-onboarding',payload);ctx=await edge('saas-onboarding',{action:'status'});msg.textContent='✓ Lead-indstillinger gemt. Næste Lead Hunter-søgning bruger de nye kriterier.';setTimeout(()=>$('#lmLeadSettingsModal')?.remove(),900)}catch(e){msg.textContent=e.message||String(e);btn.disabled=false}finally{busy=false}}
 async function boot(force=false){
   const cid=String(state?.client?.id||'');if(!cid)return null;
-  if(!force&&ctx&&bootedClient===cid){applyGating();injectSettingsButton();return ctx}
+  if(!force){
+    if(ctx&&bootedClient===cid){applyGating();injectSettingsButton();return ctx}
+    const local=hydrateFromAccess();if(local)return local
+  }
   if(bootPromise)return bootPromise;
   bootPromise=(async()=>{try{const s=await session();if(!s)return null;ctx=await edge('saas-onboarding',{action:'status'});bootedClient=cid;window.__LM_SAAS_PLAN=ctx.plan||null;applyGating();injectSettingsButton();return ctx}catch(e){console.warn('customer controls',e);return null}})();
   try{return await bootPromise}finally{bootPromise=null}
@@ -50,6 +64,6 @@ async function boot(force=false){
 document.addEventListener('click',e=>{const b=e.target.closest?.('.nav button');if(b)setTimeout(()=>{applyGating();injectSettingsButton()},0)},true);
 window.addEventListener('lm:workspace-ready',()=>setTimeout(()=>boot(false),0));
 window.addEventListener('lm:client-data-ready',()=>setTimeout(()=>boot(false),0));
-window.addEventListener('lm:client-switched',()=>{ctx=null;bootedClient='';});
+window.addEventListener('lm:client-switched',()=>{ctx=null;bootedClient='';setTimeout(()=>boot(false),0)});
 if(!window.LMAccess){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>boot(false),0),{once:true});else setTimeout(()=>boot(false),0)}
 })();
