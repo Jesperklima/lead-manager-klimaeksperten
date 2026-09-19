@@ -126,7 +126,7 @@ if(!executiveDashboard.includes("selectedPeriod==='all'&&partialActivities"))fai
 if(!perf.includes("crm_companies').select('id,client_id,name,cvr,domain,phone,address,stoplisted,created_at,relationship_status,do_not_contact,do_not_contact_reason,industry,website_url,employee_size_text,company_summary,research_updated_at,minuba_relationship_status,minuba_relationship_summary,minuba_exact_match,minuba_chain_match,minuba_order_count,minuba_latest_order_date,minuba_latest_order_number,minuba_latest_order_address,minuba_related_locations,minuba_checked_at,legal_form,advertising_protected,robinson_check_required,robinson_checked_at,robinson_blocked,contact_compliance_status')"))fail('trimmed company performance query missing');
 if(!index.includes("crm_companies').select('id,client_id,name,cvr,domain,phone,address,stoplisted,created_at,relationship_status,do_not_contact,do_not_contact_reason,industry,website_url,employee_size_text,company_summary,research_updated_at,minuba_relationship_status,minuba_relationship_summary,minuba_exact_match,minuba_chain_match,minuba_order_count,minuba_latest_order_date,minuba_latest_order_number,minuba_latest_order_address,minuba_related_locations,minuba_checked_at,legal_form,advertising_protected,robinson_check_required,robinson_checked_at,robinson_blocked,contact_compliance_status')"))fail('trimmed company base query missing');
 if(perf.includes("case 'companies': return supabase.from('crm_companies').select('*')")||index.includes("if(key==='companies')return supabase.from('crm_companies').select('*')"))fail('heavy base company select-star returned');
-if(!app.includes('performance-v1.js?v=20260919-4'))fail('performance cache version not bumped for company payload trim');
+if(!app.includes('performance-v1.js?v=20260919-5'))fail('performance cache version not bumped');
 const onboarding=read('saas-onboarding-v5.js');
 if(onboarding.includes('setTimeout(boot,0);setTimeout(boot,500);setTimeout(boot,1500)'))fail('onboarding startup retry burst returned');
 if(onboarding.includes("if(ev==='SIGNED_IN'&&s){setTimeout(boot,0)"))fail('onboarding SIGNED_IN retry burst returned');
@@ -161,5 +161,11 @@ const sessionClientMigration=read('supabase/migrations/20260919152500_session_bo
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
 if(!app.includes('access-bootstrap-v1.js?v=20260919-4'))fail('access bootstrap cache version not bumped');
+const startupSnapshotMigration=read('supabase/migrations/20260919154500_startup_snapshot_rpc.sql');
+if(!startupSnapshotMigration.includes('crm_startup_snapshot(p_client_id uuid)'))fail('startup snapshot RPC migration missing');
+if(!startupSnapshotMigration.includes('crm_has_client_access(p_client_id)'))fail('startup snapshot access guard missing');
+if(!perf.includes("supabase.rpc('crm_startup_snapshot',{p_client_id:cid})"))fail('startup snapshot RPC not used');
+if(!perf.includes("mode:'startup_snapshot'"))fail('startup snapshot refresh mode missing');
+if(!perf.includes("requestedView==='dashboard'"))fail('startup snapshot dashboard guard missing');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');

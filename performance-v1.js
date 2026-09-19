@@ -211,6 +211,32 @@ function installSmartLoader(){
     }
 
     const thisRefresh=(async()=>{
+      if(isStartup&&!isWorkspace&&!isFull&&requestedView==='dashboard'){
+        try{
+          const snapshotResult=await supabase.rpc('crm_startup_snapshot',{p_client_id:cid});
+          if(snapshotResult.error)throw snapshotResult.error;
+          if(String(state?.client?.id)!==String(cid))return;
+          const snapshot=snapshotResult.data||{},changed=[];
+          for(const key of startupKeys){
+            if(key==='mail'){
+              window.__LM_MAIL_COUNT=Number(snapshot.mail_count)||0;
+              state.mail=[];
+            }else state[key]=Array.isArray(snapshot[key])?snapshot[key]:[];
+            loadedAt.set(key,Date.now());
+            if(partialStartupKeys.has(key))partialLoaded.add(key);else partialLoaded.delete(key);
+            dirtyTables.delete(keyToTable[key]);
+            changed.push(key);
+          }
+          startupReady=true;lastRefreshAt=Date.now();
+          renderView(requestedView);refreshOpenSurface(changed);
+          if(changed.includes('offers'))safeCall('renderOfferPipeline');
+          updateSyncLabel(1,performance.now()-started,'startup_snapshot');
+          window.dispatchEvent(new CustomEvent('lm:data-refreshed',{detail:{keys:changed,mode:'startup_snapshot',duration_ms:Math.round(performance.now()-started),client_id:cid}}));
+          return;
+        }catch(error){
+          console.warn('startup snapshot fallback',error);
+        }
+      }
       const results=await Promise.all(keys.map(async key=>{
         const light=(isStartup||isWorkspace)&&partialStartupKeys.has(key)&&!['activity','activityReport','mail','approvals'].includes(requestedView);
         return [key,light,await queryFor(key,cid,{light})];
