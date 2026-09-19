@@ -67,13 +67,20 @@ if(!mailTemplates.includes('lm:offer-mail-opened'))fail('mail templates offer-ma
 if(!offerPdf.includes('lm:offer-mail-ready'))fail('offer PDF lifecycle wiring missing');
 const feedback=read('saas-feedback-v1.js');
 const regression=read('saas-regression-center-v1.js');
+const accessBootstrap=read('access-bootstrap-v1.js');
 if(/new\s+MutationObserver/.test(regression))fail('regression center MutationObserver returned');
 if(!feedback.includes('lm:feedback-rendered'))fail('feedback rendered lifecycle event missing');
 if(feedback.includes("lm:workspace-ready',()=>setTimeout(()=>boot(false)"))fail('feedback context fetch returned to workspace startup');
 if(feedback.includes("lm:client-data-ready',()=>setTimeout(()=>boot(false)"))fail('feedback context fetch returned to client-data startup');
 if(!feedback.includes('function mountWithoutNetwork()'))fail('feedback no-network mount missing');
-if(!app.includes('saas-feedback-v1.js?v=20260919-4'))fail('feedback cache version not bumped');
+if(app.includes('<script src="/saas-feedback-v1.js'))fail('feedback bundle returned to static startup');
 if(!regression.includes('lm:feedback-rendered'))fail('regression center lifecycle wiring missing');
+if(!feedback.includes('window.__LM_FEEDBACK_V1=true'))fail('feedback lazy-load guard missing');
+if(!feedback.includes("lm:feedback-open-request"))fail('feedback open request event missing');
+if(!accessBootstrap.includes('/saas-feedback-v1.js?v=20260919-5'))fail('feedback lazy loader missing');
+if(!accessBootstrap.includes('loadFeedback:ensureFeedbackBundle'))fail('feedback lazy loader not exposed');
+if(!accessBootstrap.includes("window.dispatchEvent(new Event('lm:feedback-open-request'))"))fail('feedback navigation does not open lazy bundle');
+if(!index.includes('<button data-view="feedback">Feedback & idéer</button>'))fail('feedback nav button not baked into index');
 const settingsHub=read('saas-settings-hub-v1.js');
 if(/new\s+MutationObserver/.test(settingsHub))fail('settings hub MutationObserver returned');
 if(!settingsHub.includes('function runMountPasses()'))fail('settings deterministic mount passes missing');
@@ -90,7 +97,7 @@ for(const source of [index,app]){
 const executive=read('executive-dashboard-v1.js');
 activeRuntime.add('executive-dashboard-v1.js');
 for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
-const lazyRuntime=['saas-onboarding-v5.js','saas-onboarding-mail-account-sync-v1.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js','saas-minuba-v1.js'];
+const lazyRuntime=['saas-onboarding-v5.js','saas-onboarding-mail-account-sync-v1.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js','saas-minuba-v1.js','saas-feedback-v1.js'];
 for(const file of lazyRuntime)activeRuntime.add(file);
 
 const intervalAllow=new Set(['executive-dashboard-v1.js']);
@@ -156,7 +163,6 @@ if(!customerControls.includes("const local=hydrateFromAccess();if(local)return l
 if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer controls cache version not bumped');
 const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
 if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
-const accessBootstrap=read('access-bootstrap-v1.js');
 if(!accessBootstrap.includes('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3'))fail('onboarding mail sync missing from onboarding lazy loader');
 if(!accessBootstrap.includes("supabase.rpc('crm_session_bootstrap')"))fail('direct session bootstrap RPC missing');
 if(accessBootstrap.includes('/functions/v1/session-bootstrap'))fail('session bootstrap Edge Function returned to startup');
@@ -165,7 +171,7 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260919-13'))fail('access bootstrap cache version not bumped');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-14'))fail('access bootstrap cache version not bumped');
 if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v5.js?v=20260919-5')"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
