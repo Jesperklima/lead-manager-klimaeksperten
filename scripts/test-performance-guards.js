@@ -89,7 +89,7 @@ for(const source of [index,app]){
 const executive=read('executive-dashboard-v1.js');
 activeRuntime.add('executive-dashboard-v1.js');
 for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
-const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js'];
+const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js'];
 for(const file of lazyRuntime)activeRuntime.add(file);
 
 const intervalAllow=new Set(['executive-dashboard-v1.js']);
@@ -163,7 +163,7 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260919-10'))fail('access bootstrap cache version not bumped');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-11'))fail('access bootstrap cache version not bumped');
 if(!accessBootstrap.includes("script.src='/saas-onboarding-v5.js?v=20260919-5'"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
@@ -183,6 +183,8 @@ if(!accessBootstrap.includes("data-view=\"leadmanager\""))fail('settings lazy na
 if(!accessBootstrap.includes('loadSettings:ensureSettingsHub'))fail('settings lazy loader not exposed');
 if(app.includes('<script src="/saas-mail-providers-v1.js'))fail('mail provider returned to static startup');
 if(!accessBootstrap.includes('/saas-mail-providers-v1.js?v=20260919-3'))fail('mail provider missing from settings lazy stack');
+if(app.includes('<script src="/saas-gmail-platform-ui-v1.js'))fail('gmail settings returned to static startup');
+if(!accessBootstrap.includes('/saas-gmail-platform-ui-v1.js?v=20260919-4'))fail('gmail settings missing from lazy settings stack');
 if(!accessBootstrap.includes('function mailOAuthCallback()'))fail('mail OAuth callback lazy-load guard missing');
 if(!accessBootstrap.includes('if(mailOAuthCallback())await ensureSettingsHub()'))fail('mail OAuth callback does not preload settings stack');
 if(app.includes('<script src="/saas-regression-center-v1.js'))fail('regression center returned to static startup');
