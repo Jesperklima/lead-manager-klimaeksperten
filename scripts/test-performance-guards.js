@@ -57,6 +57,14 @@ if(/\bsetInterval\s*\(/.test(impersonation))fail('impersonation polling returned
 if(/new\s+MutationObserver/.test(impersonation))fail('impersonation MutationObserver returned');
 if(!impersonation.includes('lm:admin-users-rendered'))fail('impersonation admin-users event wiring missing');
 if(!adminUsers.includes('lm:admin-users-rendered'))fail('admin-users rendered lifecycle event missing');
+const offerMail=read('offer-mail-v1.js');
+const mailTemplates=read('mail-templates-v1.js');
+const offerPdf=read('offer-mail-pdf-v1.js');
+if(/new\s+MutationObserver/.test(mailTemplates))fail('mail templates MutationObserver returned');
+if(/new\s+MutationObserver/.test(offerPdf))fail('offer PDF MutationObserver returned');
+if(!offerMail.includes('lm:offer-mail-opened')||!offerMail.includes('lm:offer-mail-ready'))fail('offer mail lifecycle events missing');
+if(!mailTemplates.includes('lm:offer-mail-opened'))fail('mail templates offer-mail lifecycle wiring missing');
+if(!offerPdf.includes('lm:offer-mail-ready'))fail('offer PDF lifecycle wiring missing');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup');

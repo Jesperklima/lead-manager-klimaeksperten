@@ -226,12 +226,12 @@
   document.head.appendChild(approvalScript);
 
   const offerMailScript=document.createElement('script');
-  offerMailScript.src='/offer-mail-v1.js?v=20260919-2';
+  offerMailScript.src='/offer-mail-v1.js?v=20260919-3';
   offerMailScript.defer=true;
   document.head.appendChild(offerMailScript);
 
   const mailTemplatesScript=document.createElement('script');
-  mailTemplatesScript.src='/mail-templates-v1.js?v=20260919-2';
+  mailTemplatesScript.src='/mail-templates-v1.js?v=20260919-3';
   mailTemplatesScript.defer=true;
   document.head.appendChild(mailTemplatesScript);
 })();
