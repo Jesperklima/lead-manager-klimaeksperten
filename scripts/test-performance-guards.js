@@ -51,6 +51,12 @@ if(app.includes('saas-microsoft-v1.js'))fail('obsolete standalone Microsoft UI r
 const indexObserverCount=(index.match(/new\s+MutationObserver/g)||[]).length;
 if(indexObserverCount!==0)fail('index MutationObserver count regressed: '+indexObserverCount);
 if(!index.includes("function openMailModal()")||!index.includes("function closeMailModal()"))fail('mail modal lifecycle helpers missing');
+const impersonation=read('saas-impersonation-v1.js');
+const adminUsers=read('saas-admin-users-v1.js');
+if(/\bsetInterval\s*\(/.test(impersonation))fail('impersonation polling returned');
+if(/new\s+MutationObserver/.test(impersonation))fail('impersonation MutationObserver returned');
+if(!impersonation.includes('lm:admin-users-rendered'))fail('impersonation admin-users event wiring missing');
+if(!adminUsers.includes('lm:admin-users-rendered'))fail('admin-users rendered lifecycle event missing');
 if((index.match(/lm:mail-opened/g)||[]).length<4)fail('mail-opened lifecycle wiring regressed');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup');
