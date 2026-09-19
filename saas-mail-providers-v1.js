@@ -108,11 +108,12 @@ async function connectGoogle(account){
 }
 async function removeAccount(id){if(!id||busy)return;if(!confirm('Fjern denne mailforbindelse fra Lead Manager?'))return;try{await edge('mail-provider-auth',{action:'remove',client_id:state.client.id,integration_id:id});setMessage('Mailforbindelsen er fjernet.',false,true);await check();try{if(typeof loadAll==='function')await loadAll()}catch{}}catch(e){setMessage('Kunne ikke fjerne forbindelsen: '+(e.message||e),true)}}
 function handleOAuthCallback(){const q=new URLSearchParams(location.search);const ms=q.get('microsoft'),gm=q.get('gmail')||q.get('google');if(ms){setMessage(ms==='connected'?'✓ Microsoft-kontoen er forbundet.':q.get('microsoft_message')||'Microsoft-forbindelsen fejlede.',ms!=='connected',ms==='connected');q.delete('microsoft');q.delete('microsoft_message')}if(gm){setMessage(gm==='connected'?'✓ Google-kontoen er forbundet.':q.get('gmail_message')||q.get('google_message')||'Google-forbindelsen fejlede.',gm!=='connected',gm==='connected');q.delete('gmail');q.delete('google');q.delete('gmail_message');q.delete('google_message')}const qs=q.toString();if(ms||gm)history.replaceState({},document.title,location.pathname+(qs?'?'+qs:'')+location.hash)}
-function boot(){if(inject())return;if(typeof state!=='undefined'&&state?.client&&!$('#lmMailProviderCard'))inject();const old=$('#lmMicrosoftCard');if(old&&$('#lmMailProviderCard'))old.style.display='none'}
+function activeSettings(){return !!$('#leadmanager')?.classList.contains('active')}
+function hasOAuthCallback(){const q=new URLSearchParams(location.search);return !!(q.get('microsoft')||q.get('gmail')||q.get('google'))}
+function boot(){if(!activeSettings()&&!hasOAuthCallback())return;if(inject())return;if(typeof state!=='undefined'&&state?.client&&!$('#lmMailProviderCard'))inject();const old=$('#lmMicrosoftCard');if(old&&$('#lmMailProviderCard'))old.style.display='none'}
 function schedule(){setTimeout(boot,0)}
-window.addEventListener('load',()=>setTimeout(boot,100));
+window.addEventListener('load',()=>{if(hasOAuthCallback())setTimeout(boot,100)});
 window.addEventListener('lm:client-data-ready',schedule);
 window.addEventListener('lm:client-switched',schedule);
 document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="leadmanager"]'))schedule()},true);
-setTimeout(boot,300);
 })();

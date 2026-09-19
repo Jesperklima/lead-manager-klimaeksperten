@@ -22,8 +22,8 @@ async function render(force=false){const c=card(),id=cid();if(!c||!id||busy)retu
 function activeSettings(){return !!document.getElementById('leadmanager')?.classList.contains('active')}
 function schedule(force=false,delay=0){setTimeout(()=>{if(force||activeSettings())render(force)},delay)}
 document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="leadmanager"]'))schedule(false,0)},true);
-window.addEventListener('lm:client-switched',()=>{lastKey='';lastCheckedAt=0;lastClientId='';schedule(true,60)});
-window.addEventListener('lm:mail-connected',()=>{lastKey='';lastCheckedAt=0;schedule(true,50)});
+window.addEventListener('lm:client-switched',()=>{lastKey='';lastCheckedAt=0;lastClientId='';schedule(false,60)});
+window.addEventListener('lm:mail-connected',()=>{lastKey='';lastCheckedAt=0;schedule(false,50)});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&activeSettings())schedule(false,0)});
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>schedule(true,350),{once:true});else schedule(true,350);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>schedule(false,350),{once:true});else schedule(false,350);
 })();
