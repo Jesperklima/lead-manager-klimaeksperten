@@ -96,4 +96,17 @@ for(const file of [...activeRuntime].sort()){
 }
 if(activeRuntime.size<25)fail('active runtime script audit unexpectedly small: '+activeRuntime.size);
 
-console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts');
+for(const file of [...activeRuntime].sort()){
+  const src=read(file);
+  try{new Function(src)}catch(e){fail(file+': active runtime syntax error: '+e.message)}
+}
+let inlineCount=0;
+for(const m of index.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)){
+  if(/\bsrc\s*=/.test(m[1]))continue;
+  const src=m[2].trim();if(!src)continue;
+  inlineCount++;
+  try{new Function(src)}catch(e){fail('index inline script '+inlineCount+' syntax error: '+e.message)}
+}
+if(inlineCount<10)fail('inline runtime syntax audit unexpectedly small: '+inlineCount);
+
+console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');
