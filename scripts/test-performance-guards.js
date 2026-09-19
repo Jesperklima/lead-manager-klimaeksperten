@@ -140,5 +140,10 @@ if(!app.includes('saas-platform-admin-v1.js?v=20260919-4'))fail('platform admin 
 if(adminUsers.includes('async function probe()')||adminUsers.includes('probe()'))fail('admin users startup probe returned');
 if(!adminUsers.includes('ensureCard();updateSummary()'))fail('admin users lazy card mount missing');
 if(!app.includes('saas-admin-users-v1.js?v=20260919-3'))fail('admin users cache version not bumped');
+const legalAgreement=read('legal-agreement-v1.js');
+if(legalAgreement.includes('setTimeout(refresh,1400);setTimeout(refresh,4000)'))fail('duplicate legal startup refresh returned');
+if(!legalAgreement.includes('function scheduleRefresh(delay=0)'))fail('legal refresh coalescer missing');
+if(!legalAgreement.includes('if(refreshPromise)return refreshPromise'))fail('legal in-flight coalescing missing');
+if(!app.includes('legal-agreement-v1.js?v=20260919-3'))fail('legal agreement cache version not bumped');
 
 console.log('PASS: performance guards, event-driven UI and lightweight startup · audited '+activeRuntime.size+' runtime scripts + '+inlineCount+' inline scripts');
