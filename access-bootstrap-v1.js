@@ -35,6 +35,7 @@ async function openWorkspace(access){
  showApp();
  if(document.getElementById('brandClient'))document.getElementById('brandClient').textContent=state.client.name+' · '+(access.platform_admin?'Platform admin':'Kundeworkspace');
  try{await loadAll({startup:true})}catch(loadErr){console.error('CRM dataindlæsning',loadErr);if(typeof toast==='function')toast('Workspace åbnet, men nogle data kunne ikke hentes endnu.')}
+ window.dispatchEvent(new CustomEvent('lm:workspace-ready',{detail:{client_id:state.client?.id||clientId,platform_admin:!!access.platform_admin}}));
 }
 async function controlledStartApp(){
  if(bootPromise)return bootPromise;
