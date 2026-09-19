@@ -6,7 +6,8 @@ const ADMIN_BUNDLES=[
  '/saas-compliance-admin-v1.js?v=20260919-6',
  '/saas-admin-client-switcher-v1.js?v=20260919-2',
  '/saas-admin-users-v1.js?v=20260919-3',
- '/saas-impersonation-v1.js?v=20260919-2'
+ '/saas-impersonation-v1.js?v=20260919-2',
+ '/saas-marketing-connections-v1.js?v=20260919-4'
 ];
 function loadLazyScript(src){
  return new Promise((resolve,reject)=>{

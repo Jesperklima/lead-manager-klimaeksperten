@@ -89,7 +89,7 @@ for(const source of [index,app]){
 const executive=read('executive-dashboard-v1.js');
 activeRuntime.add('executive-dashboard-v1.js');
 for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
-const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-settings-hub-v1.js'];
+const lazyRuntime=['saas-onboarding-v5.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js'];
 for(const file of lazyRuntime)activeRuntime.add(file);
 
 const intervalAllow=new Set(['executive-dashboard-v1.js']);
@@ -169,11 +169,12 @@ if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onb
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');
 if(!accessBootstrap.includes("['onboarding','denied','login'].includes(window.LM_ACCESS?.next_route||'')"))fail('rescue route guard missing');
-const adminLazyFiles=['saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js'];
+const adminLazyFiles=['saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js'];
 for(const file of adminLazyFiles)if(app.includes('<script src="/'+file))fail(file+' returned to static startup');
 for(const file of adminLazyFiles)if(!accessBootstrap.includes('/'+file+'?v='))fail(file+' missing from admin lazy loader');
 if(!accessBootstrap.includes('/saas-platform-admin-v1.js?v=20260919-4'))fail('platform admin lazy cache version missing');
 if(!accessBootstrap.includes('/saas-admin-users-v1.js?v=20260919-3'))fail('admin users lazy cache version missing');
+if(!accessBootstrap.includes('/saas-marketing-connections-v1.js?v=20260919-4'))fail('marketing connections lazy cache version missing');
 if(!accessBootstrap.includes('if(access.platform_admin)await ensureAdminBundles()'))fail('platform admin lazy-bundle gate missing');
 if(!accessBootstrap.includes('loadAdmin:ensureAdminBundles'))fail('admin lazy loader is not exposed for recovery');
 if(app.includes('<script src="/saas-settings-hub-v1.js'))fail('settings hub returned to static startup');
