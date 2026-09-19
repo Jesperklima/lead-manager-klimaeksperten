@@ -201,9 +201,17 @@
 
   function openView(view){document.querySelector(`.nav button[data-view="${view}"]`)?.click()}
 
-  document.addEventListener('click',event=>{
+  document.addEventListener('click',async event=>{
     const periodButton=event.target.closest('[data-executive-period]');
-    if(periodButton){selectedPeriod=periodButton.dataset.executivePeriod;renderExecutiveDashboard();return}
+    if(periodButton){
+      selectedPeriod=periodButton.dataset.executivePeriod;
+      const partialActivities=window.__LM_PERF?.getPartialKeys?.().includes('activities');
+      if(selectedPeriod==='all'&&partialActivities){
+        periodButton.disabled=true;
+        try{await window.__LM_PERF.refreshKeys('activities')}finally{periodButton.disabled=false}
+      }
+      renderExecutiveDashboard();return
+    }
     const leadButton=event.target.closest('[data-executive-lead]');
     if(leadButton&&typeof openLead==='function'){openLead(leadButton.dataset.executiveLead);return}
     const offerButton=event.target.closest('[data-executive-offer]');
