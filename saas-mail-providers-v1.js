@@ -97,7 +97,7 @@ async function connect(){
   const payload={action:'save',client_id:state.client.id,provider_key:key,account,username,password,read_enabled:$('#lmMailRead').checked,send_enabled:$('#lmMailSend').checked,save_sent:$('#lmMailSaveSent').checked};
   if(key==='manual')Object.assign(payload,{provider_label:'Anden mailudbyder',imap_host:$('#lmMailImapHost').value.trim(),imap_port:Number($('#lmMailImapPort').value),imap_security:$('#lmMailImapSecurity').value,smtp_host:$('#lmMailSmtpHost').value.trim(),smtp_port:Number($('#lmMailSmtpPort').value),smtp_security:$('#lmMailSmtpSecurity').value});
   setBusy(true,'Tester forbindelse…');setMessage('Tester login hos mailudbyderen. Intet gemmes, før testen er godkendt.');
-  try{const d=await edge('mail-provider-auth',payload);$('#lmMailPassword').value='';setMessage(`✓ ${d.provider||p.label} er forbundet som ${d.account}. Indgående og udgående forbindelse er testet.`,false,true);await check();try{if(typeof loadAll==='function')await loadAll()}catch{}}
+  try{const d=await edge('mail-provider-auth',payload);$('#lmMailPassword').value='';setMessage(`✓ ${d.provider||p.label} er forbundet som ${d.account}. Indgående og udgående forbindelse er testet.`,false,true);await check();try{if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('integrations');else if(typeof loadAll==='function')await loadAll({keys:['integrations'],force:true})}catch{}}
   catch(e){setMessage('Forbindelsen blev ikke gemt: '+(e.message||e),true)}finally{setBusy(false)}
 }
 
@@ -109,5 +109,10 @@ async function connectGoogle(account){
 async function removeAccount(id){if(!id||busy)return;if(!confirm('Fjern denne mailforbindelse fra Lead Manager?'))return;try{await edge('mail-provider-auth',{action:'remove',client_id:state.client.id,integration_id:id});setMessage('Mailforbindelsen er fjernet.',false,true);await check();try{if(typeof loadAll==='function')await loadAll()}catch{}}catch(e){setMessage('Kunne ikke fjerne forbindelsen: '+(e.message||e),true)}}
 function handleOAuthCallback(){const q=new URLSearchParams(location.search);const ms=q.get('microsoft'),gm=q.get('gmail')||q.get('google');if(ms){setMessage(ms==='connected'?'✓ Microsoft-kontoen er forbundet.':q.get('microsoft_message')||'Microsoft-forbindelsen fejlede.',ms!=='connected',ms==='connected');q.delete('microsoft');q.delete('microsoft_message')}if(gm){setMessage(gm==='connected'?'✓ Google-kontoen er forbundet.':q.get('gmail_message')||q.get('google_message')||'Google-forbindelsen fejlede.',gm!=='connected',gm==='connected');q.delete('gmail');q.delete('google');q.delete('gmail_message');q.delete('google_message')}const qs=q.toString();if(ms||gm)history.replaceState({},document.title,location.pathname+(qs?'?'+qs:'')+location.hash)}
 function boot(){if(inject())return;if(typeof state!=='undefined'&&state?.client&&!$('#lmMailProviderCard'))inject();const old=$('#lmMicrosoftCard');if(old&&$('#lmMailProviderCard'))old.style.display='none'}
-window.addEventListener('load',()=>setTimeout(boot,100));setTimeout(boot,300);let tries=0;const timer=setInterval(()=>{tries++;boot();if($('#lmMailProviderCard')||tries>40)clearInterval(timer)},400);
+function schedule(){setTimeout(boot,0)}
+window.addEventListener('load',()=>setTimeout(boot,100));
+window.addEventListener('lm:client-data-ready',schedule);
+window.addEventListener('lm:client-switched',schedule);
+document.addEventListener('click',e=>{if(e.target.closest?.('.nav button[data-view="leadmanager"]'))schedule()},true);
+setTimeout(boot,300);
 })();
