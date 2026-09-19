@@ -131,7 +131,10 @@ const onboarding=read('saas-onboarding-v5.js');
 if(onboarding.includes('setTimeout(boot,0);setTimeout(boot,500);setTimeout(boot,1500)'))fail('onboarding startup retry burst returned');
 if(onboarding.includes("if(ev==='SIGNED_IN'&&s){setTimeout(boot,0)"))fail('onboarding SIGNED_IN retry burst returned');
 if(!onboarding.includes("lm:central-onboarding-required"))fail('central onboarding trigger missing');
-if(!app.includes('saas-onboarding-v5.js?v=20260919-3'))fail('onboarding asset cache version not bumped');
+if(app.includes('<script src="/saas-onboarding-v5.js'))fail('onboarding bundle returned to static startup');
+if(!onboarding.includes('window.__LM_ONBOARDING_V5=true'))fail('onboarding lazy-load guard missing');
+if(!onboarding.includes('window.__LM_ONBOARDING_CLAIM_PROMISE=claim()'))fail('onboarding invite claim promise missing');
+try{new Function(onboarding)}catch(e){fail('lazy onboarding syntax error: '+e.message)}
 const platformAdmin=read('saas-platform-admin-v1.js');
 if(platformAdmin.includes("supabase.rpc('crm_is_platform_admin'"))fail('platform-admin permission RPC returned');
 if(platformAdmin.includes('style();await loadSettings()'))fail('platform system-mail status returned to startup');
@@ -160,7 +163,10 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260919-4'))fail('access bootstrap cache version not bumped');
+if(!app.includes('access-bootstrap-v1.js?v=20260919-5'))fail('access bootstrap cache version not bumped');
+if(!accessBootstrap.includes("script.src='/saas-onboarding-v5.js?v=20260919-5'"))fail('lazy onboarding loader missing');
+if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
+if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 const startupSnapshotMigration=read('supabase/migrations/20260919154500_startup_snapshot_rpc.sql');
 if(!startupSnapshotMigration.includes('crm_startup_snapshot(p_client_id uuid)'))fail('startup snapshot RPC migration missing');
 if(!startupSnapshotMigration.includes('crm_has_client_access(p_client_id)'))fail('startup snapshot access guard missing');
