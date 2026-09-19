@@ -40,7 +40,7 @@
       const data=result?.data??result;
       if(!data?.ok)throw new Error(data?.error||'Mailen kunne ikke sendes.');
       byId('offerMailModal')?.classList.remove('open');
-      if(typeof loadAll==='function')await loadAll();
+      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});
       if(typeof openOffer==='function')openOffer(o.id);
       if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name}`);
     }catch(error){
