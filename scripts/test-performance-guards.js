@@ -46,11 +46,21 @@ if(index.includes("if(busy&&!force||!name)return"))fail('lead drawer allows forc
 if(!index.includes("if(busy||!name)return"))fail('lead drawer in-flight dedupe guard missing');
 if(!index.includes("state?.companies||[]"))fail('lead drawer no longer reuses in-memory company data');
 
+const customerControls=read('saas-customer-controls-v1.js');
+if(!customerControls.includes('__LM_CUSTOMER_CONTEXT'))fail('shared customer context cache missing');
+if(!customerControls.includes('bootPromise'))fail('customer context request dedupe missing');
+if(/functions\/v1\/saas-onboarding/.test(read('saas-feedback-v1.js')))fail('feedback performs duplicate onboarding status request');
+if(/functions\/v1\/saas-onboarding/.test(read('saas-regression-center-v1.js')))fail('regression center performs duplicate onboarding status request');
+if(!read('saas-settings-hub-v1.js').includes('if(settingsActive())loadBilling(false)'))fail('billing is no longer lazy');
+if(!read('saas-compliance-admin-v1.js').includes('lm:system-opened'))fail('compliance is no longer lazy to System view');
+if(!read('saas-gmail-platform-ui-v1.js').includes('setTimeout(()=>refresh(true),500)'))fail('Gmail status startup lazy guard missing');
+
 const app=read('api/app.js');
 for(const file of [
   'saas-gmail-platform-ui-v1.js','saas-credit-check-v1.js','saas-mail-providers-v1.js',
   'saas-minuba-v1.js','saas-microsoft-v1.js','saas-marketing-connections-v1.js',
-  'offer-date-save-v1.js','date-picker-click-v1.js','offer-mail-pdf-v1.js'
+  'offer-date-save-v1.js','date-picker-click-v1.js','offer-mail-pdf-v1.js','saas-platform-admin-v1.js',
+  'legal-agreement-v1.js','saas-customer-controls-v1.js','saas-feedback-v1.js','saas-regression-center-v1.js','saas-settings-hub-v1.js'
 ]){
   if(!app.includes('/'+file+'?v=20260919-opt2'))fail(file+': optimized cache version missing from app shell');
 }
