@@ -1,15 +1,12 @@
 (()=>{
 'use strict';
-const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
-const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 let bootPromise=null,rescuePromise=null;
 async function centralBootstrap(){
  const {data:{session}}=await supabase.auth.getSession();
  if(!session?.access_token)return {authenticated:false,next_route:'login'};
- const r=await fetch(API+'/functions/v1/session-bootstrap',{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+session.access_token,'Content-Type':'application/json'},body:'{}'});
- const raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={error:raw}};
- if(!r.ok)throw new Error(d.error||('Adgangskontrol fejlede ('+r.status+')'));
- return d;
+ const {data,error}=await supabase.rpc('crm_session_bootstrap');
+ if(error)throw new Error(error.message||'Adgangskontrol fejlede');
+ return data||{authenticated:false,next_route:'login'};
 }
 async function openWorkspace(access){
  let clientId=access.workspace_id||null;
@@ -19,17 +16,20 @@ async function openWorkspace(access){
   if(preferred)clientId=preferred;
  }
  if(!clientId)throw new Error('Intet workspace kunne vælges.');
- let [cr,maps]=await Promise.all([
-  supabase.from('crm_clients').select('*').eq('id',clientId),
-  supabase.from('crm_users').select('*').eq('email',email)
- ]);
+ let cr=null;
+ if(!access.platform_admin&&access.client&&String(access.client.id)===String(clientId)){
+  cr={data:[access.client],error:null};
+ }else{
+  cr=await supabase.from('crm_clients').select('*').eq('id',clientId);
+ }
  if((cr.error||!cr.data?.length)&&access.platform_admin&&access.workspace_id&&String(access.workspace_id)!==String(clientId)){
   clientId=access.workspace_id;
   cr=await supabase.from('crm_clients').select('*').eq('id',clientId);
  }
  if(cr.error||!cr.data?.length)throw new Error(cr.error?.message||'Workspace kunne ikke hentes');
  state.client=cr.data[0];
- state.userMap=maps.data?.find(x=>x.client_id===clientId)||maps.data?.[0]||null;
+ const fallbackRole=access.platform_admin?'platform_admin':access.role==='workspace_owner'?'owner':access.role==='workspace_admin'?'admin':'member';
+ state.userMap=access.membership||{email,client_id:clientId,role:fallbackRole,active:true,auth_user_id:state.session?.user?.id||null};
  document.body.dataset.lmRole=access.role||'';document.body.dataset.lmPlatformAdmin=access.platform_admin?'1':'0';
  document.getElementById('lmOb4')?.remove();document.getElementById('lmObError')?.remove();document.getElementById('lmBootRescueError')?.remove();
  showApp();
