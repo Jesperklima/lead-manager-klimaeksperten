@@ -25,5 +25,5 @@ window.addEventListener('lm:client-data-ready',()=>setTimeout(()=>refresh(true),
 window.addEventListener('lm:mail-connected',()=>{lastKey='';refresh(true)});
 window.addEventListener('focus',()=>refresh(false));
 document.querySelector('.nav')?.addEventListener('click',e=>{if(e.target.closest?.('[data-view="leadmanager"]'))setTimeout(()=>refresh(false),0)});
-setTimeout(()=>render(true),500);
+setTimeout(()=>refresh(true),500);
 })();
