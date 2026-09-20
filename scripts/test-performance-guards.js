@@ -193,7 +193,7 @@ if(!accessBootstrap.includes('access.client&&String(access.client.id)===String(c
 const sessionClientMigration=read('supabase/migrations/20260919152500_session_bootstrap_client_context.sql');
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
-if(!app.includes('access-bootstrap-v1.js?v=20260920-2'))fail('access bootstrap cache version not bumped');
+if(!app.includes('access-bootstrap-v1.js?v=20260920-3'))fail('access bootstrap cache version not bumped');
 if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-7')"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
@@ -208,7 +208,7 @@ if(!accessBootstrap.includes('/saas-marketing-connections-v1.js?v=20260919-4'))f
 if(!accessBootstrap.includes('if(access.platform_admin)await ensureAdminBundles()'))fail('platform admin lazy-bundle gate missing');
 if(!accessBootstrap.includes('loadAdmin:ensureAdminBundles'))fail('admin lazy loader is not exposed for recovery');
 if(app.includes('<script src="/saas-settings-hub-v1.js'))fail('settings hub returned to static startup');
-if(!accessBootstrap.includes("/saas-settings-hub-v1.js?v=20260919-14"))fail('settings hub lazy loader missing');
+if(!accessBootstrap.includes("/saas-settings-hub-v1.js?v=20260920-15"))fail('settings hub lazy loader missing');
 if(!accessBootstrap.includes("data-view=\"leadmanager\""))fail('settings lazy navigation hook missing');
 if(!accessBootstrap.includes('loadSettings:ensureSettingsHub'))fail('settings lazy loader not exposed');
 if(app.includes('<script src="/saas-mail-providers-v1.js'))fail('mail provider returned to static startup');
