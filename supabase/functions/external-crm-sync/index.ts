@@ -8,7 +8,7 @@ const cors={
 const json=(b:any,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
 const clean=(v:any,n=4000)=>String(v??'').trim().slice(0,n);
 const lower=(v:any)=>clean(v,1000).toLowerCase();
-const PROVIDERS=new Set(['crm_webhook','hubspot']);
+const PROVIDERS=new Set(['crm_webhook','hubspot','pipedrive','dynamics365','salesforce']);
 
 function randomSecret(bytes=32){
   const a=new Uint8Array(bytes);crypto.getRandomValues(a);return [...a].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -197,6 +197,116 @@ async function syncHubSpot(admin:any,job:any,integration:any,secret:any){
   }
   return {remote_id:remoteId,remote_url:remoteUrl};
 }
+
+async function pdFetch(token:string,path:string,init:any={}){
+  const u=new URL('https://api.pipedrive.com'+path);
+  u.searchParams.set('api_token',token);
+  const r=await fetch(u.toString(),{...init,headers:{'Content-Type':'application/json',...(init.headers||{})}});
+  const d=await parseJson(r);
+  if(!r.ok||d?.success===false)throw Object.assign(new Error(clean(d?.error||d?.error_info||('Pipedrive HTTP '+r.status),1200)),{status:r.status,body:d});
+  return d;
+}
+function inferPipedriveStages(d:any){
+  const stages=Array.isArray(d?.data)?d.data:[];
+  const ordered=[...stages].sort((a:any,b:any)=>Number(a.order_nr||0)-Number(b.order_nr||0));
+  const open=ordered[0]||null;
+  return {pipeline_id:open?.pipeline_id||null,open_stage_id:open?.id||null,stages:ordered.map((x:any)=>({id:x.id,name:x.name,pipeline_id:x.pipeline_id,order_nr:x.order_nr}))};
+}
+async function testPipedrive(token:string){
+  const me=await pdFetch(token,'/api/v1/users/me');
+  const stages=await pdFetch(token,'/api/v2/stages?limit=500');
+  return {account:me?.data||{},...inferPipedriveStages(stages)};
+}
+function pdEntity(entityType:string){return entityType==='company'?'organizations':entityType==='contact'?'persons':'deals'}
+function pdSearchId(d:any){return String(d?.data?.items?.[0]?.item?.id||d?.data?.[0]?.id||'')||null}
+function pdScalar(v:any){
+  if(Array.isArray(v)){const x=v.find((q:any)=>q?.primary)||v[0];return clean(x?.value??x,1000)}
+  return clean(v,1000);
+}
+async function pdSearch(token:string,entityType:string,row:any){
+  let term='',fields='';
+  if(entityType==='company'){term=clean(row.name,400);fields='name'}
+  else if(entityType==='contact'){term=clean(row.email,400);fields='email'}
+  else{term=clean((row.company?.name||'Lead')+(row.source?' · '+row.source:''),400);fields='title'}
+  if(!term)return null;
+  const d=await pdFetch(token,`/api/v2/${pdEntity(entityType)}/search?term=${encodeURIComponent(term)}&fields=${fields}&exact_match=true&limit=1`);
+  return pdSearchId(d);
+}
+async function pdProps(admin:any,integration:any,entityType:string,row:any){
+  if(entityType==='company')return stripUndefined({name:row.name||'',address:row.address||undefined});
+  if(entityType==='contact'){
+    let orgId:any=undefined;
+    if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();orgId=co?.remote_id?Number(co.remote_id):undefined}
+    return stripUndefined({name:row.full_name||row.email||'Kontakt',email:row.email?[{value:row.email,primary:true}]:undefined,phone:row.phone?[{value:row.phone,primary:true}]:undefined,job_title:row.title||undefined,org_id:orgId});
+  }
+  let orgId:any=undefined;
+  if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();orgId=co?.remote_id?Number(co.remote_id):undefined}
+  const st=clean(row.status).toUpperCase();
+  return stripUndefined({
+    title:(row.company?.name||'Lead')+(row.source?' · '+row.source:''),
+    org_id:orgId,
+    pipeline_id:integration.config?.pipeline_id?Number(integration.config.pipeline_id):undefined,
+    stage_id:integration.config?.open_stage_id?Number(integration.config.open_stage_id):undefined,
+    value:row.won_value!=null?Number(row.won_value):undefined,
+    status:st==='VUNDET'?'won':['TABT','LUKKET','LUKKET – UDSKUDT'].includes(st)?'lost':'open',
+    lost_reason:st==='TABT'&&row.loss_reason?row.loss_reason:undefined
+  });
+}
+async function syncPipedrive(admin:any,job:any,integration:any,secret:any){
+  const token=clean(secret.api_token,4000);if(!token)throw new Error('Pipedrive API-token mangler');
+  const {data:link}=await admin.from('crm_external_entity_links').select('*').eq('integration_id',integration.id).eq('entity_type',job.entity_type).eq('local_id',job.local_id).maybeSingle();
+  const entity=pdEntity(job.entity_type);
+  if(job.operation==='delete'){
+    if(link?.remote_id){
+      try{await pdFetch(token,`/api/v1/${entity}/${encodeURIComponent(link.remote_id)}`,{method:'DELETE'})}catch(e:any){if(e?.status!==404)throw e}
+      await admin.from('crm_external_entity_links').delete().eq('id',link.id);
+    }
+    return {remote_id:link?.remote_id||null,deleted:true};
+  }
+  const row=await loadEntity(admin,job);if(!row)return {skipped:true,reason:'local_missing'};
+  const props=await pdProps(admin,integration,job.entity_type,row);
+  let remoteId=link?.remote_id||null;
+  if(!remoteId)remoteId=await pdSearch(token,job.entity_type,row);
+  let remote:any;
+  if(remoteId)remote=await pdFetch(token,`/api/v1/${entity}/${encodeURIComponent(remoteId)}`,{method:'PUT',body:JSON.stringify(props)});
+  else remote=await pdFetch(token,`/api/v1/${entity}`,{method:'POST',body:JSON.stringify(props)});
+  remoteId=String(remote?.data?.id||remoteId||'');if(!remoteId)throw new Error('Pipedrive returnerede ikke record-id');
+  const domain=clean(integration.config?.company_domain,300).replace(/^https?:\/\//,'').replace(/\/$/,'');
+  const singular=job.entity_type==='company'?'organization':job.entity_type==='contact'?'person':'deal';
+  const remoteUrl=domain?`https://${domain}/${singular}/${remoteId}`:null;
+  await upsertLink(admin,job,remoteId,remoteUrl,{provider:'pipedrive'});
+  return {remote_id:remoteId,remote_url:remoteUrl};
+}
+function pdInboundData(entityType:string,r:any){
+  if(entityType==='company')return {name:r.name,phone:pdScalar(r.phone),address:typeof r.address==='string'?r.address:r.address?.value,website_url:pdScalar(r.website)};
+  if(entityType==='contact')return {full_name:r.name,email:pdScalar(r.email),phone:pdScalar(r.phone),title:r.job_title};
+  const out:any={};const st=clean(r.status).toLowerCase();
+  if(st==='won')out.status='VUNDET';if(st==='lost')out.status='TABT';if(r.value!=null&&r.value!=='')out.won_value=r.value;if(r.lost_reason)out.loss_reason=r.lost_reason;return out;
+}
+async function pullPipedrive(admin:any,integration:any,secret:any){
+  const cfg=integration.config||{},last=cfg.last_inbound_poll_at?new Date(cfg.last_inbound_poll_at).getTime():0;
+  if(Date.now()-last<15*60000)return {skipped:true};
+  const token=clean(secret.api_token,4000);if(!token)return {skipped:true,reason:'token_missing'};
+  const groups:any={company:[],contact:[],lead:[]};
+  const {data:links,error}=await admin.from('crm_external_entity_links').select('entity_type,remote_id').eq('integration_id',integration.id).limit(300);
+  if(error)throw error;for(const l of links||[])if(groups[l.entity_type])groups[l.entity_type].push(l.remote_id);
+  let applied=0;
+  for(const [entityType,ids] of Object.entries(groups) as any){
+    if(!ids.length)continue;
+    const entity=pdEntity(entityType);
+    for(let i=0;i<ids.length;i+=100){
+      const d=await pdFetch(token,`/api/v2/${entity}?ids=${ids.slice(i,i+100).map((x:string)=>encodeURIComponent(x)).join(',')}&limit=100`);
+      for(const r of d?.data||[]){
+        const data=stripUndefined(pdInboundData(entityType,r));if(!Object.keys(data).length)continue;
+        const x=await admin.rpc('crm_apply_external_crm_inbound',{p_integration_id:integration.id,p_entity_type:entityType,p_remote_id:String(r.id),p_data:data});
+        if(x.error)throw x.error;if(x.data?.ok)applied++;
+      }
+    }
+  }
+  await admin.from('crm_integrations').update({config:{...cfg,last_inbound_poll_at:new Date().toISOString()},updated_at:new Date().toISOString()}).eq('id',integration.id);
+  return {applied};
+}
+
 async function syncWebhook(admin:any,job:any,integration:any,secret:any){
   const endpoint=clean(integration.config?.endpoint_url,3000);if(!/^https:\/\//i.test(endpoint))throw new Error('Webhook endpoint mangler eller er ikke HTTPS');
   const row=job.operation==='delete'?null:await loadEntity(admin,job);
@@ -230,6 +340,7 @@ async function processJob(admin:any,job:any){
   const secret=await getSecret(admin,integration.id);
   let result:any;
   if(integration.provider==='hubspot')result=await syncHubSpot(admin,job,integration,secret);
+  else if(integration.provider==='pipedrive')result=await syncPipedrive(admin,job,integration,secret);
   else if(integration.provider==='crm_webhook')result=await syncWebhook(admin,job,integration,secret);
   else throw new Error('Provider er ikke implementeret endnu: '+integration.provider);
   await logJob(admin,job,'done','CRM sync completed',result||{});
@@ -330,7 +441,7 @@ Deno.serve(async(req:Request)=>{
 
     const a=action==='status'?await actor(admin,req,clientId):await requireManage(admin,req,clientId);
     if(action==='status'){
-      const {data:rows,error:re}=await admin.from('crm_integrations').select('id,provider,account,status,config,last_sync_at,last_error,updated_at').eq('client_id',a.clientId).in('provider',['crm_webhook','hubspot']);
+      const {data:rows,error:re}=await admin.from('crm_integrations').select('id,provider,account,status,config,last_sync_at,last_error,updated_at').eq('client_id',a.clientId).in('provider',['crm_webhook','hubspot','pipedrive']);
       if(re)throw re;
       const {count:links,error:le}=await admin.from('crm_external_entity_links').select('id',{count:'exact',head:true}).eq('client_id',a.clientId);if(le)throw le;
       const counts:any={queued:0,running:0,error:0,dead:0};
@@ -347,6 +458,16 @@ Deno.serve(async(req:Request)=>{
       await saveSecret(admin,integration.id,{token});
       const queued=await queueFullResync(admin,a.clientId,integration.id);
       return json({ok:true,provider:'hubspot',integration_id:integration.id,account:integration.account,queued,pipelines:t.pipelines,config:cfg});
+    }
+
+    if(action==='connect_pipedrive'){
+      const token=clean(body.api_token,4000);if(!token)return json({error:'Pipedrive API-token mangler'},400);
+      const t=await testPipedrive(token),account=t.account||{},domain=clean(account.company_domain||account.company?.domain,300);
+      const cfg={mode:'api_token',company_domain:domain,pipeline_id:t.pipeline_id,open_stage_id:t.open_stage_id,sync_companies:true,sync_contacts:true,sync_leads:true,last_inbound_poll_at:null};
+      const integration=await ensureIntegration(admin,a.clientId,'pipedrive',clean(account.company_name||account.name||('Pipedrive '+domain),300),'connected',cfg);
+      await saveSecret(admin,integration.id,{api_token:token});
+      const queued=await queueFullResync(admin,a.clientId,integration.id);
+      return json({ok:true,provider:'pipedrive',integration_id:integration.id,account:integration.account,queued,stages:t.stages,config:cfg});
     }
 
     if(action==='connect_webhook'){
@@ -368,6 +489,7 @@ Deno.serve(async(req:Request)=>{
       const integration=await getIntegration(admin,a.clientId,undefined,clean(body.integration_id,100));if(!integration)return json({error:'CRM-forbindelsen findes ikke'},404);
       const secret=await getSecret(admin,integration.id);
       if(integration.provider==='hubspot'){const t=await testHubSpot(clean(secret.token,4000));return json({ok:true,provider:'hubspot',hub_id:t.account?.portalId||t.account?.hubId||null,pipelines:t.pipelines})}
+      if(integration.provider==='pipedrive'){const t=await testPipedrive(clean(secret.api_token,4000));return json({ok:true,provider:'pipedrive',company_domain:t.account?.company_domain||null,stages:t.stages})}
       if(integration.provider==='crm_webhook'){
         const endpoint=clean(integration.config?.endpoint_url,3000),b=JSON.stringify({version:1,event:'ping',source:'lead_manager',occurred_at:new Date().toISOString()});
         const headers:any={'Content-Type':'application/json','X-Lead-Manager-Signature':'sha256='+await hmacHex(clean(secret.outbound_secret,4000),b)};
