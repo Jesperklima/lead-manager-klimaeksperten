@@ -31,8 +31,7 @@ function ensureAdminBundles(){
 }
 function ensureSettingsHub(){
  if(settingsHubPromise)return settingsHubPromise;
- const scripts=['/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3','/saas-mail-sender-name-v1.js?v=20260919-3','/saas-crm-integrations-v1.js?v=20260920-8','/saas-website-intake-v1.js?v=20260920-1','/saas-integrations-overview-v2.js?v=20260920-1'];
- if(window.LM_ACCESS?.platform_admin!==true)scripts.unshift('/saas-settings-hub-v1.js?v=20260919-14');
+ const scripts=['/saas-settings-hub-v1.js?v=20260920-15','/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3','/saas-mail-sender-name-v1.js?v=20260919-3','/saas-crm-integrations-v1.js?v=20260920-8','/saas-website-intake-v1.js?v=20260920-1','/saas-integrations-overview-v2.js?v=20260920-1'];
  settingsHubPromise=Promise.all(scripts.map(loadLazyScript)).catch(error=>{settingsHubPromise=null;throw error});
  return settingsHubPromise;
 }
@@ -190,9 +189,38 @@ async function rescueActiveWorkspace(){
 }
 startApp=controlledStartApp;
 window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadMfa:ensureMfaGate,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle,loadCredit:ensureCreditCheck,loadOfferSearch:ensureOfferSearch};
+let navEpoch=0;
+function markNavIntent(view){
+ const intent={view:String(view||''),epoch:++navEpoch,at:Date.now()};
+ window.__LM_NAV_INTENT=intent;
+ return intent;
+}
+function currentNavIntent(){return window.__LM_NAV_INTENT||{view:document.querySelector('.nav button[data-view].active')?.dataset?.view||'',epoch:navEpoch}}
+function navIntentMatches(view,epoch){
+ const intent=currentNavIntent();
+ return intent.view===view&&(epoch==null||intent.epoch===epoch);
+}
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('.nav button[data-view]');
+ if(button)markNavIntent(button.dataset.view);
+},true);
+window.LMNavigation={mark:markNavIntent,current:currentNavIntent,matches:navIntentMatches};
+
 document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
-document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="feedback"]'))return;ensureFeedbackBundle().then(()=>window.dispatchEvent(new Event('lm:feedback-open-request'))).catch(error=>console.warn('feedback lazy load',error))},true);
-document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="creditcheck"]'))return;ensureCreditCheck().then(()=>window.dispatchEvent(new CustomEvent('lm:creditcheck-open-request'))).catch(error=>console.warn('credit check lazy load',error))},true);
+document.addEventListener('click',event=>{
+ if(!event.target.closest?.('.nav button[data-view="feedback"]'))return;
+ const intent=currentNavIntent();
+ ensureFeedbackBundle().then(()=>{
+  if(navIntentMatches('feedback',intent.epoch))window.dispatchEvent(new CustomEvent('lm:feedback-open-request',{detail:{nav_epoch:intent.epoch}}));
+ }).catch(error=>console.warn('feedback lazy load',error));
+},true);
+document.addEventListener('click',event=>{
+ if(!event.target.closest?.('.nav button[data-view="creditcheck"]'))return;
+ const intent=currentNavIntent();
+ ensureCreditCheck().then(()=>{
+  if(navIntentMatches('creditcheck',intent.epoch))window.dispatchEvent(new CustomEvent('lm:creditcheck-open-request',{detail:{nav_epoch:intent.epoch}}));
+ }).catch(error=>console.warn('credit check lazy load',error));
+},true);
 window.addEventListener('lm:lead-opened',()=>ensureCreditCheck().catch(error=>console.warn('credit check lead load',error)));
 document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="offers"],.nav button[data-view="offerpipeline"],[data-open-offer],.offer-pipe-card,[data-executive-offer]'))return;ensureOfferSearch().catch(error=>console.warn('offer search lazy load',error))},true);
 async function initAccessBootstrap(){

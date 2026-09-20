@@ -31,9 +31,10 @@ async function boot(force=false){
   bootPromise=(async()=>{try{const s=await session();if(!s)return null;const r=await fetch(API+'/functions/v1/saas-onboarding',{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify({action:'status'})}),raw=await r.text();if(!r.ok)return null;ctx=raw?JSON.parse(raw):null;bootedClient=cid;window.__LM_FEEDBACK_CTX=ctx;inject();return ctx}catch(e){console.warn('feedback boot',e);return null}})();
   try{return await bootPromise}finally{bootPromise=null}
 }
-async function openRequested(){await boot(false);inject();openFeedback()}
+function navIntentMatches(view,epoch){return !epoch||(window.LMNavigation?.matches?window.LMNavigation.matches(view,epoch):window.__LM_NAV_INTENT?.view===view&&window.__LM_NAV_INTENT?.epoch===epoch)}
+async function openRequested(detail={}){const epoch=detail?.nav_epoch||null;await boot(false);inject();if(!navIntentMatches('feedback',epoch))return;openFeedback()}
 function mountWithoutNetwork(){try{if(typeof state!=='undefined'&&state?.client)inject()}catch{}}
-window.addEventListener('lm:feedback-open-request',()=>{openRequested().catch(e=>console.warn('feedback open',e))});
+window.addEventListener('lm:feedback-open-request',e=>{openRequested(e?.detail||{}).catch(error=>console.warn('feedback open',error))});
 window.LMFeedback={open:openRequested,boot};
 rememberView();
 window.addEventListener('lm:workspace-ready',()=>setTimeout(mountWithoutNetwork,0));
