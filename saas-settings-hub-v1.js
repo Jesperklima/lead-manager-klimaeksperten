@@ -4,7 +4,8 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let mountRun=0,currentTab='leads',scheduled=false,billingState=null,billingLoading=false,billingError='';
 
-function isCustomer(){return window.LM_ACCESS?.authenticated===true&&window.LM_ACCESS?.platform_admin!==true}
+function isCustomer(){return window.LM_ACCESS?.authenticated===true&&typeof state!=='undefined'&&!!state?.client}
+function isPlatformAdmin(){return window.LM_ACCESS?.platform_admin===true}
 function fmtKr(ore){return new Intl.NumberFormat('da-DK',{minimumFractionDigits:0,maximumFractionDigits:2}).format((Number(ore)||0)/100)+' kr./md.'}
 function fmtDate(v){if(!v)return'—';try{return new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(v))}catch{return String(v)}}
 function planName(v){return v==='start'?'Start':v==='pro'?'Pro':v==='business'?'Business':String(v||'—')}
@@ -222,7 +223,7 @@ function selectTab(tab){
 }
 
 function removeCustomerAdminUi(){
-  if(!isCustomer())return;
+  if(!isCustomer()||isPlatformAdmin())return;
   const cmd=$('#lmCommand'),grid=cmd?.closest('.grid2');if(grid)grid.style.display='none';
   const ai=$('#openaiApiKey')?.closest('.card.section');if(ai)ai.style.display='none';
   $('#lmSettingsMarketingHeading')?.remove();
@@ -256,8 +257,8 @@ function polishMail(){
 
 function renderAccount(){
   const card=$('#lmSettingsAccountCard');if(!card||typeof state==='undefined'||!state?.client)return;
-  const cl=state.client||{},s=cl.settings||{},role=window.LM_ACCESS?.role||'workspace_user';
-  const roleName=role==='workspace_owner'?'Ejer':role==='workspace_admin'?'Administrator':'Bruger';
+  const cl=state.client||{},s=cl.settings||{},role=window.LM_ACCESS?.role||'workspace_user',platformAdmin=isPlatformAdmin();
+  const roleName=platformAdmin?'Platform owner':role==='workspace_owner'?'Ejer':role==='workspace_admin'?'Administrator':'Bruger';
   const sub=billingState?.subscription||null,current=billingState?.current_plan||sub?.plan_code||window.__LM_SAAS_PLAN?.plan_code||'start';
   const price=sub?.monthly_price_ore??({start:14900,pro:19900,business:24900}[current]||0);
   const locked=!!(sub?.lock_until&&new Date(sub.lock_until).getTime()>Date.now());
@@ -291,6 +292,7 @@ function renderAccount(){
       <div class="lm-account-item"><span>Workspace</span><strong>${esc(cl.name||window.LM_ACCESS?.workspace_name||'—')}</strong></div>
     </div>
 
+    ${platformAdmin?'<div class="lm-settings-note"><strong>Platformvisning.</strong> Du administrerer kundens workspace-indstillinger. Abonnementsændringer foretages ikke fra kundens indstillingsside.</div>':`
     <div class="lm-subscription">
       <div class="lm-subscription-head">
         <div><h3>Abonnement</h3><div class="sub">Se jeres aktuelle pakke, sammenlign indhold og skift pakke.</div></div>
@@ -325,7 +327,7 @@ function renderAccount(){
           <div class="lm-billing-doc-amount"><strong>${esc(fmtKr(d.amount_ore).replace('/md.',''))}</strong><div class="sub">${d.status==='scheduled'?'Planlagt':'Registreret'}</div></div>
         </div>
       `).join('')}</div>`:''}
-    </div>
+    </div>`}
 
     <div class="lm-settings-note">Virksomhedsoplysninger fra onboarding bruges som grundlag for Lead Manager. Leadkriterier ændres under fanen <strong>Leads</strong>, og mailopsætning ændres under <strong>Mail</strong>.</div>
   `;
@@ -337,6 +339,7 @@ function renderAccount(){
 }
 
 async function loadBilling(force=false){
+  if(isPlatformAdmin()){billingLoading=false;billingError='';billingState=null;renderAccount();return}
   if(billingLoading||(!force&&billingState))return;
   billingLoading=true;billingError='';renderAccount();
   try{billingState=await planEdge({action:'status'})}
