@@ -70,7 +70,7 @@ function onboardingToken(){return new URLSearchParams(location.search).get('onbo
 function ensureOnboardingScript(){
  if(onboardingScriptPromise)return onboardingScriptPromise;
  onboardingScriptPromise=(async()=>{
-  if(!window.__LM_ONBOARDING_V5)await loadLazyScript('/saas-onboarding-v5.js?v=20260919-5');
+  if(!window.__LM_ONBOARDING_V6)await loadLazyScript('/saas-onboarding-v6.js?v=20260920-7');
   await loadLazyScript('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3');
  })().catch(error=>{onboardingScriptPromise=null;throw error});
  return onboardingScriptPromise;
