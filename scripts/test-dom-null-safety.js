@@ -19,6 +19,11 @@ assert(!mail.includes("$('#lmMailProviderStatus').textContent='Kontrollerer…'"
 const sender=read('saas-mail-sender-name-v1.js');
 assert(sender.includes("if(!preview||!input.isConnected)return"),'sender preview rerender guard missing');
 
+const offer=read('offer-mail-v1.js');
+assert(offer.includes("function composerReady()"),'offer mail composer guard missing');
+assert(offer.includes("if(!composerReady())"),'offer mail does not stop on missing DOM');
+assert(offer.includes("function setNodeText(id,value)"),'offer mail safe text helper missing');
+
 const executive=read('executive-dashboard-v1.js');
 assert(executive.includes("function setNodeText(id,value)"),'executive safe text helper missing');
 assert(executive.includes("setNodeText('executivePeriodTitle',label[0])"),'executive period title is not guarded');
