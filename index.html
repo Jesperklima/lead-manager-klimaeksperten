@@ -424,13 +424,13 @@ function clientMailSignature(){return state.client?.settings?.mail_signature_tex
 function showAuth(msg=''){ $('authScreen')?.classList.remove('hidden');$('appShell')?.classList.add('hidden');setText('authMessage',msg);}
 function showApp(){ $('authScreen')?.classList.add('hidden');$('appShell')?.classList.remove('hidden');setText('userEmail',state.session?.user?.email||''); }
 async function authInit(){const {data:{session}}=await supabase.auth.getSession();state.session=session;if(session){await startApp()}else showAuth();supabase.auth.onAuthStateChange(async(_e,s)=>{state.session=s;if(s)await startApp();else showAuth()})}
-$('loginBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){$('authMessage').textContent='Password skal være mindst 8 tegn.';return} $('authMessage').textContent='Logger ind…';const {error}=await supabase.auth.signInWithPassword({email:$('authEmail').value,password:p});if(error)$('authMessage').textContent=error.message;}
-$('signupBtn').onclick=async()=>{const p=$('authPassword').value;if(p.length<8){$('authMessage').textContent='Vælg et password på mindst 8 tegn.';return} $('authMessage').textContent='Opretter login…';const {data,error}=await supabase.auth.signUp({email:$('authEmail').value,password:p});if(error){$('authMessage').textContent=error.message;return}$('authMessage').textContent=data.session?'Login oprettet og du er logget ind.':'Login oprettet. Tjek js@klimaeksperten.dk og bekræft mailen, vend derefter tilbage og log ind.';}
+$('loginBtn').onclick=async()=>{const p=$('authPassword')?.value||'';if(p.length<8){setText('authMessage','Password skal være mindst 8 tegn.');return}setText('authMessage','Logger ind…');const {error}=await supabase.auth.signInWithPassword({email:$('authEmail')?.value||'',password:p});if(error)setText('authMessage',error.message);}
+$('signupBtn').onclick=async()=>{const p=$('authPassword')?.value||'';if(p.length<8){setText('authMessage','Vælg et password på mindst 8 tegn.');return}setText('authMessage','Opretter login…');const {data,error}=await supabase.auth.signUp({email:$('authEmail')?.value||'',password:p});if(error){setText('authMessage',error.message);return}setText('authMessage',data.session?'Login oprettet og du er logget ind.':'Login oprettet. Tjek js@klimaeksperten.dk og bekræft mailen, vend derefter tilbage og log ind.');}
 $('logoutBtn').onclick=()=>supabase.auth.signOut();
 let startAppPromise=null;
 async function startApp(){
   if(startAppPromise)return startAppPromise;
-  $('loading').classList.remove('hidden');
+  $('loading')?.classList.remove('hidden');
   startAppPromise=(async()=>{
     try{
       const email=state.session?.user?.email;
