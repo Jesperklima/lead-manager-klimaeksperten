@@ -115,6 +115,7 @@ node scripts/test-mfa-aal2.js
 node scripts/test-customer-switch-race.js
 node scripts/test-external-crm-foundation.js
 node scripts/test-external-crm-complete.js
+node scripts/test-crm-direct-adapters-v1.js
 node scripts/test-website-integrations-ops-v2.js
 node scripts/test-admin-workspace-self-heal.js
 node scripts/test-platform-legal-identity-setup.js
