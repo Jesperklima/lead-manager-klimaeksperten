@@ -43,8 +43,8 @@ for(const marker of [
   assert(ui.includes(marker),'missing CRM UI marker: '+marker);
 }
 assert(ui.includes("functions/v1/external-crm-sync"),'CRM UI is not wired to edge function');
-assert(ui.includes("data-crm-action=\"resync\""),'CRM resync button missing');
-assert(ui.includes("data-crm-action=\"disconnect\""),'CRM disconnect button missing');
+assert(ui.includes('data-crm-action="resync"'),'CRM resync button missing');
+assert(ui.includes('data-crm-action="disconnect"'),'CRM disconnect button missing');
 assert(ui.includes("setupSecret={url:d.inbound_url,secret:d.inbound_secret}"),'one-time inbound secret flow missing');
 
 for(const marker of [
