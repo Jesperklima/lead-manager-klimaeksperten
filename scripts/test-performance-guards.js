@@ -174,7 +174,7 @@ const legalAgreement=read('legal-agreement-v1.js');
 if(legalAgreement.includes('setTimeout(refresh,1400);setTimeout(refresh,4000)'))fail('duplicate legal startup refresh returned');
 if(!legalAgreement.includes('function scheduleRefresh(delay=0)'))fail('legal refresh coalescer missing');
 if(!legalAgreement.includes('if(refreshPromise)return refreshPromise'))fail('legal in-flight coalescing missing');
-if(!app.includes('legal-agreement-v1.js?v=20260919-3'))fail('legal agreement cache version not bumped');
+if(!app.includes('legal-agreement-v1.js?v=20260920-4'))fail('legal agreement cache version not bumped');
 const customerControls=read('saas-customer-controls-v1.js');
 if(!customerControls.includes('function accessPlan()'))fail('customer controls access-plan helper missing');
 if(!customerControls.includes('function hydrateFromAccess()'))fail('customer controls bootstrap-plan hydration missing');
