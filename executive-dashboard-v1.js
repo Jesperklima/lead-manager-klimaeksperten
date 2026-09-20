@@ -5,6 +5,7 @@
   let serverClockMs=null;
   let serverClockMeasuredAt=null;
   const byId=id=>document.getElementById(id);
+  function setNodeText(id,value){const el=byId(id);if(!el){console.warn('[Executive Dashboard] DOM element mangler:',id);return false}el.textContent=value??'';return true}
   const safe=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const closedStatuses=new Set(['VUNDET','TABT','IKKE RELEVANT']);
   const allowedNewLeadPoolSizes=[10,20,30];
@@ -188,8 +189,8 @@
 
     const labels={week:['Denne uge','Aktuel salgsstatus samt handlinger og aktivitet fra denne uge.'],month:['Denne måned','Aktuel salgsstatus samt handlinger og aktivitet fra denne måned.'],all:['Samlet overblik','Aktuel salgsstatus og hele aktivitetshistorikken.']};
     const label=labels[selectedPeriod];
-    if(byId('executivePeriodTitle'))byId('executivePeriodTitle').textContent=label[0];
-    if(byId('executivePeriodText'))byId('executivePeriodText').textContent=label[1];
+    setNodeText('executivePeriodTitle',label[0]);
+    setNodeText('executivePeriodText',label[1]);
     document.querySelectorAll('[data-executive-period]').forEach(button=>button.classList.toggle('active',button.dataset.executivePeriod===selectedPeriod));
     renderAttention(leads,offers,approvals);
     renderPerformance(periodActivities,periodOffers);
