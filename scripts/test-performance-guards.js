@@ -195,7 +195,7 @@ if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v5.js?v=20260919-
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');
-if(!accessBootstrap.includes("['onboarding','denied','login'].includes(window.LM_ACCESS?.next_route||'')"))fail('rescue route guard missing');
+if(!accessBootstrap.includes("['onboarding','denied','login','mfa'].includes(window.LM_ACCESS?.next_route||'')"))fail('rescue route guard missing or MFA is not protected');
 const adminLazyFiles=['saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js'];
 for(const file of adminLazyFiles)if(app.includes('<script src="/'+file))fail(file+' returned to static startup');
 for(const file of adminLazyFiles)if(!accessBootstrap.includes('/'+file+'?v='))fail(file+' missing from admin lazy loader');

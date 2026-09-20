@@ -51,12 +51,12 @@ async function switchClient(id){
       render();
       try{await fullLoadForClient(previous.id)}catch(re){console.warn('customer switch rollback failed',re)}
     }
-    if(typeof toast==='function')toast('Kunne ikke skifte kundeprofil. Prøv igen.');
+    if(seq===switchSeq&&typeof toast==='function')toast('Kunne ikke skifte kundeprofil. Prøv igen.');
   }finally{
-    setSwitching(false);
+    if(seq===switchSeq)setSwitching(false);
   }
 }
 async function load(force=false){if((loaded&&!force)||!ready())return;if(!accessReady()){setTimeout(()=>load(force),120);return}if(!isPlatformAdmin()){loaded=true;renderStaticCustomer();return}loaded=true;try{const r=await supabase.rpc('crm_admin_list_managed_clients',{});if(r.error)throw r.error;if(!Array.isArray(r.data)||!r.data.length)throw new Error('Ingen kundeprofiler returneret');rows=r.data;ensure();render()}catch(e){loaded=false;console.error('admin client list failed',e);ensure();const meta=$('lmAdminClientMeta');if(meta)meta.textContent='Kunne ikke hente kundelisten.'}}
 function init(){if(!ready()||!accessReady()){setTimeout(init,120);return}load(true);if(!isPlatformAdmin())window.addEventListener('lm:data-refreshed',renderStaticCustomer);else window.addEventListener('lm:data-refreshed',assertVisibleData)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();window.addEventListener('lm:admin-clients-refresh',()=>load(true));window.__LM_ADMIN_CLIENT_SWITCHER_TEST={resetWorkspaceUi,assertVisibleData,fullLoadForClient};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();window.addEventListener('lm:admin-clients-refresh',()=>load(true));window.__LM_ADMIN_CLIENT_SWITCHER_TEST={resetWorkspaceUi,assertVisibleData,fullLoadForClient,switchClient};
 })();
