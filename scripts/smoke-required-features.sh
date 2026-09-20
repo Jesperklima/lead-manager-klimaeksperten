@@ -114,6 +114,7 @@ node scripts/test-customer-switch-race.js
 node scripts/test-external-crm-foundation.js
 node scripts/test-external-crm-complete.js
 node scripts/test-website-integrations-ops-v2.js
+node scripts/test-admin-workspace-self-heal.js
 node scripts/test-mail-offer-sync-guards.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
