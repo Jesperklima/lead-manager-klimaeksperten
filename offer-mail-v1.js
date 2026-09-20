@@ -2,6 +2,9 @@
   'use strict';
 
   const byId=id=>document.getElementById(id);
+  function setNodeText(id,value){const el=byId(id);if(!el){console.warn('[Offer mail] DOM element mangler:',id);return false}el.textContent=value??'';return true}
+  function setNodeValue(id,value){const el=byId(id);if(!el){console.warn('[Offer mail] DOM element mangler:',id);return false}el.value=value??'';return true}
+  function composerReady(){const ids=['offerMailMeta','offerMailTo','offerMailContactName','offerMailSubject','offerMailBody','offerMailFollow','offerMailSender','sendOfferMail'];const missing=ids.filter(id=>!byId(id));if(missing.length){console.warn('[Offer mail] Composer mangler elementer:',missing.join(', '));return false}return true}
   const pad=n=>String(n).padStart(2,'0');
   const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const plusDays=days=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+days);return ymd(d)};
@@ -100,24 +103,24 @@
     const selected=options[Number(select.value)];if(!selected)return;
     const name=String(selected.name||'').trim(),email=String(selected.email||'').trim(),phone=String(selected.phone||'').trim();
     o.contact_person=name;o.contact_details=[email,phone].filter(Boolean).join(' · ');
-    byId('offerMailContactName').value=name;byId('offerMailTo').value=email;
-    byId('offerMailContactNameNote').textContent=name?'Navnet er hentet fra Minuba.':'Minuba har mailadressen, men ikke et navn på denne kontakt.';
-    byId('offerMailRecipientNote').textContent='Mailadressen er hentet fra Minuba.';
+    setNodeValue('offerMailContactName',name);setNodeValue('offerMailTo',email);
+    setNodeText('offerMailContactNameNote',name?'Navnet er hentet fra Minuba.':'Minuba har mailadressen, men ikke et navn på denne kontakt.');
+    setNodeText('offerMailRecipientNote','Mailadressen er hentet fra Minuba.');
     refreshGreeting(o);
     const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
   }
 
   function updateComposerFromOffer(o,contactSource=''){
     const direct=firstEmail(o?.contact_details),blocked=direct?bouncedContact(direct,o):null,to=recipientFor(o);
-    byId('offerMailTo').value=to;
-    byId('offerMailContactName').value=String(o?.contact_person||'').trim();
+    setNodeValue('offerMailTo',to);
+    setNodeValue('offerMailContactName',String(o?.contact_person||'').trim());
     const alternatives=alternateEmails(o).filter(x=>lower(x)!==lower(direct));
     if(byId('offerMailContactSource')){
       if(blocked)byId('offerMailContactSource').textContent=`${direct} er markeret ugyldig efter mailserveren svarede "Account disabled".${alternatives.length?' Andre adresser i Minuba: '+alternatives.join(', '):''}`;
       else byId('offerMailContactSource').textContent=contactSource||(o.contact_person?`Kontaktperson: ${o.contact_person}`:'Kontaktperson mangler i Lead Manager. Minuba kontrolleres automatisk.');
     }
-    byId('offerMailContactNameNote').textContent=o.contact_person?'Kontaktperson hentet fra tilbuddet/kunden.':'Navnet udfyldes automatisk, hvis det findes på tilbuddet eller kundekortet i Minuba.';
-    byId('offerMailRecipientNote').textContent=to?'Modtageren er hentet fra kundens/tilbuddets kontaktoplysninger.':'Ingen sikker modtager er valgt automatisk. Vælg eller skriv en anden mailadresse.';
+    setNodeText('offerMailContactNameNote',o.contact_person?'Kontaktperson hentet fra tilbuddet/kunden.':'Navnet udfyldes automatisk, hvis det findes på tilbuddet eller kundekortet i Minuba.');
+    setNodeText('offerMailRecipientNote',to?'Modtageren er hentet fra kundens/tilbuddets kontaktoplysninger.':'Ingen sikker modtager er valgt automatisk. Vælg eller skriv en anden mailadresse.');
     renderContactChoices(o);
     document.dispatchEvent(new CustomEvent('lm:offer-contact-updated',{detail:{offer_id:o.id,contact_person:o.contact_person||'',contact_details:o.contact_details||''}}));
     const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
@@ -150,11 +153,11 @@
   }
 
   function openMail(){
-    ensureModal();const o=offer();if(!o){if(typeof toast==='function')toast('Åbn et tilbud først');return}
+    ensureModal();const o=offer();if(!o){if(typeof toast==='function')toast('Åbn et tilbud først');return}if(!composerReady()){if(typeof toast==='function')toast('Mailvinduet kunne ikke indlæses. Genindlæs siden.');return}
     minubaContactOptions=[];
     const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
-    byId('offerMailMeta').textContent=[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · ');
-    byId('offerMailTo').value=to;byId('offerMailContactName').value=String(o.contact_person||'');byId('offerMailSubject').value=`Opfølgning på tilbud ${ref}`;byId('offerMailBody').value=`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`;byId('offerMailFollow').value=byId('oFollow')?.value||o.follow_up_date||plusDays(7);byId('offerMailSender').textContent=`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`;
+    setNodeText('offerMailMeta',[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · '));
+    setNodeValue('offerMailTo',to);setNodeValue('offerMailContactName',String(o.contact_person||''));setNodeValue('offerMailSubject',`Opfølgning på tilbud ${ref}`);setNodeValue('offerMailBody',`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`);setNodeValue('offerMailFollow',byId('oFollow')?.value||o.follow_up_date||plusDays(7));setNodeText('offerMailSender',`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`);
     updateComposerFromOffer(o);openOfferMailModal();enrichFromMinuba(o);setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
   }
 
@@ -168,7 +171,7 @@
     o.contact_person=name;o.contact_details=to;
     if(typeof supabase!=='undefined')await supabase.from('crm_offers').update({contact_person:name||null,contact_details:to,updated_at:new Date().toISOString()}).eq('id',o.id);
     if(!confirm(`Send mailen nu fra ${sender()} til ${name?name+' · ':''}${to}?`))return;
-    const button=byId('sendOfferMail'),old=button.textContent;button.disabled=true;button.textContent='Sender…';
+    const button=byId('sendOfferMail');if(!button){console.warn('[Offer mail] Send-knap mangler efter render');return}const old=button.textContent;button.disabled=true;button.textContent='Sender…';
     try{
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const result=await callProtectedEdge('gmail-direct-send',{client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,follow_up_date:follow||null,ai_generated:false,ai_model:null});

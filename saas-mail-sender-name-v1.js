@@ -31,7 +31,7 @@ function inject(){
   wrap.innerHTML=`<label>Navn <span class="sub">(det modtageren ser som afsender)</span></label><input id="lmMailSenderName" autocomplete="name" maxlength="120" placeholder="Fx Jesper Hansen" value="${esc(currentName())}"><div class="sub" style="margin-top:5px">Eksempel: <span id="lmMailSenderPreview"></span></div>`;
   field.insertAdjacentElement('afterend',wrap);
   const input=$('#lmMailSenderName');
-  const updatePreview=()=>{const name=String(input.value||'').trim()||'Navn',account=String($('#lmMailAccount')?.value||'mail@virksomhed.dk').trim()||'mail@virksomhed.dk';$('#lmMailSenderPreview').textContent=`${name} <${account}>`};
+  const updatePreview=()=>{const preview=$('#lmMailSenderPreview');if(!preview||!input.isConnected)return;const name=String(input.value||'').trim()||'Navn',account=String($('#lmMailAccount')?.value||'mail@virksomhed.dk').trim()||'mail@virksomhed.dk';preview.textContent=`${name} <${account}>`};
   input.addEventListener('input',updatePreview);input.addEventListener('change',()=>saveName(false));input.addEventListener('blur',()=>saveName(false));
   $('#lmMailAccount')?.addEventListener('input',updatePreview);updatePreview();
   return true;

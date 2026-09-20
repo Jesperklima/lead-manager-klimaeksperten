@@ -3,6 +3,7 @@
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=s=>document.querySelector(s);
+function setText(selector,value){const el=$(selector);if(!el){console.warn('[Mail provider] DOM element mangler:',selector);return false}el.textContent=value??'';return true}
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const PROVIDERS={
   microsoft:{label:'Microsoft 365 / Outlook',kind:'oauth',description:'Forbind sikkert med Microsoft-login. Ingen mailadgangskode gemmes i Lead Manager.'},
@@ -24,21 +25,27 @@ function securityValue(v){return String(v||'').toLowerCase()==='ssl/tls'?'ssl':S
 
 function renderProviderFields(){
   const key=$('#lmMailProvider')?.value||'one',p=PROVIDERS[key];
-  const oauth=$('#lmMailOAuthFields'),smtp=$('#lmMailSmtpFields'),manual=$('#lmMailManualFields'),summary=$('#lmMailPresetSummary'),pass=$('#lmMailPasswordWrap'),user=$('#lmMailUsernameWrap');
+  const refs={
+    help:$('#lmMailProviderHelp'),oauth:$('#lmMailOAuthFields'),smtp:$('#lmMailSmtpFields'),
+    manual:$('#lmMailManualFields'),summary:$('#lmMailPresetSummary'),pass:$('#lmMailPasswordWrap'),
+    user:$('#lmMailUsernameWrap'),connect:$('#lmMailProviderConnect')
+  };
   if(!p)return;
-  $('#lmMailProviderHelp').textContent=p.description||'';
-  oauth.hidden=p.kind!=='oauth';smtp.hidden=p.kind==='oauth';manual.hidden=key!=='manual';pass.hidden=p.kind==='oauth';user.hidden=p.kind==='oauth';
+  const missing=Object.entries(refs).filter(([,el])=>!el).map(([name])=>name);
+  if(missing.length){console.warn('[Mail provider] View er ikke længere monteret:',missing.join(', '));return}
+  refs.help.textContent=p.description||'';
+  refs.oauth.hidden=p.kind!=='oauth';refs.smtp.hidden=p.kind==='oauth';refs.manual.hidden=key!=='manual';refs.pass.hidden=p.kind==='oauth';refs.user.hidden=p.kind==='oauth';
   const account=$('#lmMailAccount');if(account&&!account.value)account.value=accountDefault();
   if(p.kind==='oauth'){
-    summary.hidden=true;
-    $('#lmMailProviderConnect').textContent=key==='microsoft'?'Forbind Microsoft-konto':'Forbind Google-konto';
-    $('#lmMailProviderConnect').dataset.idle=$('#lmMailProviderConnect').textContent;
+    refs.summary.hidden=true;
+    refs.connect.textContent=key==='microsoft'?'Forbind Microsoft-konto':'Forbind Google-konto';
+    refs.connect.dataset.idle=refs.connect.textContent;
     return;
   }
-  $('#lmMailProviderConnect').textContent='Test og forbind mail';$('#lmMailProviderConnect').dataset.idle='Test og forbind mail';
-  if(key==='manual'){summary.hidden=true;return}
-  summary.hidden=false;
-  summary.innerHTML=`<div class="lm-mail-server"><strong>Indgående mail</strong><span>${esc(p.imap_host)} · port ${p.imap_port} · ${esc(p.imap_security)}</span></div><div class="lm-mail-server"><strong>Udgående mail</strong><span>${esc(p.smtp_host)} · port ${p.smtp_port} · ${esc(p.smtp_security)}</span></div><div class="sub" style="margin-top:7px">Serveroplysningerne udfyldes automatisk. Du skal normalt kun bruge mailadresse og adgangskode.</div>`;
+  refs.connect.textContent='Test og forbind mail';refs.connect.dataset.idle='Test og forbind mail';
+  if(key==='manual'){refs.summary.hidden=true;return}
+  refs.summary.hidden=false;
+  refs.summary.innerHTML=`<div class="lm-mail-server"><strong>Indgående mail</strong><span>${esc(p.imap_host)} · port ${p.imap_port} · ${esc(p.imap_security)}</span></div><div class="lm-mail-server"><strong>Udgående mail</strong><span>${esc(p.smtp_host)} · port ${p.smtp_port} · ${esc(p.smtp_security)}</span></div><div class="sub" style="margin-top:7px">Serveroplysningerne udfyldes automatisk. Du skal normalt kun bruge mailadresse og adgangskode.</div>`;
 }
 
 function cardCss(){if($('#lmMailProviderCss'))return;const s=document.createElement('style');s.id='lmMailProviderCss';s.textContent=`
@@ -86,7 +93,28 @@ function renderAccounts(accounts){
   box.querySelectorAll('[data-lm-mail-remove]').forEach(b=>b.addEventListener('click',()=>removeAccount(b.dataset.lmMailRemove)));
 }
 
-async function check(){if(busy||typeof state==='undefined'||!state?.client)return;const b=$('#lmMailProviderCheck');if(b)b.disabled=true;$('#lmMailProviderStatus').textContent='Kontrollerer…';try{const d=await edge('mail-provider-auth',{action:'status',client_id:state.client.id});renderAccounts(d.accounts||[]);const connected=(d.accounts||[]).filter(x=>x.status==='connected').length;$('#lmMailProviderStatus').textContent=connected?`✓ ${connected} forbundet`:'Ingen forbundet';if(connected)$('#lmMailProviderStatus').style.cssText='background:#dcfce7;color:#166534'}catch(e){$('#lmMailProviderStatus').textContent='Statusfejl';setMessage('Kunne ikke hente mailstatus: '+(e.message||e),true)}finally{if(b)b.disabled=false}}
+async function check(){
+  if(busy||typeof state==='undefined'||!state?.client)return;
+  const clientId=String(state.client.id),b=$('#lmMailProviderCheck'),status=$('#lmMailProviderStatus');
+  if(!status)return;
+  if(b)b.disabled=true;
+  status.textContent='Kontrollerer…';
+  try{
+    const d=await edge('mail-provider-auth',{action:'status',client_id:clientId});
+    if(String(state?.client?.id||'')!==clientId||!$('#lmMailProviderCard'))return;
+    renderAccounts(d.accounts||[]);
+    const liveStatus=$('#lmMailProviderStatus');if(!liveStatus)return;
+    const connected=(d.accounts||[]).filter(x=>x.status==='connected').length;
+    liveStatus.textContent=connected?`✓ ${connected} forbundet`:'Ingen forbundet';
+    if(connected)liveStatus.style.cssText='background:#dcfce7;color:#166534';
+  }catch(e){
+    if(String(state?.client?.id||'')!==clientId||!$('#lmMailProviderCard'))return;
+    setText('#lmMailProviderStatus','Statusfejl');
+    setMessage('Kunne ikke hente mailstatus: '+(e.message||e),true);
+  }finally{
+    if(b?.isConnected)b.disabled=false;
+  }
+}
 
 async function connect(){
   if(busy||typeof state==='undefined'||!state?.client)return;const key=$('#lmMailProvider').value,p=PROVIDERS[key],account=String($('#lmMailAccount').value||'').trim().toLowerCase();
@@ -97,7 +125,7 @@ async function connect(){
   const payload={action:'save',client_id:state.client.id,provider_key:key,account,username,password,read_enabled:$('#lmMailRead').checked,send_enabled:$('#lmMailSend').checked,save_sent:$('#lmMailSaveSent').checked};
   if(key==='manual')Object.assign(payload,{provider_label:'Anden mailudbyder',imap_host:$('#lmMailImapHost').value.trim(),imap_port:Number($('#lmMailImapPort').value),imap_security:$('#lmMailImapSecurity').value,smtp_host:$('#lmMailSmtpHost').value.trim(),smtp_port:Number($('#lmMailSmtpPort').value),smtp_security:$('#lmMailSmtpSecurity').value});
   setBusy(true,'Tester forbindelse…');setMessage('Tester login hos mailudbyderen. Intet gemmes, før testen er godkendt.');
-  try{const d=await edge('mail-provider-auth',payload);$('#lmMailPassword').value='';setMessage(`✓ ${d.provider||p.label} er forbundet som ${d.account}. Indgående og udgående forbindelse er testet.`,false,true);await check();try{if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('integrations');else if(typeof loadAll==='function')await loadAll({keys:['integrations'],force:true})}catch{}}
+  try{const d=await edge('mail-provider-auth',payload);const passwordField=$('#lmMailPassword');if(passwordField)passwordField.value='';setMessage(`✓ ${d.provider||p.label} er forbundet som ${d.account}. Indgående og udgående forbindelse er testet.`,false,true);await check();try{if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('integrations');else if(typeof loadAll==='function')await loadAll({keys:['integrations'],force:true})}catch{}}
   catch(e){setMessage('Forbindelsen blev ikke gemt: '+(e.message||e),true)}finally{setBusy(false)}
 }
 

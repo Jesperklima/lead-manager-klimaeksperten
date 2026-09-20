@@ -95,12 +95,16 @@ PY
 node --check saas-credit-check-v1.js
 node --check saas-regression-center-v1.js
 node --check saas-customer-controls-v1.js
+node --check saas-mail-providers-v1.js
+node --check saas-mail-sender-name-v1.js
+node --check offer-mail-v1.js
 node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 node scripts/test-pipeline-drag.js
 node scripts/test-regression-guards.js
 node scripts/test-lead-pool-ui.js
 node scripts/test-security-hardening.js
+node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
