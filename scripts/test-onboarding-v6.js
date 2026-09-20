@@ -10,7 +10,6 @@ for(const marker of [
   "action:'inspect'",
   "inviteInfo.existing_login===true",
   "readonly",
-  "reused_existing_login",
   "lm_ob6_",
   "Trin ${step} af 4",
   "step===4?'Start Lead Manager'",
