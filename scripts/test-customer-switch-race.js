@@ -4,7 +4,8 @@ const migration=fs.readFileSync('supabase/migrations/20260920193000_startup_snap
 function assert(v,m){if(!v)throw new Error(m)}
 
 assert(s.includes("if(seq===switchSeq)setSwitching(false)"),'stale switch can unlock UI while a newer switch is running');
-assert(s.includes("if(seq===switchSeq&&typeof toast==='function')toast('Kunne ikke skifte kundeprofil. Prøv igen.')"),'stale switch can show an obsolete error toast');
+assert(s.includes("if(seq===switchSeq){\n      if(committed)restoreWorkspace(previous);"),'stale switch errors are not gated to the newest request');
+assert(s.includes("if(typeof toast==='function')toast('Kunne ikke skifte kundeprofil. Prøv igen.')"),'workspace switch error feedback missing');
 assert(s.includes("if(seq!==switchSeq)return"),'stale switch result guard missing');
 assert(s.includes("supabase.from('crm_clients').select('*').eq('id',id).limit(1)"),'target workspace context is not fetched before switching');
 assert(s.includes("supabase.rpc('crm_startup_snapshot',{p_client_id:id})"),'atomic target snapshot is missing');
