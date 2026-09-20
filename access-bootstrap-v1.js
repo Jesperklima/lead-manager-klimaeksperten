@@ -4,7 +4,7 @@ let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundle
 const ADMIN_BUNDLES=[
  '/saas-platform-admin-v1.js?v=20260919-4',
  '/saas-compliance-admin-v1.js?v=20260919-6',
- '/saas-admin-client-switcher-v1.js?v=20260919-2',
+ '/saas-admin-client-switcher-v1.js?v=20260920-3',
  '/saas-admin-users-v1.js?v=20260919-3',
  '/saas-impersonation-v1.js?v=20260919-2',
  '/saas-marketing-connections-v1.js?v=20260919-4',
