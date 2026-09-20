@@ -9,7 +9,7 @@ const feedback=read('saas-feedback-v1.js');
 const credit=read('saas-credit-check-v1.js');
 
 const navViews=[...html.matchAll(/<button[^>]*data-view="([^"]+)"/g)].map(m=>m[1]);
-for(const view of navViews)assert(new RegExp('<section\\s+id="'+view+'"\\b').test(html),`navigation target missing section: ${view}`);
+for(const view of navViews)assert(new RegExp('<section\\s+id="'+view+'"(?:\\s|>)').test(html),`navigation target missing section: ${view}`);
 assert(navViews.includes('leadmanager')&&navViews.includes('feedback')&&navViews.includes('creditcheck'),'settings/feedback/creditcheck navigation missing');
 
 assert(access.includes("'/saas-settings-hub-v1.js?v=20260920-15'"),'settings hub is not loaded for platform-admin workspace context');
