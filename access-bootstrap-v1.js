@@ -83,24 +83,45 @@ async function centralBootstrap(){
  return data||{authenticated:false,next_route:'login'};
 }
 async function openWorkspace(access){
- let clientId=access.workspace_id||null;
  const email=state.session?.user?.email||'';
- if(access.platform_admin){
-  const preferred=localStorage.getItem('lm_admin_active_client_v1')||localStorage.getItem('lm_admin_client_id')||'';
-  if(preferred)clientId=preferred;
- }
- if(!clientId)throw new Error('Intet workspace kunne vælges.');
+ const preferred=access.platform_admin?(localStorage.getItem('lm_admin_active_client_v1')||localStorage.getItem('lm_admin_client_id')||''):'';
+ let clientId=access.workspace_id||null;
  let cr=null;
+ const valid=r=>!r?.error&&Array.isArray(r?.data)&&r.data.length>0;
+ const fetchClient=async id=>{
+  if(!id)return {data:[],error:null};
+  return await supabase.from('crm_clients').select('*').eq('id',id).limit(1);
+ };
+
  if(!access.platform_admin&&access.client&&String(access.client.id)===String(clientId)){
   cr={data:[access.client],error:null};
- }else{
-  cr=await supabase.from('crm_clients').select('*').eq('id',clientId);
+ }else if(access.platform_admin){
+  const candidates=[];
+  if(preferred)candidates.push(preferred);
+  if(access.workspace_id&&!candidates.some(id=>String(id)===String(access.workspace_id)))candidates.push(access.workspace_id);
+  for(const candidate of candidates){
+   const result=await fetchClient(candidate);
+   if(valid(result)){clientId=candidate;cr=result;break}
+   if(String(candidate)===String(preferred)&&!result.error){
+    localStorage.removeItem('lm_admin_active_client_v1');
+    localStorage.removeItem('lm_admin_client_id');
+   }
+  }
+  if(!valid(cr)){
+   const fallback=await supabase.from('crm_clients').select('*').order('created_at',{ascending:true}).limit(1);
+   if(valid(fallback)){
+    cr=fallback;
+    clientId=fallback.data[0].id;
+    localStorage.setItem('lm_admin_active_client_v1',String(clientId));
+   }else if(fallback.error){
+    cr=fallback;
+   }
+  }
+ }else if(clientId){
+  cr=await fetchClient(clientId);
  }
- if((cr.error||!cr.data?.length)&&access.platform_admin&&access.workspace_id&&String(access.workspace_id)!==String(clientId)){
-  clientId=access.workspace_id;
-  cr=await supabase.from('crm_clients').select('*').eq('id',clientId);
- }
- if(cr.error||!cr.data?.length)throw new Error(cr.error?.message||'Workspace kunne ikke hentes');
+
+ if(!clientId||!valid(cr))throw new Error(cr?.error?.message||'Workspace kunne ikke hentes');
  state.client=cr.data[0];
  const fallbackRole=access.platform_admin?'platform_admin':access.role==='workspace_owner'?'owner':access.role==='workspace_admin'?'admin':'member';
  state.userMap=access.membership||{email,client_id:clientId,role:fallbackRole,active:true,auth_user_id:state.session?.user?.id||null};
