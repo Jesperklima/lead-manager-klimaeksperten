@@ -31,8 +31,7 @@ function ensureAdminBundles(){
 }
 function ensureSettingsHub(){
  if(settingsHubPromise)return settingsHubPromise;
- const scripts=['/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3','/saas-mail-sender-name-v1.js?v=20260919-3','/saas-crm-integrations-v1.js?v=20260920-8','/saas-website-intake-v1.js?v=20260920-1','/saas-integrations-overview-v2.js?v=20260920-1'];
- if(window.LM_ACCESS?.platform_admin!==true)scripts.unshift('/saas-settings-hub-v1.js?v=20260919-14');
+ const scripts=['/saas-settings-hub-v1.js?v=20260920-17','/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3','/saas-mail-sender-name-v1.js?v=20260919-3','/saas-crm-integrations-v1.js?v=20260920-8','/saas-website-intake-v1.js?v=20260920-1','/saas-integrations-overview-v2.js?v=20260920-1'];
  settingsHubPromise=Promise.all(scripts.map(loadLazyScript)).catch(error=>{settingsHubPromise=null;throw error});
  return settingsHubPromise;
 }
@@ -190,11 +189,61 @@ async function rescueActiveWorkspace(){
 }
 startApp=controlledStartApp;
 window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadMfa:ensureMfaGate,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle,loadCredit:ensureCreditCheck,loadOfferSearch:ensureOfferSearch};
-document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
-document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="feedback"]'))return;ensureFeedbackBundle().then(()=>window.dispatchEvent(new Event('lm:feedback-open-request'))).catch(error=>console.warn('feedback lazy load',error))},true);
-document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="creditcheck"]'))return;ensureCreditCheck().then(()=>window.dispatchEvent(new CustomEvent('lm:creditcheck-open-request'))).catch(error=>console.warn('credit check lazy load',error))},true);
+
+function activateNavView(button){
+ if(!button)return false;
+ const viewId=String(button.dataset?.view||'');
+ if(!viewId)return false;
+ const view=document.getElementById(viewId);
+ if(!view)return false;
+ document.querySelectorAll('.nav button[data-view]').forEach(x=>x.classList.toggle('active',x===button));
+ document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x===view));
+ const label=button.textContent?.trim()||viewId;
+ if(typeof setText==='function')setText('title',label);
+ else{const title=document.getElementById('title');if(title)title.textContent=label}
+ window.dispatchEvent(new CustomEvent('lm:navigation-changed',{detail:{view:viewId}}));
+ return true;
+}
+
+async function hydrateNavView(viewId){
+ if(viewId==='leadmanager'){
+  await ensureSettingsHub();
+  if(document.getElementById('leadmanager')?.classList.contains('active'))window.dispatchEvent(new Event('lm:settings-open-request'));
+  return;
+ }
+ if(viewId==='feedback'){
+  await ensureFeedbackBundle();
+  if(document.getElementById('feedback')?.classList.contains('active'))window.dispatchEvent(new Event('lm:feedback-open-request'));
+  return;
+ }
+ if(viewId==='creditcheck'){
+  await ensureCreditCheck();
+  if(document.getElementById('creditcheck')?.classList.contains('active'))window.dispatchEvent(new CustomEvent('lm:creditcheck-open-request'));
+  return;
+ }
+ if(viewId==='offers'||viewId==='offerpipeline')await ensureOfferSearch();
+}
+
+document.addEventListener('click',event=>{
+ const button=event.target.closest?.('.nav button[data-view]');
+ if(!button)return;
+ const viewId=String(button.dataset.view||'');
+ if(!activateNavView(button))return;
+ hydrateNavView(viewId).catch(error=>{
+  console.warn('navigation hydrate failed',viewId,error);
+  if(typeof toast==='function')toast('Visningen åbnede, men nogle funktioner kunne ikke indlæses endnu.');
+ });
+},true);
+
+window.LMNavigation={open(viewId){
+ const button=document.querySelector('.nav button[data-view="'+CSS.escape(String(viewId||''))+'"]');
+ if(!activateNavView(button))return false;
+ hydrateNavView(String(viewId||'')).catch(error=>console.warn('navigation hydrate failed',viewId,error));
+ return true;
+}};
+
 window.addEventListener('lm:lead-opened',()=>ensureCreditCheck().catch(error=>console.warn('credit check lead load',error)));
-document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="offers"],.nav button[data-view="offerpipeline"],[data-open-offer],.offer-pipe-card,[data-executive-offer]'))return;ensureOfferSearch().catch(error=>console.warn('offer search lazy load',error))},true);
+document.addEventListener('click',event=>{if(!event.target.closest?.('[data-open-offer],.offer-pipe-card,[data-executive-offer]'))return;ensureOfferSearch().catch(error=>console.warn('offer search lazy load',error))},true);
 async function initAccessBootstrap(){
  if(settingsReturnCallback())await ensureSettingsHub();
  if(onboardingToken()){
