@@ -86,8 +86,11 @@ function inferHubPipeline(d:any){
   return {pipeline_id:p.id,open_stage_id:open?.id||null,won_stage_id:won?.id||null,lost_stage_id:lost?.id||null,pipelines:pipelines.map((x:any)=>({id:x.id,label:x.label,stages:(x.stages||[]).map((s:any)=>({id:s.id,label:s.label,displayOrder:s.displayOrder}))}))};
 }
 async function testHubSpot(token:string){
-  const account=await hubFetch(token,'/account-info/v3/details');
+  await hubFetch(token,'/crm/v3/objects/companies?limit=1&properties=name');
+  await hubFetch(token,'/crm/v3/objects/contacts?limit=1&properties=email');
   const pipelines=await hubFetch(token,'/crm/v3/pipelines/deals');
+  let account:any={};
+  try{account=await hubFetch(token,'/account-info/v3/details')}catch{}
   return {account, ...inferHubPipeline(pipelines)};
 }
 function splitName(v:string){const p=clean(v,400).split(/\s+/).filter(Boolean);return {firstname:p[0]||'',lastname:p.slice(1).join(' ')}}
@@ -327,10 +330,13 @@ Deno.serve(async(req:Request)=>{
 
     const a=action==='status'?await actor(admin,req,clientId):await requireManage(admin,req,clientId);
     if(action==='status'){
-      const {data,error}=await admin.rpc('crm_external_sync_status',{p_client_id:a.clientId});if(error)throw error;
-      const connections=(data?.connections||[]).map((x:any)=>({...x,config:noSecretConfig(x.config)}));
-      const {data:rows}=await admin.from('crm_integrations').select('id,provider,account,status,config,last_sync_at,last_error,updated_at').eq('client_id',a.clientId).in('provider',['crm_webhook','hubspot']);
-      return json({ok:true,...data,connections:(rows||[]).map((x:any)=>({...x,config:noSecretConfig(x.config)})),can_manage:a.canManage});
+      const {data:rows,error:re}=await admin.from('crm_integrations').select('id,provider,account,status,config,last_sync_at,last_error,updated_at').eq('client_id',a.clientId).in('provider',['crm_webhook','hubspot']);
+      if(re)throw re;
+      const {count:links,error:le}=await admin.from('crm_external_entity_links').select('id',{count:'exact',head:true}).eq('client_id',a.clientId);if(le)throw le;
+      const counts:any={queued:0,running:0,error:0,dead:0};
+      for(const k of Object.keys(counts)){const {count,error}=await admin.from('crm_external_sync_queue').select('id',{count:'exact',head:true}).eq('client_id',a.clientId).eq('status',k);if(error)throw error;counts[k]=count||0}
+      const {data:last,error:lge}=await admin.from('crm_external_sync_log').select('created_at').eq('client_id',a.clientId).order('created_at',{ascending:false}).limit(1).maybeSingle();if(lge)throw lge;
+      return json({ok:true,connections:(rows||[]).map((x:any)=>({...x,config:noSecretConfig(x.config)})),queue:counts,links:links||0,last_event:last?.created_at||null,can_manage:a.canManage});
     }
 
     if(action==='connect_hubspot'){
