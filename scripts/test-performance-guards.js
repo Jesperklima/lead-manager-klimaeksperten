@@ -79,7 +79,10 @@ if(!feedback.includes('window.__LM_FEEDBACK_V1=true'))fail('feedback lazy-load g
 if(!feedback.includes("lm:feedback-open-request"))fail('feedback open request event missing');
 if(!accessBootstrap.includes('/saas-feedback-v1.js?v=20260919-5'))fail('feedback lazy loader missing');
 if(!accessBootstrap.includes('loadFeedback:ensureFeedbackBundle'))fail('feedback lazy loader not exposed');
-if(!accessBootstrap.includes("window.dispatchEvent(new Event('lm:feedback-open-request'))"))fail('feedback navigation does not open lazy bundle');
+if(!accessBootstrap.includes("new CustomEvent('lm:feedback-open-request',{detail:{nav_epoch:intent.epoch}})"))fail('feedback navigation does not open race-safe lazy bundle');
+if(!accessBootstrap.includes("navIntentMatches('feedback',intent.epoch)"))fail('feedback lazy navigation race guard missing');
+if(!accessBootstrap.includes("new CustomEvent('lm:creditcheck-open-request',{detail:{nav_epoch:intent.epoch}})"))fail('credit check navigation does not open race-safe lazy bundle');
+if(!accessBootstrap.includes("navIntentMatches('creditcheck',intent.epoch)"))fail('credit check lazy navigation race guard missing');
 if(!index.includes('<button data-view="feedback">Feedback & idéer</button>'))fail('feedback nav button not baked into index');
 const creditCheck=read('saas-credit-check-v1.js');
 if(app.includes('<script src="/saas-credit-check-v1.js'))fail('credit check returned to static startup');
