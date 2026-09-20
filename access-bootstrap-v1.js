@@ -122,8 +122,6 @@ async function controlledStartApp(){
     for(let i=0;i<5&&access.next_route==='onboarding';i++){await new Promise(r=>setTimeout(r,300));access=await centralBootstrap()}
    }
    window.LM_ACCESS=access;
-   if(access.platform_admin)await ensureAdminBundles();
-   window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
    if(!access.authenticated){showAuth();return}
    if(access.next_route==='mfa'||(access.mfa_required===true&&access.mfa_satisfied!==true)){
     const gate=await ensureMfaGate();
@@ -131,6 +129,8 @@ async function controlledStartApp(){
     await gate.show(access);
     return;
    }
+   if(access.platform_admin)await ensureAdminBundles();
+   window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
    if(access.next_route==='onboarding'){
     await ensureOnboardingScript();
@@ -147,7 +147,7 @@ async function controlledStartApp(){
 async function rescueActiveWorkspace(){
  if(rescuePromise)return rescuePromise;
  if(bootPromise)return null;
- if(['onboarding','denied','login'].includes(window.LM_ACCESS?.next_route||''))return null;
+ if(['onboarding','denied','login','mfa'].includes(window.LM_ACCESS?.next_route||''))return null;
  const app=document.getElementById('appShell');if(!app||!app.classList.contains('hidden'))return;
  rescuePromise=(async()=>{try{
   const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)return;
