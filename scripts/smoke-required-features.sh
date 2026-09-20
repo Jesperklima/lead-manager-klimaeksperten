@@ -108,6 +108,7 @@ node scripts/test-security-hardening.js
 node scripts/test-mfa-aal2.js
 node scripts/test-customer-switch-race.js
 node scripts/test-external-crm-foundation.js
+node scripts/test-mail-offer-sync-guards.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
 test -s executive-dashboard-v1.css
