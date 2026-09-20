@@ -104,6 +104,7 @@ node scripts/test-pipeline-drag.js
 node scripts/test-regression-guards.js
 node scripts/test-lead-pool-ui.js
 node scripts/test-security-hardening.js
+node scripts/test-mfa-aal2.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
 test -s executive-dashboard-v1.css
