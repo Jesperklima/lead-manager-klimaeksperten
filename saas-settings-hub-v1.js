@@ -4,8 +4,7 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 let mountRun=0,currentTab='leads',scheduled=false,billingState=null,billingLoading=false,billingError='';
 
-function isCustomer(){return window.LM_ACCESS?.authenticated===true&&typeof state!=='undefined'&&!!state?.client}
-function isPlatformAdmin(){return window.LM_ACCESS?.platform_admin===true}
+function isCustomer(){return window.LM_ACCESS?.authenticated===true&&window.LM_ACCESS?.platform_admin!==true}
 function fmtKr(ore){return new Intl.NumberFormat('da-DK',{minimumFractionDigits:0,maximumFractionDigits:2}).format((Number(ore)||0)/100)+' kr./md.'}
 function fmtDate(v){if(!v)return'—';try{return new Intl.DateTimeFormat('da-DK',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(v))}catch{return String(v)}}
 function planName(v){return v==='start'?'Start':v==='pro'?'Pro':v==='business'?'Business':String(v||'—')}
@@ -168,16 +167,6 @@ function ensureStyle(){
     .lm-terms-accept input{margin-top:3px}
     #lmSettingsShell .pill{white-space:nowrap}
     #lmSettingsShell .notice{border-radius:11px!important}
-    #leadmanager #lmSettingsIntro{background:linear-gradient(135deg,rgba(14,34,47,.96),rgba(9,25,36,.97))!important;border-color:var(--border)!important;box-shadow:var(--lm-shadow-soft,0 10px 28px rgba(0,0,0,.17))!important}
-    #leadmanager #lmSettingsIntro h2,#leadmanager .lm-settings-panel-head h2,#leadmanager .lm-subscription-head h3,#leadmanager .lm-plan-card h4,#leadmanager .lm-plan-modal-card h3,#leadmanager .lm-terms-box h4{color:#f3f8fb!important}
-    #leadmanager .lm-settings-tabs{background:rgba(255,255,255,.045)!important;border:1px solid var(--border)!important}
-    #leadmanager .lm-settings-tab{color:#8aa0b2!important}
-    #leadmanager .lm-settings-tab.active{background:rgba(18,48,63,.96)!important;color:#77f0ce!important;box-shadow:0 6px 18px rgba(0,0,0,.16)!important}
-    #leadmanager #lmMailProviderCard .lm-mail-provider-box,#leadmanager #lmMailProviderCard .lm-mail-provider-grid>.lm-mail-provider-box:first-child,#leadmanager #lmMailProviderCard .lm-mail-account,#leadmanager .lm-settings-advanced .lm-advanced-body,#leadmanager .lm-account-item,#leadmanager .lm-settings-note,#leadmanager .lm-plan-card,#leadmanager .lm-plan-modal-card,#leadmanager .lm-plan-summary,#leadmanager .lm-terms-box,#leadmanager .lm-terms-accept{background:linear-gradient(180deg,rgba(13,31,43,.96),rgba(9,25,36,.97))!important;color:var(--text)!important;border-color:var(--border)!important}
-    #leadmanager #lmMailProviderCard .field label,#leadmanager .lm-settings-advanced summary,#leadmanager .lm-account-item span,#leadmanager .lm-plan-features li,#leadmanager .lm-terms-list{color:var(--muted)!important}
-    #leadmanager .lm-plan-card.active{border-color:rgba(43,218,171,.45)!important;background:rgba(24,201,151,.07)!important;box-shadow:0 0 0 1px rgba(24,201,151,.09)!important}
-    #leadmanager .lm-plan-more,#leadmanager .lm-terms-link{color:#59ddba!important}
-    #leadmanager .lm-billing-lock{background:rgba(251,191,36,.08)!important;border-color:rgba(251,191,36,.18)!important;color:#efd57b!important}
     @media(max-width:760px){
       .lm-settings-tabs{width:100%}.lm-settings-tab{flex:1 1 auto}
       .lm-account-grid{grid-template-columns:1fr}
@@ -233,7 +222,7 @@ function selectTab(tab){
 }
 
 function removeCustomerAdminUi(){
-  if(!isCustomer()||isPlatformAdmin())return;
+  if(!isCustomer())return;
   const cmd=$('#lmCommand'),grid=cmd?.closest('.grid2');if(grid)grid.style.display='none';
   const ai=$('#openaiApiKey')?.closest('.card.section');if(ai)ai.style.display='none';
   $('#lmSettingsMarketingHeading')?.remove();
@@ -267,8 +256,8 @@ function polishMail(){
 
 function renderAccount(){
   const card=$('#lmSettingsAccountCard');if(!card||typeof state==='undefined'||!state?.client)return;
-  const cl=state.client||{},s=cl.settings||{},role=window.LM_ACCESS?.role||'workspace_user',platformAdmin=isPlatformAdmin();
-  const roleName=platformAdmin?'Platform owner':role==='workspace_owner'?'Ejer':role==='workspace_admin'?'Administrator':'Bruger';
+  const cl=state.client||{},s=cl.settings||{},role=window.LM_ACCESS?.role||'workspace_user';
+  const roleName=role==='workspace_owner'?'Ejer':role==='workspace_admin'?'Administrator':'Bruger';
   const sub=billingState?.subscription||null,current=billingState?.current_plan||sub?.plan_code||window.__LM_SAAS_PLAN?.plan_code||'start';
   const price=sub?.monthly_price_ore??({start:14900,pro:19900,business:24900}[current]||0);
   const locked=!!(sub?.lock_until&&new Date(sub.lock_until).getTime()>Date.now());
@@ -302,7 +291,6 @@ function renderAccount(){
       <div class="lm-account-item"><span>Workspace</span><strong>${esc(cl.name||window.LM_ACCESS?.workspace_name||'—')}</strong></div>
     </div>
 
-    ${platformAdmin?'<div class="lm-settings-note"><strong>Platformvisning.</strong> Du administrerer kundens workspace-indstillinger. Abonnementsændringer foretages ikke fra kundens indstillingsside.</div>':`
     <div class="lm-subscription">
       <div class="lm-subscription-head">
         <div><h3>Abonnement</h3><div class="sub">Se jeres aktuelle pakke, sammenlign indhold og skift pakke.</div></div>
@@ -337,7 +325,7 @@ function renderAccount(){
           <div class="lm-billing-doc-amount"><strong>${esc(fmtKr(d.amount_ore).replace('/md.',''))}</strong><div class="sub">${d.status==='scheduled'?'Planlagt':'Registreret'}</div></div>
         </div>
       `).join('')}</div>`:''}
-    </div>`}
+    </div>
 
     <div class="lm-settings-note">Virksomhedsoplysninger fra onboarding bruges som grundlag for Lead Manager. Leadkriterier ændres under fanen <strong>Leads</strong>, og mailopsætning ændres under <strong>Mail</strong>.</div>
   `;
@@ -349,7 +337,6 @@ function renderAccount(){
 }
 
 async function loadBilling(force=false){
-  if(isPlatformAdmin()){billingLoading=false;billingError='';billingState=null;renderAccount();return}
   if(billingLoading||(!force&&billingState))return;
   billingLoading=true;billingError='';renderAccount();
   try{billingState=await planEdge({action:'status'})}
