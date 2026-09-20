@@ -47,7 +47,7 @@ must(!validateBlock.includes('step===3'),'integration step still has blocking va
 must(edge.includes("mailPreference=str(body.mail_provider||'later'"),'server complete does not default mail to later');
 must(edge.includes("onboarding_completed:true"),'server does not complete onboarding without integrations');
 
-must(boot.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-7')"),'central loader is not on onboarding v6');
+must(boot.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-8')"),'central loader is not on onboarding v6');
 must(!boot.includes("loadLazyScript('/saas-onboarding-v5.js"),'central loader still loads onboarding v5');
 
 console.log('PASS: Onboarding v2 requirements — 4 steps, invite prefill, login reuse, server resume, optional mail/CRM');
