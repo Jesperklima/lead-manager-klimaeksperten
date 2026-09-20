@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null,regressionCenterPromise=null,feedbackBundlePromise=null,creditCheckPromise=null,offerSearchPromise=null;
+let bootPromise=null,rescuePromise=null,onboardingScriptPromise=null,adminBundlesPromise=null,settingsHubPromise=null,regressionCenterPromise=null,feedbackBundlePromise=null,creditCheckPromise=null,offerSearchPromise=null,mfaGatePromise=null;
 const ADMIN_BUNDLES=[
  '/saas-platform-admin-v1.js?v=20260919-4',
  '/saas-compliance-admin-v1.js?v=20260919-6',
@@ -16,6 +16,12 @@ function loadLazyScript(src){
   script.onload=()=>resolve();script.onerror=()=>reject(new Error('Modul kunne ikke indlæses: '+src));
   document.head.appendChild(script);
  });
+}
+function ensureMfaGate(){
+ if(window.LMMfaGate)return Promise.resolve(window.LMMfaGate);
+ if(mfaGatePromise)return mfaGatePromise;
+ mfaGatePromise=loadLazyScript('/mfa-gate-v1.js?v=20260920-1').then(()=>window.LMMfaGate).catch(error=>{mfaGatePromise=null;throw error});
+ return mfaGatePromise;
 }
 function ensureAdminBundles(){
  if(adminBundlesPromise)return adminBundlesPromise;
@@ -119,6 +125,12 @@ async function controlledStartApp(){
    if(access.platform_admin)await ensureAdminBundles();
    window.dispatchEvent(new CustomEvent('lm:access-ready',{detail:access}));
    if(!access.authenticated){showAuth();return}
+   if(access.next_route==='mfa'||(access.mfa_required===true&&access.mfa_satisfied!==true)){
+    const gate=await ensureMfaGate();
+    if(!gate?.show)throw new Error('MFA-modulet kunne ikke indlæses');
+    await gate.show(access);
+    return;
+   }
    if(access.next_route==='denied'){showAuth('Denne konto har ikke adgang til et workspace.');await supabase.auth.signOut();return}
    if(access.next_route==='onboarding'){
     await ensureOnboardingScript();
@@ -155,7 +167,7 @@ async function rescueActiveWorkspace(){
  return rescuePromise;
 }
 startApp=controlledStartApp;
-window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle,loadCredit:ensureCreditCheck,loadOfferSearch:ensureOfferSearch};
+window.LMAccess={bootstrap:centralBootstrap,start:controlledStartApp,rescue:rescueActiveWorkspace,loadMfa:ensureMfaGate,loadOnboarding:ensureOnboardingScript,loadAdmin:ensureAdminBundles,loadSettings:ensureSettingsHub,loadRegression:ensureRegressionCenter,loadFeedback:ensureFeedbackBundle,loadCredit:ensureCreditCheck,loadOfferSearch:ensureOfferSearch};
 document.addEventListener('click',event=>{if(event.target.closest?.('.nav button[data-view="leadmanager"]'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error))},true);
 document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="feedback"]'))return;ensureFeedbackBundle().then(()=>window.dispatchEvent(new Event('lm:feedback-open-request'))).catch(error=>console.warn('feedback lazy load',error))},true);
 document.addEventListener('click',event=>{if(!event.target.closest?.('.nav button[data-view="creditcheck"]'))return;ensureCreditCheck().then(()=>window.dispatchEvent(new CustomEvent('lm:creditcheck-open-request'))).catch(error=>console.warn('credit check lazy load',error))},true);
