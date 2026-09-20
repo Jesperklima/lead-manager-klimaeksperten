@@ -21,6 +21,10 @@ const bootstrap=read('access-bootstrap-v1.js');
 assert(bootstrap.includes("access.next_route==='mfa'"),'access bootstrap does not handle MFA route');
 assert(bootstrap.includes("access.mfa_required===true&&access.mfa_satisfied!==true"),'MFA requirement fallback missing');
 assert(bootstrap.includes("loadLazyScript('/mfa-gate-v1.js?v=20260920-1')"),'MFA gate is not lazy-loaded');
+const mfaRoutePos=bootstrap.indexOf("access.next_route==='mfa'");
+const adminBundlesPos=bootstrap.indexOf("if(access.platform_admin)await ensureAdminBundles()",mfaRoutePos-250);
+assert(mfaRoutePos>=0&&adminBundlesPos>mfaRoutePos,'admin bundles load before the MFA gate');
+assert(bootstrap.includes("['onboarding','denied','login','mfa']"),'workspace rescue can still run behind the MFA gate');
 
 const migration=read('supabase/migrations/20260920053500_privileged_mfa_aal2.sql');
 for(const marker of [
