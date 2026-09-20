@@ -191,7 +191,7 @@ const sessionClientMigration=read('supabase/migrations/20260919152500_session_bo
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
 if(!app.includes('access-bootstrap-v1.js?v=20260920-5'))fail('access bootstrap cache version not bumped');
-if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-7')"))fail('lazy onboarding loader missing');
+if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-8')"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');
