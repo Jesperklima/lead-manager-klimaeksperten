@@ -20,3 +20,5 @@ The canonical snapshot and active snapshot were verified identical before this r
 - Test preview before production.
 - No automatic email sending: the user must explicitly approve/send.
 - Do not mix Skarp Studio code or configuration into this repository.
+
+<!-- production redeploy trigger: restore-responsive-app 2026-09-20 -->
