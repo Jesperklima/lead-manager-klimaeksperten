@@ -168,6 +168,16 @@ function ensureStyle(){
     .lm-terms-accept input{margin-top:3px}
     #lmSettingsShell .pill{white-space:nowrap}
     #lmSettingsShell .notice{border-radius:11px!important}
+    #leadmanager #lmSettingsIntro{background:linear-gradient(135deg,rgba(14,34,47,.96),rgba(9,25,36,.97))!important;border-color:var(--border)!important;box-shadow:var(--lm-shadow-soft,0 10px 28px rgba(0,0,0,.17))!important}
+    #leadmanager #lmSettingsIntro h2,#leadmanager .lm-settings-panel-head h2,#leadmanager .lm-subscription-head h3,#leadmanager .lm-plan-card h4,#leadmanager .lm-plan-modal-card h3,#leadmanager .lm-terms-box h4{color:#f3f8fb!important}
+    #leadmanager .lm-settings-tabs{background:rgba(255,255,255,.045)!important;border:1px solid var(--border)!important}
+    #leadmanager .lm-settings-tab{color:#8aa0b2!important}
+    #leadmanager .lm-settings-tab.active{background:rgba(18,48,63,.96)!important;color:#77f0ce!important;box-shadow:0 6px 18px rgba(0,0,0,.16)!important}
+    #leadmanager #lmMailProviderCard .lm-mail-provider-box,#leadmanager #lmMailProviderCard .lm-mail-provider-grid>.lm-mail-provider-box:first-child,#leadmanager #lmMailProviderCard .lm-mail-account,#leadmanager .lm-settings-advanced .lm-advanced-body,#leadmanager .lm-account-item,#leadmanager .lm-settings-note,#leadmanager .lm-plan-card,#leadmanager .lm-plan-modal-card,#leadmanager .lm-plan-summary,#leadmanager .lm-terms-box,#leadmanager .lm-terms-accept{background:linear-gradient(180deg,rgba(13,31,43,.96),rgba(9,25,36,.97))!important;color:var(--text)!important;border-color:var(--border)!important}
+    #leadmanager #lmMailProviderCard .field label,#leadmanager .lm-settings-advanced summary,#leadmanager .lm-account-item span,#leadmanager .lm-plan-features li,#leadmanager .lm-terms-list{color:var(--muted)!important}
+    #leadmanager .lm-plan-card.active{border-color:rgba(43,218,171,.45)!important;background:rgba(24,201,151,.07)!important;box-shadow:0 0 0 1px rgba(24,201,151,.09)!important}
+    #leadmanager .lm-plan-more,#leadmanager .lm-terms-link{color:#59ddba!important}
+    #leadmanager .lm-billing-lock{background:rgba(251,191,36,.08)!important;border-color:rgba(251,191,36,.18)!important;color:#efd57b!important}
     @media(max-width:760px){
       .lm-settings-tabs{width:100%}.lm-settings-tab{flex:1 1 auto}
       .lm-account-grid{grid-template-columns:1fr}

@@ -31,7 +31,7 @@ function ensureAdminBundles(){
 }
 function ensureSettingsHub(){
  if(settingsHubPromise)return settingsHubPromise;
- const scripts=['/saas-settings-hub-v1.js?v=20260920-15','/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3','/saas-mail-sender-name-v1.js?v=20260919-3','/saas-crm-integrations-v1.js?v=20260920-8','/saas-website-intake-v1.js?v=20260920-1','/saas-integrations-overview-v2.js?v=20260920-1'];
+ const scripts=['/saas-settings-hub-v1.js?v=20260920-16','/saas-mail-providers-v1.js?v=20260919-3','/saas-gmail-platform-ui-v1.js?v=20260919-4','/saas-minuba-v1.js?v=20260919-3','/saas-mail-sender-name-v1.js?v=20260919-3','/saas-crm-integrations-v1.js?v=20260920-8','/saas-website-intake-v1.js?v=20260920-1','/saas-integrations-overview-v2.js?v=20260920-1'];
  settingsHubPromise=Promise.all(scripts.map(loadLazyScript)).catch(error=>{settingsHubPromise=null;throw error});
  return settingsHubPromise;
 }
@@ -47,7 +47,7 @@ function ensureRegressionCenter(){
 function ensureFeedbackBundle(){
  if(feedbackBundlePromise)return feedbackBundlePromise;
  feedbackBundlePromise=Promise.all([
-  loadLazyScript('/saas-feedback-v1.js?v=20260919-5'),
+  loadLazyScript('/saas-feedback-v1.js?v=20260920-6'),
   ensureRegressionCenter()
  ]).catch(error=>{feedbackBundlePromise=null;throw error});
  return feedbackBundlePromise;
