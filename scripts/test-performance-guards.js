@@ -206,7 +206,8 @@ if(!accessBootstrap.includes('if(access.platform_admin)await ensureAdminBundles(
 if(!accessBootstrap.includes('loadAdmin:ensureAdminBundles'))fail('admin lazy loader is not exposed for recovery');
 if(app.includes('<script src="/saas-settings-hub-v1.js'))fail('settings hub returned to static startup');
 if(!accessBootstrap.includes("/saas-settings-hub-v1.js?v=20260920-17"))fail('settings hub lazy loader missing');
-if(!accessBootstrap.includes("data-view=\"leadmanager\""))fail('settings lazy navigation hook missing');
+if(!accessBootstrap.includes("function activateNavView(button)"))fail('central sidebar navigation router missing');
+if(!accessBootstrap.includes("if(viewId==='leadmanager')"))fail('settings lazy navigation hook missing');
 if(!accessBootstrap.includes('loadSettings:ensureSettingsHub'))fail('settings lazy loader not exposed');
 if(app.includes('<script src="/saas-mail-providers-v1.js'))fail('mail provider returned to static startup');
 if(!accessBootstrap.includes('/saas-mail-providers-v1.js?v=20260919-3'))fail('mail provider missing from settings lazy stack');
