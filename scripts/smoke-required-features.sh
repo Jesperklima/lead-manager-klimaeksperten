@@ -100,6 +100,9 @@ node --check saas-mail-sender-name-v1.js
 node --check offer-mail-v1.js
 node --check saas-admin-client-switcher-v1.js
 node --check saas-crm-integrations-v1.js
+node --check saas-website-intake-v1.js
+node --check saas-integrations-overview-v2.js
+node --check saas-admin-ops-v2.js
 node scripts/test-executive-dashboard-clock.js
 node scripts/test-layout-overlaps.js
 node scripts/test-pipeline-drag.js
@@ -110,6 +113,7 @@ node scripts/test-mfa-aal2.js
 node scripts/test-customer-switch-race.js
 node scripts/test-external-crm-foundation.js
 node scripts/test-external-crm-complete.js
+node scripts/test-website-integrations-ops-v2.js
 node scripts/test-mail-offer-sync-guards.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
