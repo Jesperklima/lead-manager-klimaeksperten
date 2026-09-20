@@ -8,7 +8,7 @@ const cors={
 const json=(b:any,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
 const clean=(v:any,n=4000)=>String(v??'').trim().slice(0,n);
 const lower=(v:any)=>clean(v,1000).toLowerCase();
-const PROVIDERS=new Set(['crm_webhook','hubspot']);
+const PROVIDERS=new Set(['crm_webhook','hubspot','pipedrive','dynamics365','salesforce']);
 
 function randomSecret(bytes=32){
   const a=new Uint8Array(bytes);crypto.getRandomValues(a);return [...a].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -197,6 +197,361 @@ async function syncHubSpot(admin:any,job:any,integration:any,secret:any){
   }
   return {remote_id:remoteId,remote_url:remoteUrl};
 }
+
+async function pdFetch(token:string,path:string,init:any={}){
+  const u=new URL('https://api.pipedrive.com'+path);
+  u.searchParams.set('api_token',token);
+  const r=await fetch(u.toString(),{...init,headers:{'Content-Type':'application/json',...(init.headers||{})}});
+  const d=await parseJson(r);
+  if(!r.ok||d?.success===false)throw Object.assign(new Error(clean(d?.error||d?.error_info||('Pipedrive HTTP '+r.status),1200)),{status:r.status,body:d});
+  return d;
+}
+function inferPipedriveStages(d:any){
+  const stages=Array.isArray(d?.data)?d.data:[];
+  const ordered=[...stages].sort((a:any,b:any)=>Number(a.order_nr||0)-Number(b.order_nr||0));
+  const open=ordered[0]||null;
+  return {pipeline_id:open?.pipeline_id||null,open_stage_id:open?.id||null,stages:ordered.map((x:any)=>({id:x.id,name:x.name,pipeline_id:x.pipeline_id,order_nr:x.order_nr}))};
+}
+async function testPipedrive(token:string){
+  const me=await pdFetch(token,'/api/v1/users/me');
+  const stages=await pdFetch(token,'/api/v2/stages?limit=500');
+  return {account:me?.data||{},...inferPipedriveStages(stages)};
+}
+function pdEntity(entityType:string){return entityType==='company'?'organizations':entityType==='contact'?'persons':'deals'}
+function pdSearchId(d:any){return String(d?.data?.items?.[0]?.item?.id||d?.data?.[0]?.id||'')||null}
+function pdScalar(v:any){
+  if(Array.isArray(v)){const x=v.find((q:any)=>q?.primary)||v[0];return clean(x?.value??x,1000)}
+  return clean(v,1000);
+}
+async function pdSearch(token:string,entityType:string,row:any){
+  let term='',fields='';
+  if(entityType==='company'){term=clean(row.name,400);fields='name'}
+  else if(entityType==='contact'){term=clean(row.email,400);fields='email'}
+  else{term=clean((row.company?.name||'Lead')+(row.source?' · '+row.source:''),400);fields='title'}
+  if(!term)return null;
+  const d=await pdFetch(token,`/api/v2/${pdEntity(entityType)}/search?term=${encodeURIComponent(term)}&fields=${fields}&exact_match=true&limit=1`);
+  return pdSearchId(d);
+}
+async function pdProps(admin:any,integration:any,entityType:string,row:any){
+  if(entityType==='company')return stripUndefined({name:row.name||'',address:row.address||undefined});
+  if(entityType==='contact'){
+    let orgId:any=undefined;
+    if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();orgId=co?.remote_id?Number(co.remote_id):undefined}
+    return stripUndefined({name:row.full_name||row.email||'Kontakt',email:row.email?[{value:row.email,primary:true}]:undefined,phone:row.phone?[{value:row.phone,primary:true}]:undefined,job_title:row.title||undefined,org_id:orgId});
+  }
+  let orgId:any=undefined;
+  if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();orgId=co?.remote_id?Number(co.remote_id):undefined}
+  const st=clean(row.status).toUpperCase();
+  return stripUndefined({
+    title:(row.company?.name||'Lead')+(row.source?' · '+row.source:''),
+    org_id:orgId,
+    pipeline_id:integration.config?.pipeline_id?Number(integration.config.pipeline_id):undefined,
+    stage_id:integration.config?.open_stage_id?Number(integration.config.open_stage_id):undefined,
+    value:row.won_value!=null?Number(row.won_value):undefined,
+    status:st==='VUNDET'?'won':['TABT','LUKKET','LUKKET – UDSKUDT'].includes(st)?'lost':'open',
+    lost_reason:st==='TABT'&&row.loss_reason?row.loss_reason:undefined
+  });
+}
+async function syncPipedrive(admin:any,job:any,integration:any,secret:any){
+  const token=clean(secret.api_token,4000);if(!token)throw new Error('Pipedrive API-token mangler');
+  const {data:link}=await admin.from('crm_external_entity_links').select('*').eq('integration_id',integration.id).eq('entity_type',job.entity_type).eq('local_id',job.local_id).maybeSingle();
+  const entity=pdEntity(job.entity_type);
+  if(job.operation==='delete'){
+    if(link?.remote_id){
+      try{await pdFetch(token,`/api/v1/${entity}/${encodeURIComponent(link.remote_id)}`,{method:'DELETE'})}catch(e:any){if(e?.status!==404)throw e}
+      await admin.from('crm_external_entity_links').delete().eq('id',link.id);
+    }
+    return {remote_id:link?.remote_id||null,deleted:true};
+  }
+  const row=await loadEntity(admin,job);if(!row)return {skipped:true,reason:'local_missing'};
+  const props=await pdProps(admin,integration,job.entity_type,row);
+  let remoteId=link?.remote_id||null;
+  if(!remoteId)remoteId=await pdSearch(token,job.entity_type,row);
+  let remote:any;
+  if(remoteId)remote=await pdFetch(token,`/api/v1/${entity}/${encodeURIComponent(remoteId)}`,{method:'PUT',body:JSON.stringify(props)});
+  else remote=await pdFetch(token,`/api/v1/${entity}`,{method:'POST',body:JSON.stringify(props)});
+  remoteId=String(remote?.data?.id||remoteId||'');if(!remoteId)throw new Error('Pipedrive returnerede ikke record-id');
+  let domain=clean(integration.config?.company_domain,300).replace(/^https?:\/\//,'').replace(/\/$/,'');if(domain&&!domain.includes('.'))domain=domain+'.pipedrive.com';
+  const singular=job.entity_type==='company'?'organization':job.entity_type==='contact'?'person':'deal';
+  const remoteUrl=domain?`https://${domain}/${singular}/${remoteId}`:null;
+  await upsertLink(admin,job,remoteId,remoteUrl,{provider:'pipedrive'});
+  return {remote_id:remoteId,remote_url:remoteUrl};
+}
+function pdInboundData(entityType:string,r:any){
+  if(entityType==='company')return {name:r.name,phone:pdScalar(r.phone),address:typeof r.address==='string'?r.address:r.address?.value,website_url:pdScalar(r.website)};
+  if(entityType==='contact')return {full_name:r.name,email:pdScalar(r.email),phone:pdScalar(r.phone),title:r.job_title};
+  const out:any={};const st=clean(r.status).toLowerCase();
+  if(st==='won')out.status='VUNDET';if(st==='lost')out.status='TABT';if(r.value!=null&&r.value!=='')out.won_value=r.value;if(r.lost_reason)out.loss_reason=r.lost_reason;return out;
+}
+async function pullPipedrive(admin:any,integration:any,secret:any){
+  const cfg=integration.config||{},last=cfg.last_inbound_poll_at?new Date(cfg.last_inbound_poll_at).getTime():0;
+  if(Date.now()-last<15*60000)return {skipped:true};
+  const token=clean(secret.api_token,4000);if(!token)return {skipped:true,reason:'token_missing'};
+  const groups:any={company:[],contact:[],lead:[]};
+  const {data:links,error}=await admin.from('crm_external_entity_links').select('entity_type,remote_id').eq('integration_id',integration.id).limit(300);
+  if(error)throw error;for(const l of links||[])if(groups[l.entity_type])groups[l.entity_type].push(l.remote_id);
+  let applied=0;
+  for(const [entityType,ids] of Object.entries(groups) as any){
+    if(!ids.length)continue;
+    const entity=pdEntity(entityType);
+    for(let i=0;i<ids.length;i+=100){
+      const d=await pdFetch(token,`/api/v2/${entity}?ids=${ids.slice(i,i+100).map((x:string)=>encodeURIComponent(x)).join(',')}&limit=100`);
+      for(const r of d?.data||[]){
+        const data=stripUndefined(pdInboundData(entityType,r));if(!Object.keys(data).length)continue;
+        const x=await admin.rpc('crm_apply_external_crm_inbound',{p_integration_id:integration.id,p_entity_type:entityType,p_remote_id:String(r.id),p_data:data});
+        if(x.error)throw x.error;if(x.data?.ok)applied++;
+      }
+    }
+  }
+  await admin.from('crm_integrations').update({config:{...cfg,last_inbound_poll_at:new Date().toISOString()},updated_at:new Date().toISOString()}).eq('id',integration.id);
+  return {applied};
+}
+
+
+function dynOrgUrl(v:any){
+  const raw=clean(v,1000).replace(/\/+$/,'').replace(/\/api\/data\/v9\.2$/i,'');
+  if(!/^https:\/\/[a-z0-9.-]+$/i.test(raw))throw new Error('Dynamics/Dataverse URL skal være en gyldig HTTPS-adresse');
+  return raw;
+}
+const dynTokenCache=new Map<string,{token:string,org_url:string,expires:number}>();
+async function dynAccessToken(cfg:any,secret:any){
+  const cacheKey=[clean(cfg?.tenant_id,200),clean(cfg?.client_id,300),clean(cfg?.org_url,1000)].join('|');
+  const cached=dynTokenCache.get(cacheKey);if(cached&&cached.expires>Date.now()+60000)return {token:cached.token,org_url:cached.org_url};
+  const tenant=clean(cfg?.tenant_id,200),clientId=clean(cfg?.client_id,300),clientSecret=clean(secret?.client_secret,4000),orgUrl=dynOrgUrl(cfg?.org_url);
+  if(!tenant||!clientId||!clientSecret)throw new Error('Dynamics Tenant ID, Client ID eller Client Secret mangler');
+  const body=new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:orgUrl+'/.default'});
+  const r=await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+  const d=await parseJson(r);if(!r.ok||!d?.access_token)throw Object.assign(new Error(clean(d?.error_description||d?.error||('Microsoft OAuth HTTP '+r.status),1200)),{status:r.status});
+  const out={token:String(d.access_token),org_url:orgUrl};
+  dynTokenCache.set(cacheKey,{...out,expires:Date.now()+Math.max(5*60000,Number(d.expires_in||3600)*1000-120000)});
+  return out;
+}
+async function dynFetch(token:string,orgUrl:string,path:string,init:any={}){
+  const r=await fetch(orgUrl+'/api/data/v9.2'+path,{...init,headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json','OData-MaxVersion':'4.0','OData-Version':'4.0',...(init.headers||{})}});
+  const d=await parseJson(r);
+  if(!r.ok)throw Object.assign(new Error(clean(d?.error?.message||d?.error_description||d?.error||('Dynamics HTTP '+r.status),1200)),{status:r.status,body:d});
+  return {data:d,response:r};
+}
+async function testDynamics(cfg:any,secret:any){
+  const a=await dynAccessToken(cfg,secret);
+  const who=await dynFetch(a.token,a.org_url,'/WhoAmI');
+  await dynFetch(a.token,a.org_url,'/accounts?$select=accountid&$top=1');
+  await dynFetch(a.token,a.org_url,'/contacts?$select=contactid&$top=1');
+  await dynFetch(a.token,a.org_url,'/opportunities?$select=opportunityid&$top=1');
+  return {org_url:a.org_url,organization_id:who.data?.OrganizationId||null,user_id:who.data?.UserId||null};
+}
+function dynSet(entityType:string){return entityType==='company'?'accounts':entityType==='contact'?'contacts':'opportunities'}
+function dynIdField(entityType:string){return entityType==='company'?'accountid':entityType==='contact'?'contactid':'opportunityid'}
+function odataQuote(v:any){return clean(v,500).replace(/'/g,"''")}
+async function dynSearch(token:string,orgUrl:string,entityType:string,row:any){
+  const set=dynSet(entityType),idField=dynIdField(entityType);
+  let field='',value='';
+  if(entityType==='company'){field='name';value=clean(row.name,400)}
+  else if(entityType==='contact'){field='emailaddress1';value=clean(row.email,400)}
+  else{field='name';value=clean((row.company?.name||'Lead')+(row.source?' · '+row.source:''),400)}
+  if(!value)return null;
+  const q=`/${set}?$select=${idField}&$filter=${field}%20eq%20'${encodeURIComponent(odataQuote(value))}'&$top=1`;
+  const d=await dynFetch(token,orgUrl,q);
+  return String(d.data?.value?.[0]?.[idField]||'')||null;
+}
+async function dynProps(admin:any,integration:any,entityType:string,row:any){
+  if(entityType==='company')return stripUndefined({name:row.name||'',telephone1:row.phone||undefined,address1_line1:row.address||undefined,websiteurl:row.website_url||undefined,description:row.company_summary||undefined});
+  if(entityType==='contact'){
+    const n=splitName(row.full_name||'');const out:any={firstname:n.firstname||undefined,lastname:n.lastname||undefined,emailaddress1:row.email||undefined,telephone1:row.phone||undefined,jobtitle:row.title||undefined};
+    if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();if(co?.remote_id)out['parentcustomerid_account@odata.bind']=`/accounts(${co.remote_id})`}
+    return stripUndefined(out);
+  }
+  const out:any={name:(row.company?.name||'Lead')+(row.source?' · '+row.source:''),estimatedvalue:row.won_value!=null?Number(row.won_value):undefined,description:[row.next_action,row.source,row.source_url].filter(Boolean).join(' · ')||undefined};
+  if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();if(co?.remote_id)out['customerid_account@odata.bind']=`/accounts(${co.remote_id})`}
+  return stripUndefined(out);
+}
+async function syncDynamics(admin:any,job:any,integration:any,secret:any){
+  const a=await dynAccessToken(integration.config||{},secret);
+  const {data:link}=await admin.from('crm_external_entity_links').select('*').eq('integration_id',integration.id).eq('entity_type',job.entity_type).eq('local_id',job.local_id).maybeSingle();
+  const set=dynSet(job.entity_type);
+  if(job.operation==='delete'){
+    if(link?.remote_id){
+      try{await dynFetch(a.token,a.org_url,`/${set}(${encodeURIComponent(link.remote_id)})`,{method:'DELETE'})}catch(e:any){if(e?.status!==404)throw e}
+      await admin.from('crm_external_entity_links').delete().eq('id',link.id);
+    }
+    return {remote_id:link?.remote_id||null,deleted:true};
+  }
+  const row=await loadEntity(admin,job);if(!row)return {skipped:true,reason:'local_missing'};
+  const props=await dynProps(admin,integration,job.entity_type,row);
+  let remoteId=link?.remote_id||null;
+  if(!remoteId)remoteId=await dynSearch(a.token,a.org_url,job.entity_type,row);
+  if(remoteId){
+    await dynFetch(a.token,a.org_url,`/${set}(${encodeURIComponent(remoteId)})`,{method:'PATCH',body:JSON.stringify(props)});
+  }else{
+    const created=await dynFetch(a.token,a.org_url,`/${set}`,{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(props)});
+    remoteId=String(created.data?.[dynIdField(job.entity_type)]||'');
+  }
+  if(!remoteId)throw new Error('Dynamics returnerede ikke record-id');
+  const etn=job.entity_type==='company'?'account':job.entity_type==='contact'?'contact':'opportunity';
+  const remoteUrl=`${a.org_url}/main.aspx?pagetype=entityrecord&etn=${etn}&id=${encodeURIComponent(remoteId)}`;
+  await upsertLink(admin,job,remoteId,remoteUrl,{provider:'dynamics365'});
+  return {remote_id:remoteId,remote_url:remoteUrl};
+}
+function dynInboundData(entityType:string,r:any){
+  if(entityType==='company')return {name:r.name,phone:r.telephone1,address:r.address1_line1,website_url:r.websiteurl};
+  if(entityType==='contact')return {full_name:[r.firstname,r.lastname].filter(Boolean).join(' '),email:r.emailaddress1,phone:r.telephone1,title:r.jobtitle};
+  const out:any={};if(Number(r.statecode)===1)out.status='VUNDET';if(Number(r.statecode)===2)out.status='TABT';if(r.estimatedvalue!=null)out.won_value=r.estimatedvalue;return out;
+}
+async function pullDynamics(admin:any,integration:any,secret:any){
+  const cfg=integration.config||{},last=cfg.last_inbound_poll_at?new Date(cfg.last_inbound_poll_at).getTime():0;
+  if(Date.now()-last<15*60000)return {skipped:true};
+  const a=await dynAccessToken(cfg,secret);
+  const {data:links,error}=await admin.from('crm_external_entity_links').select('entity_type,remote_id').eq('integration_id',integration.id).limit(200);
+  if(error)throw error;let applied=0;
+  for(const l of links||[]){
+    const set=dynSet(l.entity_type),idField=dynIdField(l.entity_type);
+    const select=l.entity_type==='company'?'name,telephone1,address1_line1,websiteurl':l.entity_type==='contact'?'firstname,lastname,emailaddress1,telephone1,jobtitle':'name,statecode,estimatedvalue';
+    try{
+      const d=await dynFetch(a.token,a.org_url,`/${set}(${encodeURIComponent(l.remote_id)})?$select=${select}`);
+      const data=stripUndefined(dynInboundData(l.entity_type,d.data||{}));if(!Object.keys(data).length)continue;
+      const x=await admin.rpc('crm_apply_external_crm_inbound',{p_integration_id:integration.id,p_entity_type:l.entity_type,p_remote_id:String(d.data?.[idField]||l.remote_id),p_data:data});
+      if(x.error)throw x.error;if(x.data?.ok)applied++;
+    }catch(e:any){if(e?.status!==404)throw e}
+  }
+  await admin.from('crm_integrations').update({config:{...cfg,last_inbound_poll_at:new Date().toISOString()},updated_at:new Date().toISOString()}).eq('id',integration.id);
+  return {applied};
+}
+
+
+function sfLoginUrl(v:any){
+  const raw=clean(v,1000)||'https://login.salesforce.com';
+  let u:URL;try{u=new URL(raw)}catch{throw new Error('Salesforce login URL er ugyldig')}
+  if(u.protocol!=='https:')throw new Error('Salesforce login URL skal bruge HTTPS');
+  return u.origin;
+}
+const sfTokenCache=new Map<string,{token:string,instance_url:string,expires:number}>();
+async function sfAccessToken(cfg:any,secret:any){
+  const cacheKey=[clean(cfg?.login_url,1000)||'https://login.salesforce.com',clean(cfg?.client_id,500)].join('|');
+  const cached=sfTokenCache.get(cacheKey);if(cached&&cached.expires>Date.now()+60000)return {token:cached.token,instance_url:cached.instance_url};
+  const loginUrl=sfLoginUrl(cfg?.login_url),clientId=clean(cfg?.client_id,500),clientSecret=clean(secret?.client_secret,4000);
+  if(!clientId||!clientSecret)throw new Error('Salesforce Client ID eller Client Secret mangler');
+  const body=new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret});
+  const r=await fetch(loginUrl+'/services/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+  const d=await parseJson(r);if(!r.ok||!d?.access_token||!d?.instance_url)throw Object.assign(new Error(clean(d?.error_description||d?.error||('Salesforce OAuth HTTP '+r.status),1200)),{status:r.status});
+  const out={token:String(d.access_token),instance_url:String(d.instance_url).replace(/\/+$/,'')};
+  sfTokenCache.set(cacheKey,{...out,expires:Date.now()+15*60000});
+  return out;
+}
+async function sfFetch(token:string,instanceUrl:string,path:string,init:any={}){
+  const r=await fetch(instanceUrl+path,{...init,headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json',...(init.headers||{})}});
+  const d=await parseJson(r);
+  if(!r.ok)throw Object.assign(new Error(clean(d?.[0]?.message||d?.message||d?.error_description||d?.error||('Salesforce HTTP '+r.status),1200)),{status:r.status,body:d});
+  return {data:d,response:r};
+}
+function sfApiVersionFromList(v:any[]){
+  const rows=Array.isArray(v)?v:[];
+  return rows.sort((a:any,b:any)=>Number(b.version||0)-Number(a.version||0))[0]?.version?('v'+rows.sort((a:any,b:any)=>Number(b.version||0)-Number(a.version||0))[0].version):'v65.0';
+}
+function sfObject(entityType:string){return entityType==='company'?'Account':entityType==='contact'?'Contact':'Opportunity'}
+function sfStageInfo(rows:any[]){
+  const stages=(rows||[]).map((x:any)=>({name:x.MasterLabel||x.ApiName||'',closed:!!x.IsClosed,won:!!x.IsWon,sort:Number(x.SortOrder||0)})).filter((x:any)=>x.name).sort((a:any,b:any)=>a.sort-b.sort);
+  const open=stages.find((x:any)=>!x.closed)||stages[0]||null;
+  const won=stages.find((x:any)=>x.closed&&x.won)||stages.find((x:any)=>/won|vundet/i.test(x.name))||null;
+  const lost=stages.find((x:any)=>x.closed&&!x.won)||stages.find((x:any)=>/lost|tabt/i.test(x.name))||null;
+  return {stages,open_stage_name:open?.name||null,won_stage_name:won?.name||null,lost_stage_name:lost?.name||null};
+}
+async function testSalesforce(cfg:any,secret:any){
+  const a=await sfAccessToken(cfg,secret);
+  const versions=await sfFetch(a.token,a.instance_url,'/services/data/');
+  const apiVersion=clean(cfg?.api_version,20)||sfApiVersionFromList(versions.data);
+  for(const obj of ['Account','Contact','Opportunity']){
+    await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/query?q=${encodeURIComponent('SELECT Id FROM '+obj+' LIMIT 1')}`);
+  }
+  let stageRows:any[]=[];
+  try{
+    const q='SELECT MasterLabel,IsClosed,IsWon,SortOrder FROM OpportunityStage ORDER BY SortOrder';
+    const stages=await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/query?q=${encodeURIComponent(q)}`);
+    stageRows=stages.data?.records||[];
+  }catch{
+    const desc=await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/sobjects/Opportunity/describe`);
+    const f=(desc.data?.fields||[]).find((x:any)=>x.name==='StageName');
+    stageRows=(f?.picklistValues||[]).filter((x:any)=>x.active!==false).map((x:any,i:number)=>({MasterLabel:x.value,IsClosed:/won|lost|closed/i.test(x.value),IsWon:/won/i.test(x.value),SortOrder:i}));
+  }
+  return {instance_url:a.instance_url,api_version:apiVersion,...sfStageInfo(stageRows)};
+}
+function sfQuote(v:any){return clean(v,500).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+async function sfSearch(token:string,instanceUrl:string,apiVersion:string,entityType:string,row:any){
+  const obj=sfObject(entityType);let field='',value='';
+  if(entityType==='company'){field='Name';value=clean(row.name,400)}
+  else if(entityType==='contact'){field='Email';value=clean(row.email,400)}
+  else{field='Name';value=clean((row.company?.name||'Lead')+(row.source?' · '+row.source:''),400)}
+  if(!value)return null;
+  const q=`SELECT Id FROM ${obj} WHERE ${field}='${sfQuote(value)}' LIMIT 1`;
+  const d=await sfFetch(token,instanceUrl,`/services/data/${apiVersion}/query?q=${encodeURIComponent(q)}`);
+  return String(d.data?.records?.[0]?.Id||'')||null;
+}
+function isoDate(v:any){
+  const d=v?new Date(v):new Date(Date.now()+30*86400000);
+  if(Number.isNaN(d.getTime()))return new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+  return d.toISOString().slice(0,10);
+}
+async function sfProps(admin:any,integration:any,entityType:string,row:any){
+  if(entityType==='company')return stripUndefined({Name:row.name||'',Phone:row.phone||undefined,BillingStreet:row.address||undefined,Website:row.website_url||undefined,Description:row.company_summary||undefined});
+  if(entityType==='contact'){
+    const n=splitName(row.full_name||'');const out:any={FirstName:n.firstname||undefined,LastName:n.lastname||row.email||'Kontakt',Email:row.email||undefined,Phone:row.phone||undefined,Title:row.title||undefined};
+    if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();if(co?.remote_id)out.AccountId=co.remote_id}
+    return stripUndefined(out);
+  }
+  const cfg=integration.config||{},st=clean(row.status).toUpperCase();let stage=cfg.open_stage_name||undefined;
+  if(st==='VUNDET'&&cfg.won_stage_name)stage=cfg.won_stage_name;
+  if(['TABT','LUKKET','LUKKET – UDSKUDT'].includes(st)&&cfg.lost_stage_name)stage=cfg.lost_stage_name;
+  const out:any={Name:(row.company?.name||'Lead')+(row.source?' · '+row.source:''),StageName:stage,CloseDate:isoDate(row.next_at),Amount:row.won_value!=null?Number(row.won_value):undefined,Description:[row.next_action,row.source,row.source_url,row.loss_reason].filter(Boolean).join(' · ')||undefined};
+  if(row.company_id){const {data:co}=await admin.from('crm_external_entity_links').select('remote_id').eq('integration_id',integration.id).eq('entity_type','company').eq('local_id',row.company_id).maybeSingle();if(co?.remote_id)out.AccountId=co.remote_id}
+  return stripUndefined(out);
+}
+async function syncSalesforce(admin:any,job:any,integration:any,secret:any){
+  const a=await sfAccessToken(integration.config||{},secret),apiVersion=clean(integration.config?.api_version,20)||'v65.0';
+  const {data:link}=await admin.from('crm_external_entity_links').select('*').eq('integration_id',integration.id).eq('entity_type',job.entity_type).eq('local_id',job.local_id).maybeSingle();
+  const obj=sfObject(job.entity_type);
+  if(job.operation==='delete'){
+    if(link?.remote_id){
+      try{await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/sobjects/${obj}/${encodeURIComponent(link.remote_id)}`,{method:'DELETE'})}catch(e:any){if(e?.status!==404)throw e}
+      await admin.from('crm_external_entity_links').delete().eq('id',link.id);
+    }
+    return {remote_id:link?.remote_id||null,deleted:true};
+  }
+  const row=await loadEntity(admin,job);if(!row)return {skipped:true,reason:'local_missing'};
+  const props=await sfProps(admin,integration,job.entity_type,row);
+  let remoteId=link?.remote_id||null;if(!remoteId)remoteId=await sfSearch(a.token,a.instance_url,apiVersion,job.entity_type,row);
+  if(remoteId){
+    await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/sobjects/${obj}/${encodeURIComponent(remoteId)}`,{method:'PATCH',body:JSON.stringify(props)});
+  }else{
+    const created=await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/sobjects/${obj}`,{method:'POST',body:JSON.stringify(props)});
+    remoteId=String(created.data?.id||created.data?.Id||'');
+  }
+  if(!remoteId)throw new Error('Salesforce returnerede ikke record-id');
+  const remoteUrl=`${a.instance_url}/lightning/r/${obj}/${remoteId}/view`;
+  await upsertLink(admin,job,remoteId,remoteUrl,{provider:'salesforce'});
+  return {remote_id:remoteId,remote_url:remoteUrl};
+}
+function sfInboundData(entityType:string,r:any,cfg:any){
+  if(entityType==='company')return {name:r.Name,phone:r.Phone,address:r.BillingStreet,website_url:r.Website};
+  if(entityType==='contact')return {full_name:[r.FirstName,r.LastName].filter(Boolean).join(' '),email:r.Email,phone:r.Phone,title:r.Title};
+  const out:any={};if(r.StageName&&cfg.won_stage_name&&r.StageName===cfg.won_stage_name)out.status='VUNDET';if(r.StageName&&cfg.lost_stage_name&&r.StageName===cfg.lost_stage_name)out.status='TABT';if(r.Amount!=null)out.won_value=r.Amount;return out;
+}
+async function pullSalesforce(admin:any,integration:any,secret:any){
+  const cfg=integration.config||{},last=cfg.last_inbound_poll_at?new Date(cfg.last_inbound_poll_at).getTime():0;if(Date.now()-last<15*60000)return {skipped:true};
+  const a=await sfAccessToken(cfg,secret),apiVersion=clean(cfg.api_version,20)||'v65.0';
+  const {data:links,error}=await admin.from('crm_external_entity_links').select('entity_type,remote_id').eq('integration_id',integration.id).limit(200);if(error)throw error;
+  let applied=0;
+  for(const l of links||[]){
+    const obj=sfObject(l.entity_type),fields=l.entity_type==='company'?'Name,Phone,BillingStreet,Website':l.entity_type==='contact'?'FirstName,LastName,Email,Phone,Title':'Name,StageName,Amount';
+    try{
+      const d=await sfFetch(a.token,a.instance_url,`/services/data/${apiVersion}/sobjects/${obj}/${encodeURIComponent(l.remote_id)}?fields=${fields}`);
+      const data=stripUndefined(sfInboundData(l.entity_type,d.data||{},cfg));if(!Object.keys(data).length)continue;
+      const x=await admin.rpc('crm_apply_external_crm_inbound',{p_integration_id:integration.id,p_entity_type:l.entity_type,p_remote_id:String(d.data?.Id||l.remote_id),p_data:data});
+      if(x.error)throw x.error;if(x.data?.ok)applied++;
+    }catch(e:any){if(e?.status!==404)throw e}
+  }
+  await admin.from('crm_integrations').update({config:{...cfg,last_inbound_poll_at:new Date().toISOString()},updated_at:new Date().toISOString()}).eq('id',integration.id);
+  return {applied};
+}
+
 async function syncWebhook(admin:any,job:any,integration:any,secret:any){
   const endpoint=clean(integration.config?.endpoint_url,3000);if(!/^https:\/\//i.test(endpoint))throw new Error('Webhook endpoint mangler eller er ikke HTTPS');
   const row=job.operation==='delete'?null:await loadEntity(admin,job);
@@ -230,6 +585,9 @@ async function processJob(admin:any,job:any){
   const secret=await getSecret(admin,integration.id);
   let result:any;
   if(integration.provider==='hubspot')result=await syncHubSpot(admin,job,integration,secret);
+  else if(integration.provider==='pipedrive')result=await syncPipedrive(admin,job,integration,secret);
+  else if(integration.provider==='dynamics365')result=await syncDynamics(admin,job,integration,secret);
+  else if(integration.provider==='salesforce')result=await syncSalesforce(admin,job,integration,secret);
   else if(integration.provider==='crm_webhook')result=await syncWebhook(admin,job,integration,secret);
   else throw new Error('Provider er ikke implementeret endnu: '+integration.provider);
   await logJob(admin,job,'done','CRM sync completed',result||{});
@@ -277,11 +635,22 @@ async function drain(admin:any){
     try{const r=await processJob(admin,job);await finishJob(admin,job,true);out.push({id:job.id,ok:true,result:r})}
     catch(e){const msg=e instanceof Error?e.message:String(e);await logJob(admin,job,'error',msg);await finishJob(admin,job,false,msg);await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('id',job.integration_id);out.push({id:job.id,ok:false,error:msg})}
   }
-  const {data:hub}=await admin.from('crm_integrations').select('*').eq('provider','hubspot').eq('status','connected').limit(20);
+  const {data:pollable}=await admin.from('crm_integrations').select('*').in('provider',['hubspot','pipedrive','dynamics365','salesforce']).eq('status','connected').limit(80);
   const pulls:any[]=[];
-  for(const integration of hub||[]){
-    try{const secret=await getSecret(admin,integration.id);pulls.push({integration_id:integration.id,...await pullHubSpot(admin,integration,secret)})}
-    catch(e){pulls.push({integration_id:integration.id,error:e instanceof Error?e.message:String(e)})}
+  for(const integration of pollable||[]){
+    try{
+      const secret=await getSecret(admin,integration.id);
+      const result=integration.provider==='hubspot'
+        ?await pullHubSpot(admin,integration,secret)
+        :integration.provider==='pipedrive'
+          ?await pullPipedrive(admin,integration,secret)
+          :integration.provider==='dynamics365'
+            ?await pullDynamics(admin,integration,secret)
+            :await pullSalesforce(admin,integration,secret);
+      pulls.push({integration_id:integration.id,provider:integration.provider,...result});
+    }catch(e){
+      pulls.push({integration_id:integration.id,provider:integration.provider,error:e instanceof Error?e.message:String(e)});
+    }
   }
   return {jobs:out,pulls};
 }
@@ -330,7 +699,7 @@ Deno.serve(async(req:Request)=>{
 
     const a=action==='status'?await actor(admin,req,clientId):await requireManage(admin,req,clientId);
     if(action==='status'){
-      const {data:rows,error:re}=await admin.from('crm_integrations').select('id,provider,account,status,config,last_sync_at,last_error,updated_at').eq('client_id',a.clientId).in('provider',['crm_webhook','hubspot']);
+      const {data:rows,error:re}=await admin.from('crm_integrations').select('id,provider,account,status,config,last_sync_at,last_error,updated_at').eq('client_id',a.clientId).in('provider',['crm_webhook','hubspot','pipedrive','dynamics365','salesforce']);
       if(re)throw re;
       const {count:links,error:le}=await admin.from('crm_external_entity_links').select('id',{count:'exact',head:true}).eq('client_id',a.clientId);if(le)throw le;
       const counts:any={queued:0,running:0,error:0,dead:0};
@@ -347,6 +716,39 @@ Deno.serve(async(req:Request)=>{
       await saveSecret(admin,integration.id,{token});
       const queued=await queueFullResync(admin,a.clientId,integration.id);
       return json({ok:true,provider:'hubspot',integration_id:integration.id,account:integration.account,queued,pipelines:t.pipelines,config:cfg});
+    }
+
+    if(action==='connect_pipedrive'){
+      const token=clean(body.api_token,4000);if(!token)return json({error:'Pipedrive API-token mangler'},400);
+      const t=await testPipedrive(token),account=t.account||{},domain=clean(account.company_domain||account.company?.domain,300);
+      const cfg={mode:'api_token',company_domain:domain,pipeline_id:t.pipeline_id,open_stage_id:t.open_stage_id,sync_companies:true,sync_contacts:true,sync_leads:true,last_inbound_poll_at:null};
+      const integration=await ensureIntegration(admin,a.clientId,'pipedrive',clean(account.company_name||account.name||('Pipedrive '+domain),300),'connected',cfg);
+      await saveSecret(admin,integration.id,{api_token:token});
+      const queued=await queueFullResync(admin,a.clientId,integration.id);
+      return json({ok:true,provider:'pipedrive',integration_id:integration.id,account:integration.account,queued,stages:t.stages,config:cfg});
+    }
+
+    if(action==='connect_dynamics365'){
+      const cfg={tenant_id:clean(body.tenant_id,200),client_id:clean(body.client_id,300),org_url:dynOrgUrl(body.org_url),mode:'client_credentials',sync_companies:true,sync_contacts:true,sync_leads:true,last_inbound_poll_at:null};
+      const clientSecret=clean(body.client_secret,4000);if(!cfg.tenant_id||!cfg.client_id||!clientSecret)return json({error:'Tenant ID, Client ID og Client Secret skal udfyldes'},400);
+      const t=await testDynamics(cfg,{client_secret:clientSecret});
+      const integration=await ensureIntegration(admin,a.clientId,'dynamics365',clean(new URL(cfg.org_url).host,300),'connected',{...cfg,organization_id:t.organization_id});
+      await saveSecret(admin,integration.id,{client_secret:clientSecret});
+      const queued=await queueFullResync(admin,a.clientId,integration.id);
+      return json({ok:true,provider:'dynamics365',integration_id:integration.id,account:integration.account,queued,organization_id:t.organization_id,config:{...cfg,organization_id:t.organization_id}});
+    }
+
+    if(action==='connect_salesforce'){
+      const clientId=clean(body.client_id,500),clientSecret=clean(body.client_secret,4000),loginUrl=sfLoginUrl(body.login_url||'https://login.salesforce.com');
+      if(!clientId||!clientSecret)return json({error:'Salesforce Client ID og Client Secret skal udfyldes'},400);
+      const baseCfg={mode:'client_credentials',login_url:loginUrl,client_id:clientId,sync_companies:true,sync_contacts:true,sync_leads:true,last_inbound_poll_at:null};
+      const t=await testSalesforce(baseCfg,{client_secret:clientSecret});
+      const cfg={...baseCfg,instance_url:t.instance_url,api_version:t.api_version,open_stage_name:t.open_stage_name,won_stage_name:t.won_stage_name,lost_stage_name:t.lost_stage_name};
+      if(!cfg.open_stage_name)return json({error:'Salesforce Opportunity-stage kunne ikke bestemmes'},400);
+      const integration=await ensureIntegration(admin,a.clientId,'salesforce',clean(new URL(t.instance_url).host,300),'connected',cfg);
+      await saveSecret(admin,integration.id,{client_secret:clientSecret});
+      const queued=await queueFullResync(admin,a.clientId,integration.id);
+      return json({ok:true,provider:'salesforce',integration_id:integration.id,account:integration.account,queued,stages:t.stages,config:cfg});
     }
 
     if(action==='connect_webhook'){
@@ -368,6 +770,9 @@ Deno.serve(async(req:Request)=>{
       const integration=await getIntegration(admin,a.clientId,undefined,clean(body.integration_id,100));if(!integration)return json({error:'CRM-forbindelsen findes ikke'},404);
       const secret=await getSecret(admin,integration.id);
       if(integration.provider==='hubspot'){const t=await testHubSpot(clean(secret.token,4000));return json({ok:true,provider:'hubspot',hub_id:t.account?.portalId||t.account?.hubId||null,pipelines:t.pipelines})}
+      if(integration.provider==='pipedrive'){const t=await testPipedrive(clean(secret.api_token,4000));return json({ok:true,provider:'pipedrive',company_domain:t.account?.company_domain||null,stages:t.stages})}
+      if(integration.provider==='dynamics365'){const t=await testDynamics(integration.config||{},secret);return json({ok:true,provider:'dynamics365',organization_id:t.organization_id,org_url:t.org_url})}
+      if(integration.provider==='salesforce'){const t=await testSalesforce(integration.config||{},secret);return json({ok:true,provider:'salesforce',instance_url:t.instance_url,api_version:t.api_version,stages:t.stages})}
       if(integration.provider==='crm_webhook'){
         const endpoint=clean(integration.config?.endpoint_url,3000),b=JSON.stringify({version:1,event:'ping',source:'lead_manager',occurred_at:new Date().toISOString()});
         const headers:any={'Content-Type':'application/json','X-Lead-Manager-Signature':'sha256='+await hmacHex(clean(secret.outbound_secret,4000),b)};

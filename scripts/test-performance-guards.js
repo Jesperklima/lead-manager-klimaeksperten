@@ -116,7 +116,7 @@ for(const source of [index,app]){
 const executive=read('executive-dashboard-v1.js');
 activeRuntime.add('executive-dashboard-v1.js');
 for(const m of executive.matchAll(/\.src=['"]\/([^"'?]+\.js)(?:\?[^"']*)?['"]/g))activeRuntime.add(m[1]);
-const lazyRuntime=['saas-onboarding-v5.js','saas-onboarding-mail-account-sync-v1.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js','saas-minuba-v1.js','saas-feedback-v1.js','saas-credit-check-v1.js','saas-offer-search-controls-v2.js','saas-mail-sender-name-v1.js','date-picker-click-v1.js'];
+const lazyRuntime=['saas-onboarding-v6.js','saas-onboarding-mail-account-sync-v1.js','saas-platform-admin-v1.js','saas-compliance-admin-v1.js','saas-admin-client-switcher-v1.js','saas-admin-users-v1.js','saas-impersonation-v1.js','saas-marketing-connections-v1.js','saas-settings-hub-v1.js','saas-regression-center-v1.js','saas-mail-providers-v1.js','saas-gmail-platform-ui-v1.js','saas-minuba-v1.js','saas-feedback-v1.js','saas-credit-check-v1.js','saas-offer-search-controls-v2.js','saas-mail-sender-name-v1.js','date-picker-click-v1.js'];
 for(const file of lazyRuntime)activeRuntime.add(file);
 
 const intervalAllow=new Set(['executive-dashboard-v1.js']);
@@ -156,12 +156,12 @@ if(!perf.includes("crm_companies').select('id,client_id,name,cvr,domain,phone,ad
 if(!index.includes("crm_companies').select('id,client_id,name,cvr,domain,phone,address,stoplisted,created_at,relationship_status,do_not_contact,do_not_contact_reason,industry,website_url,employee_size_text,company_summary,research_updated_at,minuba_relationship_status,minuba_relationship_summary,minuba_exact_match,minuba_chain_match,minuba_order_count,minuba_latest_order_date,minuba_latest_order_number,minuba_latest_order_address,minuba_related_locations,minuba_checked_at,legal_form,advertising_protected,robinson_check_required,robinson_checked_at,robinson_blocked,contact_compliance_status')"))fail('trimmed company base query missing');
 if(perf.includes("case 'companies': return supabase.from('crm_companies').select('*')")||index.includes("if(key==='companies')return supabase.from('crm_companies').select('*')"))fail('heavy base company select-star returned');
 if(!app.includes('performance-v1.js?v=20260919-5'))fail('performance cache version not bumped');
-const onboarding=read('saas-onboarding-v5.js');
+const onboarding=read('saas-onboarding-v6.js');
 if(onboarding.includes('setTimeout(boot,0);setTimeout(boot,500);setTimeout(boot,1500)'))fail('onboarding startup retry burst returned');
 if(onboarding.includes("if(ev==='SIGNED_IN'&&s){setTimeout(boot,0)"))fail('onboarding SIGNED_IN retry burst returned');
 if(!onboarding.includes("lm:central-onboarding-required"))fail('central onboarding trigger missing');
-if(app.includes('<script src="/saas-onboarding-v5.js'))fail('onboarding bundle returned to static startup');
-if(!onboarding.includes('window.__LM_ONBOARDING_V5=true'))fail('onboarding lazy-load guard missing');
+if(app.includes('<script src="/saas-onboarding-v6.js'))fail('onboarding bundle returned to static startup');
+if(!onboarding.includes('window.__LM_ONBOARDING_V6=true'))fail('onboarding lazy-load guard missing');
 if(!onboarding.includes('window.__LM_ONBOARDING_CLAIM_PROMISE=claim()'))fail('onboarding invite claim promise missing');
 try{new Function(onboarding)}catch(e){fail('lazy onboarding syntax error: '+e.message)}
 const platformAdmin=read('saas-platform-admin-v1.js');
@@ -191,7 +191,7 @@ const sessionClientMigration=read('supabase/migrations/20260919152500_session_bo
 if(!sessionClientMigration.includes("'client',m.client_ctx"))fail('session bootstrap client context missing');
 if(!sessionClientMigration.includes("'membership',jsonb_build_object"))fail('session bootstrap membership context missing');
 if(!app.includes('access-bootstrap-v1.js?v=20260920-2'))fail('access bootstrap cache version not bumped');
-if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v5.js?v=20260919-5')"))fail('lazy onboarding loader missing');
+if(!accessBootstrap.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-7')"))fail('lazy onboarding loader missing');
 if(!accessBootstrap.includes('await ensureOnboardingScript()'))fail('central onboarding does not await lazy bundle');
 if(!accessBootstrap.includes('await window.__LM_ONBOARDING_CLAIM_PROMISE'))fail('invite onboarding claim is not awaited');
 if(!accessBootstrap.includes('if(bootPromise)return null'))fail('rescue can race active bootstrap');

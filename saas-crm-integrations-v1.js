@@ -15,7 +15,7 @@ async function edge(payload){
 }
 function canManage(){return ['workspace_owner','workspace_admin'].includes(window.LM_ACCESS?.role)||window.LM_ACCESS?.platform_admin===true}
 function fmt(v){if(!v)return'—';try{return new Date(v).toLocaleString('da-DK')}catch{return String(v)}}
-function providerName(p){return p==='hubspot'?'HubSpot':p==='crm_webhook'?'Andet CRM / webhook':p}
+function providerName(p){return p==='hubspot'?'HubSpot':p==='pipedrive'?'Pipedrive':p==='dynamics365'?'Microsoft Dynamics 365':p==='salesforce'?'Salesforce':p==='crm_webhook'?'Andet CRM / webhook':p}
 function statusPill(s){return s==='connected'?'<span class=\"pill\" style=\"background:#dcfce7;color:#166534\">✓ Forbundet</span>':s==='error'?'<span class=\"pill\" style=\"background:#fee2e2;color:#991b1b\">Fejl</span>':'<span class=\"pill\">'+esc(s||'Ikke forbundet')+'</span>'}
 
 function style(){
@@ -59,6 +59,29 @@ function card(){
         <button id=\"lmCrmHubConnect\" type=\"button\" class=\"btn primary\" style=\"margin-top:10px\">Forbind HubSpot</button>
       </div>
       <div class=\"lm-crm-box\">
+        <h3>Pipedrive</h3>
+        <div class=\"sub\">Brug en Pipedrive API-token. Lead Manager synkroniserer Organizations, Persons og Deals og finder pipeline/stage automatisk.</div>
+        <div class=\"field\"><label>Pipedrive API-token</label><input id=\"lmCrmPipeToken\" type=\"password\" autocomplete=\"new-password\" placeholder=\"API token\"></div>
+        <button id=\"lmCrmPipeConnect\" type=\"button\" class=\"btn primary\" style=\"margin-top:10px\">Forbind Pipedrive</button>
+      </div>
+      <div class=\"lm-crm-box\">
+        <h3>Microsoft Dynamics 365</h3>
+        <div class=\"sub\">Server-to-server via Microsoft Entra ID. App-brugeren skal have adgang til Accounts, Contacts og Opportunities i Dataverse.</div>
+        <div class=\"field\"><label>Dataverse URL</label><input id=\"lmCrmDynUrl\" type=\"url\" placeholder=\"https://firma.crm4.dynamics.com\"></div>
+        <div class=\"field\"><label>Tenant ID</label><input id=\"lmCrmDynTenant\" type=\"text\" autocomplete=\"off\"></div>
+        <div class=\"field\"><label>Client ID</label><input id=\"lmCrmDynClient\" type=\"text\" autocomplete=\"off\"></div>
+        <div class=\"field\"><label>Client Secret</label><input id=\"lmCrmDynSecret\" type=\"password\" autocomplete=\"new-password\"></div>
+        <button id=\"lmCrmDynConnect\" type=\"button\" class=\"btn primary\" style=\"margin-top:10px\">Forbind Dynamics 365</button>
+      </div>
+      <div class=\"lm-crm-box\">
+        <h3>Salesforce</h3>
+        <div class=\"sub\">Server-to-server OAuth via Salesforce External Client App / Connected App med adgang til Account, Contact og Opportunity.</div>
+        <div class=\"field\"><label>Login URL</label><input id=\"lmCrmSfLogin\" type=\"url\" value=\"https://login.salesforce.com\" placeholder=\"https://login.salesforce.com\"></div>
+        <div class=\"field\"><label>Client ID</label><input id=\"lmCrmSfClient\" type=\"text\" autocomplete=\"off\"></div>
+        <div class=\"field\"><label>Client Secret</label><input id=\"lmCrmSfSecret\" type=\"password\" autocomplete=\"new-password\"></div>
+        <button id=\"lmCrmSfConnect\" type=\"button\" class=\"btn primary\" style=\"margin-top:10px\">Forbind Salesforce</button>
+      </div>
+      <div class=\"lm-crm-box\">
         <h3>Andet CRM via webhook/API</h3>
         <div class=\"sub\">Lead Manager sender ændringer som JSON til jeres HTTPS-endpoint og kan modtage ændringer retur via en sikker inbound webhook.</div>
         <div class=\"field\"><label>Outbound HTTPS endpoint</label><input id=\"lmCrmWebhookUrl\" type=\"url\" placeholder=\"https://crm.example.dk/lead-manager\"></div>
@@ -69,11 +92,11 @@ function card(){
     <div id=\"lmCrmSetupSecret\"></div>
     <div id=\"lmCrmMessage\" class=\"lm-crm-message\"></div>`;
   panel.appendChild(c);
-  $('#lmCrmHubConnect').onclick=connectHubSpot;$('#lmCrmWebhookConnect').onclick=connectWebhook;
+  $('#lmCrmHubConnect').onclick=connectHubSpot;$('#lmCrmPipeConnect').onclick=connectPipedrive;$('#lmCrmDynConnect').onclick=connectDynamics;$('#lmCrmSfConnect').onclick=connectSalesforce;$('#lmCrmWebhookConnect').onclick=connectWebhook;
   c.addEventListener('click',handleAction);return c;
 }
 function msg(t,bad=false){const e=$('#lmCrmMessage');if(e){e.textContent=t||'';e.classList.toggle('bad',!!bad)}}
-function setBusy(v){busy=!!v;['#lmCrmHubConnect','#lmCrmWebhookConnect'].forEach(s=>{const e=$(s);if(e)e.disabled=busy})}
+function setBusy(v){busy=!!v;['#lmCrmHubConnect','#lmCrmPipeConnect','#lmCrmDynConnect','#lmCrmSfConnect','#lmCrmWebhookConnect'].forEach(s=>{const e=$(s);if(e)e.disabled=busy})}
 async function copyText(v){try{await navigator.clipboard.writeText(v);if(typeof toast==='function')toast('Kopieret')}catch{msg('Kunne ikke kopiere automatisk.',true)}}
 function renderSetup(){
   const host=$('#lmCrmSetupSecret');if(!host)return;
@@ -85,7 +108,7 @@ function render(d){
   const top=$('#lmCrmTopStatus');if(top){const ok=con.some(x=>x.status==='connected');top.textContent=ok?'✓ CRM aktiv':'Ikke forbundet';top.style.background=ok?'#dcfce7':'';top.style.color=ok?'#166534':''}
   const stats=$('#lmCrmStats');if(stats)stats.innerHTML=`<div class=\"lm-crm-stats\"><div class=\"lm-crm-stat\"><strong>${Number(d?.links||0)}</strong><span>Mappinger</span></div><div class=\"lm-crm-stat\"><strong>${Number(q.queued||0)}</strong><span>I kø</span></div><div class=\"lm-crm-stat\"><strong>${Number(q.error||0)}</strong><span>Fejl</span></div><div class=\"lm-crm-stat\"><strong>${esc(fmt(d?.last_event))}</strong><span>Seneste event</span></div></div>`;
   const host=$('#lmCrmConnections');if(host)host.innerHTML=con.length?con.map(x=>`<div class=\"lm-crm-connection\" data-crm-id=\"${esc(x.id)}\"><div class=\"lm-crm-row\"><div><strong>${esc(providerName(x.provider))}</strong><div class=\"sub\">${esc(x.account||'')}</div></div>${statusPill(x.status)}</div><div class=\"sub\" style=\"margin-top:7px\">Seneste sync: ${esc(fmt(x.last_sync_at))}${x.last_error?' · Fejl: '+esc(x.last_error):''}</div>${canManage()?`<div class=\"lm-crm-actions\"><button type=\"button\" class=\"btn\" data-crm-action=\"test\">Test</button><button type=\"button\" class=\"btn\" data-crm-action=\"resync\">Synkronisér alt igen</button><button type=\"button\" class=\"btn\" data-crm-action=\"disconnect\">Frakobl</button></div>`:''}</div>`).join(''):'<div class=\"lm-settings-note\">Der er endnu ikke forbundet et eksternt CRM.</div>';
-  if(!canManage()){['#lmCrmHubToken','#lmCrmWebhookUrl','#lmCrmWebhookToken','#lmCrmHubConnect','#lmCrmWebhookConnect'].forEach(s=>{const e=$(s);if(e)e.disabled=true})}
+  if(!canManage()){['#lmCrmHubToken','#lmCrmPipeToken','#lmCrmDynUrl','#lmCrmDynTenant','#lmCrmDynClient','#lmCrmDynSecret','#lmCrmSfLogin','#lmCrmSfClient','#lmCrmSfSecret','#lmCrmWebhookUrl','#lmCrmWebhookToken','#lmCrmHubConnect','#lmCrmPipeConnect','#lmCrmDynConnect','#lmCrmSfConnect','#lmCrmWebhookConnect'].forEach(s=>{const e=$(s);if(e)e.disabled=true})}
   renderSetup();
 }
 async function refresh(){
@@ -98,6 +121,31 @@ async function connectHubSpot(){
   setBusy(true);msg('Tester HubSpot og opretter sikker forbindelse…');
   try{const d=await edge({action:'connect_hubspot',token});$('#lmCrmHubToken').value='';setupSecret=null;msg(`HubSpot er forbundet. ${Number(d.queued||0)} poster er lagt i første sync-kø.`);if(typeof toast==='function')toast('HubSpot forbundet');await refresh()}
   catch(e){msg('HubSpot kunne ikke forbindes: '+(e.message||e),true)}
+  finally{setBusy(false)}
+}
+async function connectPipedrive(){
+  if(busy||!canManage())return;const token=$('#lmCrmPipeToken')?.value?.trim();if(!token){msg('Indsæt Pipedrive API-token.',true);return}
+  setBusy(true);msg('Tester Pipedrive og opretter sikker forbindelse…');
+  try{const d=await edge({action:'connect_pipedrive',api_token:token});$('#lmCrmPipeToken').value='';setupSecret=null;msg(`Pipedrive er forbundet. ${Number(d.queued||0)} poster er lagt i første sync-kø.`);if(typeof toast==='function')toast('Pipedrive forbundet');await refresh()}
+  catch(e){msg('Pipedrive kunne ikke forbindes: '+(e.message||e),true)}
+  finally{setBusy(false)}
+}
+async function connectDynamics(){
+  if(busy||!canManage())return;
+  const org_url=$('#lmCrmDynUrl')?.value?.trim(),tenant_id=$('#lmCrmDynTenant')?.value?.trim(),client_id=$('#lmCrmDynClient')?.value?.trim(),client_secret=$('#lmCrmDynSecret')?.value||'';
+  if(!org_url||!tenant_id||!client_id||!client_secret){msg('Udfyld Dataverse URL, Tenant ID, Client ID og Client Secret.',true);return}
+  setBusy(true);msg('Tester Dynamics 365 / Dataverse og opretter sikker forbindelse…');
+  try{const d=await edge({action:'connect_dynamics365',org_url,tenant_id,client_id,client_secret});$('#lmCrmDynSecret').value='';setupSecret=null;msg(`Dynamics 365 er forbundet. ${Number(d.queued||0)} poster er lagt i første sync-kø.`);if(typeof toast==='function')toast('Dynamics 365 forbundet');await refresh()}
+  catch(e){msg('Dynamics 365 kunne ikke forbindes: '+(e.message||e),true)}
+  finally{setBusy(false)}
+}
+async function connectSalesforce(){
+  if(busy||!canManage())return;
+  const login_url=$('#lmCrmSfLogin')?.value?.trim()||'https://login.salesforce.com',client_id=$('#lmCrmSfClient')?.value?.trim(),client_secret=$('#lmCrmSfSecret')?.value||'';
+  if(!client_id||!client_secret){msg('Udfyld Salesforce Client ID og Client Secret.',true);return}
+  setBusy(true);msg('Tester Salesforce og opretter sikker forbindelse…');
+  try{const d=await edge({action:'connect_salesforce',login_url,client_id,client_secret});$('#lmCrmSfSecret').value='';setupSecret=null;msg(`Salesforce er forbundet. ${Number(d.queued||0)} poster er lagt i første sync-kø.`);if(typeof toast==='function')toast('Salesforce forbundet');await refresh()}
+  catch(e){msg('Salesforce kunne ikke forbindes: '+(e.message||e),true)}
   finally{setBusy(false)}
 }
 async function connectWebhook(){

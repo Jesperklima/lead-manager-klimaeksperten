@@ -60,7 +60,7 @@ for(const marker of [
   "service_role"
 ]) assert(mig.includes(marker),'missing CRM migration marker: '+marker);
 
-assert(boot.includes("/saas-crm-integrations-v1.js?v=20260920-1"),'CRM settings module is not lazy-loaded');
+assert(boot.includes("/saas-crm-integrations-v1.js?v=20260920-8"),'CRM settings module is not lazy-loaded');
 assert(!mig.includes("grant execute on function public.crm_external_crm_get_secret(uuid) to authenticated"),'secret read was granted to authenticated');
 assert(!mig.includes("grant execute on function public.crm_external_crm_store_secret(uuid,jsonb) to authenticated"),'secret write was granted to authenticated');
 console.log('PASS: complete external CRM connector guards');
