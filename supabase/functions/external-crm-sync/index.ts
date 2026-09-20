@@ -340,7 +340,7 @@ Deno.serve(async(req:Request)=>{
       const integration=await ensureIntegration(admin,a.clientId,'hubspot',clean(t.account?.accountName||('HubSpot '+hubId),300),'connected',cfg);
       await saveSecret(admin,integration.id,{token});
       const queued=await queueFullResync(admin,a.clientId,integration.id);
-      return json({ok:true,provider:'hubspot,integration_id':integration.id,account:integration.account,queued,pipelines:t.pipelines,config:cfg});
+      return json({ok:true,provider:'hubspot',integration_id:integration.id,account:integration.account,queued,pipelines:t.pipelines,config:cfg});
     }
 
     if(action==='connect_webhook'){
