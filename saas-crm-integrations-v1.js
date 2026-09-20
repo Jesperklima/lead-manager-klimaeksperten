@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const $=s=>document.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[m]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 let busy=false,lastClient='',lastStatus=null,setupSecret=null;
