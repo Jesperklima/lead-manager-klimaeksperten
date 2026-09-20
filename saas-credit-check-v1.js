@@ -121,7 +121,7 @@
   }
   function init(){installStyles();installView();installLeadBlock();wrapOpenLead();watchLead()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  window.addEventListener('lm:creditcheck-open-request',e=>{const epoch=e?.detail?.nav_epoch||null;if(epoch&&window.LMNavigation?.matches&&!window.LMNavigation.matches('creditcheck',epoch))return;openManual(String(e?.detail?.cvr||''))});
+  window.addEventListener('lm:creditcheck-open-request',e=>openManual(String(e?.detail?.cvr||'')));
   window.addEventListener('lm:client-data-ready',()=>{lastLeadId='';wrapOpenLead();setTimeout(watchLead,0)});
   window.addEventListener('lm:data-refreshed',()=>{wrapOpenLead();if(document.getElementById('drawer')?.classList.contains('open'))setTimeout(watchLead,0)});
   window.LMCreditCheck={open:openManual,watch:watchLead};
