@@ -1,31 +1,28 @@
 # Lead Manager release process
 
-## Branches
+> Status: PREPARED, NOT ACTIVE.
+> Continue the existing release/deployment workflow until Jesper explicitly activates the staging model.
 
-- `feature/*`, `fix/*`, `security/*`, `ops/*`: development only. GitHub CI runs, but Vercel does not build them.
-- `staging`: release candidate. This is the only non-production branch allowed to build on Vercel.
-- `main`: production only.
+## Prepared future model
 
-## Normal release
+- `feature/*`, `fix/*`, `security/*`, `ops/*`: development branches.
+- `staging`: future isolated release-candidate environment.
+- `main`: production.
+
+When activated, the intended flow is:
 
 1. Build work on a feature/fix branch.
-2. Open PR to `staging`.
-3. Require baseline, required-feature, onboarding and Release gate to pass.
-4. Deploy `staging` once and run browser/API smoke tests.
-5. Only after staging is green, open PR `staging -> main`.
-6. Main deploys once to production.
-7. Verify production and keep the previous READY deployment available for rollback.
+2. Run GitHub baseline, required-feature and onboarding checks.
+3. Merge approved work to `staging`.
+4. Run the full release gate and browser/API smoke against isolated staging.
+5. Promote/merge `staging -> main` only when green.
+6. Verify production and retain the previous READY deployment for rollback.
 
-## Hotfix
+## Current mode
 
-Critical production fixes may use `hotfix/* -> main`, but must still pass Release gate before merge.
+The staging enforcement, staging-only Vercel branch policy and mandatory staging-to-main gate are intentionally disabled.
+The existing Lead Manager workflow remains active until Jesper asks to enable the staging model.
 
-## Vercel build budget
+## Future database safety
 
-Vercel Git deployments are disabled for all branches except `staging` and `main`.
-This avoids preview builds for every development commit and reduces build-rate-limit incidents.
-
-## Database safety
-
-Do not use production data as a destructive test environment.
-Staging must use a separate Supabase development branch/project before write-capable browser testing is enabled.
+Before staging is activated for write-capable testing, it must use a separate Supabase development branch/project. Production customer data must not be the destructive test environment.

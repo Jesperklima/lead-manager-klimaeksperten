@@ -1,31 +1,12 @@
 name: Release gate
 
 on:
-  pull_request:
-    branches:
-      - staging
-      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  release-policy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enforce production promotion path
-        if: github.event_name == 'pull_request' && github.base_ref == 'main'
-        shell: bash
-        run: |
-          case "${{ github.head_ref }}" in
-            staging|hotfix/*|ops/staging-release-pipeline) ;;
-            *)
-              echo "Production PRs must come from staging or hotfix/*." >&2
-              exit 1
-              ;;
-          esac
-
   release-gate:
     runs-on: ubuntu-latest
     steps:
