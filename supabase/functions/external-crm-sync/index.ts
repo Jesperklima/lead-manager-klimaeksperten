@@ -635,11 +635,22 @@ async function drain(admin:any){
     try{const r=await processJob(admin,job);await finishJob(admin,job,true);out.push({id:job.id,ok:true,result:r})}
     catch(e){const msg=e instanceof Error?e.message:String(e);await logJob(admin,job,'error',msg);await finishJob(admin,job,false,msg);await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('id',job.integration_id);out.push({id:job.id,ok:false,error:msg})}
   }
-  const {data:hub}=await admin.from('crm_integrations').select('*').eq('provider','hubspot').eq('status','connected').limit(20);
+  const {data:pollable}=await admin.from('crm_integrations').select('*').in('provider',['hubspot','pipedrive','dynamics365','salesforce']).eq('status','connected').limit(80);
   const pulls:any[]=[];
-  for(const integration of hub||[]){
-    try{const secret=await getSecret(admin,integration.id);pulls.push({integration_id:integration.id,...await pullHubSpot(admin,integration,secret)})}
-    catch(e){pulls.push({integration_id:integration.id,error:e instanceof Error?e.message:String(e)})}
+  for(const integration of pollable||[]){
+    try{
+      const secret=await getSecret(admin,integration.id);
+      const result=integration.provider==='hubspot'
+        ?await pullHubSpot(admin,integration,secret)
+        :integration.provider==='pipedrive'
+          ?await pullPipedrive(admin,integration,secret)
+          :integration.provider==='dynamics365'
+            ?await pullDynamics(admin,integration,secret)
+            :await pullSalesforce(admin,integration,secret);
+      pulls.push({integration_id:integration.id,provider:integration.provider,...result});
+    }catch(e){
+      pulls.push({integration_id:integration.id,provider:integration.provider,error:e instanceof Error?e.message:String(e)});
+    }
   }
   return {jobs:out,pulls};
 }
