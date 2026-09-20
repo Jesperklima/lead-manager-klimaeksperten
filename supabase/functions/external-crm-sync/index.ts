@@ -271,7 +271,7 @@ async function syncPipedrive(admin:any,job:any,integration:any,secret:any){
   if(remoteId)remote=await pdFetch(token,`/api/v1/${entity}/${encodeURIComponent(remoteId)}`,{method:'PUT',body:JSON.stringify(props)});
   else remote=await pdFetch(token,`/api/v1/${entity}`,{method:'POST',body:JSON.stringify(props)});
   remoteId=String(remote?.data?.id||remoteId||'');if(!remoteId)throw new Error('Pipedrive returnerede ikke record-id');
-  const domain=clean(integration.config?.company_domain,300).replace(/^https?:\/\//,'').replace(/\/$/,'');
+  let domain=clean(integration.config?.company_domain,300).replace(/^https?:\/\//,'').replace(/\/$/,'');if(domain&&!domain.includes('.'))domain=domain+'.pipedrive.com';
   const singular=job.entity_type==='company'?'organization':job.entity_type==='contact'?'person':'deal';
   const remoteUrl=domain?`https://${domain}/${singular}/${remoteId}`:null;
   await upsertLink(admin,job,remoteId,remoteUrl,{provider:'pipedrive'});
@@ -313,13 +313,18 @@ function dynOrgUrl(v:any){
   if(!/^https:\/\/[a-z0-9.-]+$/i.test(raw))throw new Error('Dynamics/Dataverse URL skal være en gyldig HTTPS-adresse');
   return raw;
 }
+const dynTokenCache=new Map<string,{token:string,org_url:string,expires:number}>();
 async function dynAccessToken(cfg:any,secret:any){
+  const cacheKey=[clean(cfg?.tenant_id,200),clean(cfg?.client_id,300),clean(cfg?.org_url,1000)].join('|');
+  const cached=dynTokenCache.get(cacheKey);if(cached&&cached.expires>Date.now()+60000)return {token:cached.token,org_url:cached.org_url};
   const tenant=clean(cfg?.tenant_id,200),clientId=clean(cfg?.client_id,300),clientSecret=clean(secret?.client_secret,4000),orgUrl=dynOrgUrl(cfg?.org_url);
   if(!tenant||!clientId||!clientSecret)throw new Error('Dynamics Tenant ID, Client ID eller Client Secret mangler');
   const body=new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret,scope:orgUrl+'/.default'});
   const r=await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
   const d=await parseJson(r);if(!r.ok||!d?.access_token)throw Object.assign(new Error(clean(d?.error_description||d?.error||('Microsoft OAuth HTTP '+r.status),1200)),{status:r.status});
-  return {token:String(d.access_token),org_url:orgUrl};
+  const out={token:String(d.access_token),org_url:orgUrl};
+  dynTokenCache.set(cacheKey,{...out,expires:Date.now()+Math.max(5*60000,Number(d.expires_in||3600)*1000-120000)});
+  return out;
 }
 async function dynFetch(token:string,orgUrl:string,path:string,init:any={}){
   const r=await fetch(orgUrl+'/api/data/v9.2'+path,{...init,headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json','OData-MaxVersion':'4.0','OData-Version':'4.0',...(init.headers||{})}});
@@ -419,13 +424,18 @@ function sfLoginUrl(v:any){
   if(u.protocol!=='https:')throw new Error('Salesforce login URL skal bruge HTTPS');
   return u.origin;
 }
+const sfTokenCache=new Map<string,{token:string,instance_url:string,expires:number}>();
 async function sfAccessToken(cfg:any,secret:any){
+  const cacheKey=[clean(cfg?.login_url,1000)||'https://login.salesforce.com',clean(cfg?.client_id,500)].join('|');
+  const cached=sfTokenCache.get(cacheKey);if(cached&&cached.expires>Date.now()+60000)return {token:cached.token,instance_url:cached.instance_url};
   const loginUrl=sfLoginUrl(cfg?.login_url),clientId=clean(cfg?.client_id,500),clientSecret=clean(secret?.client_secret,4000);
   if(!clientId||!clientSecret)throw new Error('Salesforce Client ID eller Client Secret mangler');
   const body=new URLSearchParams({grant_type:'client_credentials',client_id:clientId,client_secret:clientSecret});
   const r=await fetch(loginUrl+'/services/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
   const d=await parseJson(r);if(!r.ok||!d?.access_token||!d?.instance_url)throw Object.assign(new Error(clean(d?.error_description||d?.error||('Salesforce OAuth HTTP '+r.status),1200)),{status:r.status});
-  return {token:String(d.access_token),instance_url:String(d.instance_url).replace(/\/+$/,'')};
+  const out={token:String(d.access_token),instance_url:String(d.instance_url).replace(/\/+$/,'')};
+  sfTokenCache.set(cacheKey,{...out,expires:Date.now()+15*60000});
+  return out;
 }
 async function sfFetch(token:string,instanceUrl:string,path:string,init:any={}){
   const r=await fetch(instanceUrl+path,{...init,headers:{Authorization:'Bearer '+token,Accept:'application/json','Content-Type':'application/json',...(init.headers||{})}});
