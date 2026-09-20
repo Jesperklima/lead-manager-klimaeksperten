@@ -78,6 +78,7 @@ node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
 node --check lead-manager-theme-v2.js
 node --check api/app.js
+node --check saas-onboarding-v6.js
 node --check legal-agreement-v1.js
 python3 - <<'PY'
 import base64, hashlib
@@ -120,6 +121,7 @@ node scripts/test-platform-legal-identity-setup.js
 node scripts/test-mail-offer-sync-guards.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
+node scripts/test-onboarding-v6.js
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
 grep -q 'lead-manager-theme-v2.css' index.html
