@@ -15,7 +15,7 @@ for(const marker of [
   "mode:'stored_first_closed_guard_pending_v12'",
   "const staleAgainstCurrent=!!matched&&Number.isFinite(statusTime)&&Number.isFinite(mailTime)&&mailTime<=statusTime",
   "closedStatuses.has(matched.status)&&analysis.status==='I GANG'",
-  "mode:'stored_first_closed_guard_v10'"
+  "mode:'stored_first_closed_guard_pending_v12'"
 ]) assert(src.includes(marker),'missing mail-offer guard: '+marker);
 
 assert(!src.includes('fetchMicrosoftasync function fetchMicrosoft'),'duplicate fetchMicrosoft function marker');
