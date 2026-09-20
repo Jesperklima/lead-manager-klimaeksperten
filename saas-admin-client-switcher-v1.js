@@ -83,7 +83,7 @@ function applyWorkspaceSnapshot(id,loaded){
   window.__LM_BASE_CLIENT_ID=id;
   window.__LM_BASE_LOADED_KEYS=[...SNAPSHOT_KEYS,'mail'];
   window.__LM_BASE_STARTUP_READY=true;
-  setText?.('syncState','● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));
+  if(typeof setText==='function')setText('syncState','● Live CRM · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));
 }
 async function switchClient(id){
   id=String(id||'');
@@ -123,7 +123,7 @@ async function switchClient(id){
     if(seq===switchSeq){
       if(committed)restoreWorkspace(previous);
       localStorage.setItem(STORAGE,String(previous.client?.id||''));
-      if($('brandClient')&&previous.client)$('brandClient').textContent=previous.client.name+' · Admin';
+      if($('brandClient')&&previous.client){const previousRow=rows.find(r=>String(r.client_id)===String(previous.client.id));$('brandClient').textContent=previous.client.name+(previousRow?.is_home?' · Admin':'');}
       render();
       if(typeof toast==='function')toast('Kunne ikke skifte kundeprofil. Prøv igen.');
     }
