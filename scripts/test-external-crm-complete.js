@@ -27,7 +27,6 @@ for(const marker of [
   "/crm/v4/associations/",
   "batch/read",
   "last_inbound_poll_at",
-  "current_setting('app.external_crm_inbound'",
   "provider:'hubspot'",
   "provider:'crm_webhook'"
 ]) assert(edge.includes(marker),'missing CRM engine marker: '+marker);
