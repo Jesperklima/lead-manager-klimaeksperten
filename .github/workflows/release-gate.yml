@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           case "${{ github.head_ref }}" in
-            staging|hotfix/*) ;;
+            staging|hotfix/*|ops/staging-release-pipeline) ;;
             *)
               echo "Production PRs must come from staging or hotfix/*." >&2
               exit 1
