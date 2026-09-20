@@ -10,6 +10,9 @@ for(const marker of [
   'IGNORED_STALE_OFFER_STATUS',
   'IGNORED_CLOSED_OFFER_REOPEN',
   'markMailIgnored',
+  'PENDING_APPROVAL',
+  "offer_sync_processed:true",
+  "mode:'stored_first_closed_guard_pending_v12'",
   "const staleAgainstCurrent=!!matched&&Number.isFinite(statusTime)&&Number.isFinite(mailTime)&&mailTime<=statusTime",
   "closedStatuses.has(matched.status)&&analysis.status==='I GANG'",
   "mode:'stored_first_closed_guard_v10'"
