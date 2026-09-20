@@ -28,16 +28,20 @@ function style(){
     '#lmLegalAgreementModal button{border:1px solid #cbd5e1;border-radius:10px;padding:9px 13px;font-weight:800;cursor:pointer;background:#fff;color:#0f172a}',
     '#lmLegalAgreementModal button.primary{background:#0f172a;color:#fff;border-color:#0f172a}',
     '#lmLegalAgreementModal button:disabled{opacity:.5;cursor:not-allowed}',
+    '#lmLegalAgreementModal input[type="text"],#lmLegalAgreementModal input[type="email"],#lmLegalAgreementModal input[type="url"]{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:9px;padding:9px 10px;font:13px system-ui,-apple-system,Segoe UI,sans-serif}',
+    '#lmLegalAgreementModal .lmleg-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}',
+    '#lmLegalAgreementModal .lmleg-field label{display:block;font-size:11px;font-weight:800;color:#475569;margin-bottom:4px}',
+    '@media(max-width:650px){#lmLegalAgreementModal .lmleg-grid{grid-template-columns:1fr}}',
     '.lmleg-sub{font-size:12px;color:#64748b}',
     '@media(max-width:720px){#lmLegalAgreementBanner{top:7px;padding:9px 10px}#lmLegalAgreementModal{padding:7px}}'
   ].join('');
   document.head.appendChild(s);
 }
 function clear(){const b=$('lmLegalAgreementBanner');if(b)b.remove();const m=$('lmLegalAgreementModal');if(m)m.remove()}
-function banner(msg,button){
+function banner(msg,button,handler){
   style();let b=$('lmLegalAgreementBanner');if(!b){b=document.createElement('div');b.id='lmLegalAgreementBanner';document.body.appendChild(b)}
   b.innerHTML='<div><strong>Juridisk aftale</strong><div style="margin-top:2px">'+esc(msg)+'</div></div>'+(button?'<button id="lmLegalOpen" type="button">'+esc(button)+'</button>':'');
-  const o=$('lmLegalOpen');if(o)o.addEventListener('click',openModal);
+  const o=$('lmLegalOpen');if(o)o.addEventListener('click',handler||openModal);
 }
 async function refresh(){
   if(refreshPromise)return refreshPromise;
@@ -47,13 +51,63 @@ async function refresh(){
     if(!state||!state.agreement_required){clear();return}
     if(state.agreement&&state.agreement.accepted){clear();return}
     const role=String(state.role||'').toLowerCase();
-    if(!state.provider_identity_complete){banner('Databehandleraftalen er klargjort, men kan ikke accepteres før Lead Managers juridiske udbyderidentitet er verificeret.',null);return}
+    if(!state.provider_identity_complete){banner('Databehandleraftalen er klargjort, men kan ikke accepteres før Lead Managers juridiske udbyderidentitet er verificeret.',state.platform_admin?'Udfyld juridiske oplysninger':null,state.platform_admin?openIdentityModal:null);return}
     if(!['owner','admin'].includes(role)){banner('Databehandleraftalen afventer accept fra en ejer/admin på jeres konto.',null);return}
     banner('Databehandleraftalen mangler accept. Gennemse og accepter den registrerede version.','Gennemse aftale');
   }catch(e){console.warn('legal agreement status',e)}})();
   try{return await refreshPromise}finally{refreshPromise=null}
 }
 function scheduleRefresh(delay=0){if(refreshTimer)clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{refreshTimer=null;refresh()},delay)}
+async function openIdentityModal(){
+  if(busy)return;busy=true;
+  try{
+    const d=await edge({action:'provider_identity_status'}),i=d.identity||{};style();
+    const old=$('lmLegalAgreementModal');if(old)old.remove();
+    const m=document.createElement('div');m.id='lmLegalAgreementModal';
+    m.innerHTML='<div class="lmleg-card">'
+      +'<div class="lmleg-head"><div style="font-size:18px;font-weight:900">Juridisk udbyderidentitet</div><div class="lmleg-sub">Disse oplysninger bliver den juridiske databehandlerpart i Lead Managers aftaler. Brug den registrerede juridiske enhed — ikke kun brandnavnet.</div></div>'
+      +'<div class="lmleg-body"><div class="lmleg-grid">'
+      +'<div class="lmleg-field"><label>Juridisk navn *</label><input id="lmPidLegalName" type="text" value="'+esc(i.legal_name||'')+'" placeholder="Virksomhedens registrerede navn"></div>'
+      +'<div class="lmleg-field"><label>CVR *</label><input id="lmPidCvr" type="text" inputmode="numeric" value="'+esc(i.cvr||'')+'" placeholder="8 cifre"></div>'
+      +'<div class="lmleg-field"><label>Adresse *</label><input id="lmPidStreet" type="text" value="'+esc(i.street_address||'')+'" placeholder="Vej og nr."></div>'
+      +'<div class="lmleg-field"><label>Postnummer *</label><input id="lmPidPostal" type="text" value="'+esc(i.postal_code||'')+'" placeholder="Postnr."></div>'
+      +'<div class="lmleg-field"><label>By *</label><input id="lmPidCity" type="text" value="'+esc(i.city||'')+'" placeholder="By"></div>'
+      +'<div class="lmleg-field"><label>Land</label><input id="lmPidCountry" type="text" value="'+esc(i.country||'Danmark')+'"></div>'
+      +'<div class="lmleg-field"><label>Privacy / GDPR e-mail *</label><input id="lmPidEmail" type="email" value="'+esc(i.privacy_email||'')+'" placeholder="privacy@firma.dk"></div>'
+      +'<div class="lmleg-field"><label>Website</label><input id="lmPidWebsite" type="url" value="'+esc(i.website||'')+'" placeholder="https://..."></div>'
+      +'</div><label style="display:flex;gap:9px;align-items:flex-start;margin-top:14px"><input id="lmPidAck" type="checkbox" style="margin-top:3px"><span>Jeg bekræfter, at oplysningerne er korrekte for den juridiske enhed, der leverer Lead Manager.</span></label><div id="lmPidMsg" class="lmleg-sub" style="margin-top:9px"></div></div>'
+      +'<div class="lmleg-foot"><button id="lmPidClose" type="button">Luk</button><button id="lmPidSave" type="button" class="primary" disabled>Gem og verificér</button></div>'
+      +'</div>';
+    document.body.appendChild(m);
+    const save=$('lmPidSave'),ack=$('lmPidAck');
+    ack.onchange=()=>{save.disabled=!ack.checked};
+    $('lmPidClose').onclick=()=>m.remove();
+    save.onclick=async()=>{
+      if(!ack.checked)return;
+      save.disabled=true;$('lmPidMsg').textContent='Validerer og gemmer…';
+      try{
+        const result=await edge({
+          action:'save_provider_identity',
+          confirm_identity:true,
+          identity:{
+            legal_name:$('lmPidLegalName').value,
+            cvr:$('lmPidCvr').value,
+            street_address:$('lmPidStreet').value,
+            postal_code:$('lmPidPostal').value,
+            city:$('lmPidCity').value,
+            country:$('lmPidCountry').value||'Danmark',
+            privacy_email:$('lmPidEmail').value,
+            website:$('lmPidWebsite').value
+          }
+        });
+        if(!result.verified)throw new Error('Identiteten kunne ikke verificeres.');
+        $('lmPidMsg').textContent='✓ Juridisk udbyderidentitet er verificeret.';
+        setTimeout(()=>{m.remove();scheduleRefresh(0)},650);
+      }catch(e){$('lmPidMsg').textContent=e.message||String(e);save.disabled=false}
+    };
+  }catch(e){console.warn('provider identity setup',e);banner(e.message||'Juridisk udbyderidentitet kunne ikke åbnes.',null)}
+  finally{busy=false}
+}
 async function openModal(){
   if(busy)return;busy=true;
   try{
