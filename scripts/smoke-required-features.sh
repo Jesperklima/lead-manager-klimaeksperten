@@ -78,6 +78,7 @@ node --check /tmp/required-views.js
 node --check executive-dashboard-v1.js
 node --check lead-manager-theme-v2.js
 node --check api/app.js
+node --check legal-agreement-v1.js
 python3 - <<'PY'
 import base64, hashlib
 from pathlib import Path
@@ -115,6 +116,7 @@ node scripts/test-external-crm-foundation.js
 node scripts/test-external-crm-complete.js
 node scripts/test-website-integrations-ops-v2.js
 node scripts/test-admin-workspace-self-heal.js
+node scripts/test-platform-legal-identity-setup.js
 node scripts/test-mail-offer-sync-guards.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
