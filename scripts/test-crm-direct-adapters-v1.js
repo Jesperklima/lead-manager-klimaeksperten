@@ -32,11 +32,13 @@ for(const marker of [
   "action:'connect_pipedrive'",
   "action:'connect_dynamics365'",
   "action:'connect_salesforce'",
-  'type=\"password\"',
   'lmCrmPipeConnect',
   'lmCrmDynConnect',
   'lmCrmSfConnect'
 ]) must(ui.includes(marker),'missing direct CRM UI marker: '+marker);
+must(/lmCrmPipeToken[^\n]*password/.test(ui),'Pipedrive token field is not password protected');
+must(/lmCrmDynSecret[^\n]*password/.test(ui),'Dynamics secret field is not password protected');
+must(/lmCrmSfSecret[^\n]*password/.test(ui),'Salesforce secret field is not password protected');
 
 must(edge.includes(".in('provider',['crm_webhook','hubspot','pipedrive','dynamics365','salesforce'])"),'status does not return all CRM providers');
 must(edge.includes(".in('provider',['hubspot','pipedrive','dynamics365','salesforce'])"),'poll worker does not include all direct providers');
