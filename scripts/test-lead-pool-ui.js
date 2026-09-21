@@ -45,4 +45,17 @@ for(const marker of [
 ]){
   if(!settingsMigration.includes(marker))throw new Error('Lead settings workspace RPC marker missing: '+marker);
 }
-console.log('PASS: lead-pool UI 10/20/30, Platform Owner edit access, secure workspace save and v3 refill backend are wired');
+for(const marker of [
+  '#lmLeadSettingsModal .lmcc{width:min(920px,96vw);max-height:92vh;overflow:auto;background:#081923;color:#eaf4fb',
+  '#lmLeadSettingsModal label{display:block;font-size:12px;font-weight:750;color:#c7d7e3',
+  'background:#132733;color:#f4fbff',
+  '.chip.on{border-color:rgba(77,224,176,.55);background:rgba(77,224,176,.14);color:#7cf0c7}',
+  '.choice.on{border-color:rgba(77,224,176,.55);background:rgba(77,224,176,.14);color:#7cf0c7}',
+  '#lmLeadSettingsModal .btn.primary{background:#4de0b0;color:#06261d'
+]){
+  if(!ui.includes(marker))throw new Error('Lead settings dark-theme marker missing: '+marker);
+}
+if(ui.includes('#lmLeadSettingsModal .lmcc{width:min(920px,96vw);max-height:92vh;overflow:auto;background:#fff')){
+  throw new Error('Lead settings modal light background returned');
+}
+console.log('PASS: lead-pool UI 10/20/30, Platform Owner edit access, secure workspace save, dark settings modal and v3 refill backend are wired');
