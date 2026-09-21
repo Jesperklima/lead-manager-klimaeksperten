@@ -22,3 +22,5 @@ The canonical snapshot and active snapshot were verified identical before this r
 - Do not mix Skarp Studio code or configuration into this repository.
 
 <!-- production redeploy trigger: restore-responsive-app 2026-09-20 -->
+
+<!-- production deploy trigger: 2026-09-21 latest-main -->
