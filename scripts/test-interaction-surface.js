@@ -77,13 +77,13 @@ const interactionMarkers=[
   ["calendar next","$('nextWeek').onclick="],
   ["report load","qid('reportLoad')?.addEventListener('click'"],
   ["report ranges","document.querySelectorAll('[data-report-range]').forEach"],
-  ["drawer close","function closeLeadDrawer(event)"],
+  ["drawer close","function closeLeadDrawer()"],
   ["lead save","$('saveLead').onclick="],
   ["new lead cancel","$('cancelNew').onclick="],
   ["new lead create","$('createNew').onclick="],
   ["offer cancel","$('cancelOffer').onclick="],
   ["offer save","$('saveOffer').onclick="],
-  ["mail cancel","$('cancelMail').onclick="],
+  ["mail cancel","id=\"mailDialogCloseForm\""],
   ["mail queue","$('queueMail').onclick="]
 ];
 for(const [name,marker] of interactionMarkers)must(html.includes(marker),name+' handler missing');
