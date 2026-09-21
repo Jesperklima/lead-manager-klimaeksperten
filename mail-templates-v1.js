@@ -173,7 +173,10 @@
   async function saveTemplate(){
     const clientId=currentClientId(),name=String(byId('mailTemplateName').value||'').trim(),scope=byId('mailTemplateScope').value,subject=String(byId('mailTemplateSubject').value||'').trim(),body=String(byId('mailTemplateBody').value||'').trim(),isDefault=byId('mailTemplateDefault').checked;
     if(!name||!body){if(typeof toast==='function')toast('Skriv navn og mailtekst');return}
-    if(isDefault){await supabase.from('crm_mail_templates').update({is_default:false}).eq('client_id',clientId).in('scope',[scope,'both'])}
+    if(isDefault){
+      await supabase.from('crm_mail_templates').update({is_default:false}).eq('client_id',clientId).eq('scope',scope);
+      if(scope!=='both')await supabase.from('crm_mail_templates').update({is_default:false}).eq('client_id',clientId).eq('scope','both');
+    }
     const payload={client_id:clientId,name,scope,subject,body_text:body,is_active:true,is_default:isDefault,updated_at:new Date().toISOString(),created_by:currentUser()||null};
     const result=editingId?await supabase.from('crm_mail_templates').update(payload).eq('id',editingId):await supabase.from('crm_mail_templates').insert(payload);
     if(result.error){alert('Skabelonen kunne ikke gemmes: '+result.error.message);return}
@@ -182,8 +185,8 @@
 
   async function deleteTemplate(){
     if(!editingId||!confirm('Slet denne mail-skabelon?'))return;
-    const {error}=await supabase.from('crm_mail_templates').delete().eq('id',editingId);if(error){alert('Skabelonen kunne ikke slettes: '+error.message);return}
-    await loadTemplates(true);renderList();refreshSelectors();resetForm();if(typeof toast==='function')toast('Mail-skabelon slettet');
+    const {error}=await supabase.from('crm_mail_templates').update({is_active:false,updated_at:new Date().toISOString()}).eq('id',editingId);if(error){alert('Skabelonen kunne ikke deaktiveres: '+error.message);return}
+    await loadTemplates(true);renderList();refreshSelectors();resetForm();if(typeof toast==='function')toast('Mail-skabelon fjernet');
   }
 
   async function applyDefaultWhenOpened(){
