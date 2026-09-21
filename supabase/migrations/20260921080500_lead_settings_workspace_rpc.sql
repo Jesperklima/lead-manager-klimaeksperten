@@ -113,3 +113,69 @@ $$;
 
 revoke all on function public.crm_update_lead_search_profile(uuid,jsonb) from public;
 grant execute on function public.crm_update_lead_search_profile(uuid,jsonb) to authenticated;
+
+
+create or replace function public.crm_set_new_lead_pool_limit(p_client_id uuid,p_limit integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_old_limit integer;
+  v_ny integer;
+begin
+  if p_client_id is null then raise exception 'Kunde mangler'; end if;
+  if p_limit not in (10,20,30) then raise exception 'Lead-puljen skal være 10, 20 eller 30'; end if;
+  if auth.uid() is null or not public.crm_can_manage_workspace(p_client_id) then
+    raise exception 'Kun ejer/admin eller Platform Owner kan ændre lead-puljen';
+  end if;
+
+  select public.crm_new_lead_pool_limit(p_client_id) into v_old_limit;
+
+  if v_old_limit is distinct from p_limit then
+    update public.crm_clients
+       set settings=jsonb_set(
+         coalesce(settings,'{}'::jsonb),
+         '{new_lead_pool_limit}',
+         to_jsonb(p_limit),
+         true
+       ),
+       updated_at=now()
+     where id=p_client_id;
+
+    insert into public.crm_activities(
+      client_id,type,actor_type,actor_name,summary,metadata
+    ) values (
+      p_client_id,
+      'Lead settings',
+      'user',
+      coalesce(auth.jwt()->>'email',auth.uid()::text),
+      format('Ny lead-pulje ændret fra %s til %s',v_old_limit,p_limit),
+      jsonb_build_object(
+        'setting','new_lead_pool_limit',
+        'old_value',v_old_limit,
+        'new_value',p_limit
+      )
+    );
+  end if;
+
+  select count(*) into v_ny
+  from public.crm_leads
+  where client_id=p_client_id
+    and status='NY'
+    and coalesce(lead_pool,'standard')='standard';
+
+  return jsonb_build_object(
+    'ok',true,
+    'client_id',p_client_id,
+    'old_limit',v_old_limit,
+    'new_limit',p_limit,
+    'current_ny',v_ny,
+    'refill_requested',p_limit>v_old_limit
+  );
+end
+$$;
+
+revoke all on function public.crm_set_new_lead_pool_limit(uuid,integer) from public;
+grant execute on function public.crm_set_new_lead_pool_limit(uuid,integer) to authenticated;
