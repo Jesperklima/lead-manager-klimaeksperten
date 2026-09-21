@@ -980,12 +980,13 @@ async function resolveMailRecipientForLead(lead){
   if(c.email)return {email:String(c.email).trim(),source:'Virksomhedens standardmail'};
   try{
     const [coRes,ctRes]=await Promise.all([
-      supabase.from('crm_companies').select('id,email').eq('client_id',state.client.id).eq('id',lead.company_id).maybeSingle(),
-      supabase.from('crm_contacts').select('id,full_name,email,verified,title,role_relevance').eq('client_id',state.client.id).eq('company_id',lead.company_id).not('email','is',null)
+      supabase.from('crm_companies').select('id,email').eq('client_id',state.client.id).eq('id',lead.company_id).limit(1),
+      supabase.from('crm_contacts').select('id,full_name,email,verified,title,role_relevance').eq('client_id',state.client.id).eq('company_id',lead.company_id)
     ]);
-    const freshContacts=ctRes.data||[],freshBest=bestEmailContact(freshContacts);
-    const freshEmail=String(freshBest?.email||coRes.data?.email||'').trim();
-    if(coRes.data?.email&&c)c.email=coRes.data.email;
+    const companyRow=Array.isArray(coRes.data)?coRes.data[0]:coRes.data;
+    const freshContacts=(ctRes.data||[]).filter(x=>String(x?.email||'').trim()),freshBest=bestEmailContact(freshContacts);
+    const freshEmail=String(freshBest?.email||companyRow?.email||'').trim();
+    if(companyRow?.email&&c)c.email=companyRow.email;
     if(freshContacts.length){
       const existingIds=new Set((state.contacts||[]).map(x=>x.id));
       state.contacts=[...(state.contacts||[]),...freshContacts.filter(x=>!existingIds.has(x.id))];
