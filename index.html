@@ -230,6 +230,10 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
 #mailModal #queueMail:hover{
   background:#66e7bd!important;
 }
+#mailModal #mSignatureText{max-height:none!important;overflow:visible!important;white-space:normal!important;margin-top:8px;color:#cfe0e8!important}
+#mailModal #mSignatureText *{background-color:transparent!important;color:#cfe0e8!important}
+#mailModal #mSignatureText a{color:#7cf0c7!important}
+#mailModal #mSignatureText img{max-width:180px;height:auto}
 #mailModal hr,
 #mailModal .mail-ai-head,
 #mailModal .mail-ai-footer,
@@ -412,7 +416,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
   <div class="mail-ai-head"><div><h2 style="margin:0">Skriv mail</h2><div class="sub">AI hjælper med teksten. Du bestemmer og godkender altid før afsendelse.</div></div><div id="mAiState" class="pill">AI klar</div></div>
   <div class="mail-ai-layout">
     <div class="mail-compose-pane">
-      <div class="field"><label>Til</label><input id="mTo" type="email" placeholder="Verificeret modtager"></div>
+      <div class="field"><label>Til</label><input id="mTo" type="email" placeholder="Verificeret modtager"><div id="mToSource" class="sub" style="margin-top:5px">Modtager vælges fra verificeret kontakt eller virksomhedens standardmail.</div></div>
       <div class="field"><label>Emne</label><input id="mSubject" placeholder="AI kan foreslå emnet"></div><div class="field" id="lmFollowUpField"><label>Opfølgning i pipeline</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="mFollowUpDate" type="date" style="min-width:180px;flex:1"><div class="split"><button type="button" class="btn small" data-lm-follow-days="3">+3 dage</button><button type="button" class="btn small" data-lm-follow-days="7">+7 dage</button><button type="button" class="btn small" data-lm-follow-days="14">+14 dage</button></div></div><div class="sub" style="margin-top:5px">Standard er 7 dage. Datoen bliver næste opfølgning på leadet og vises i pipeline og kalender.</div></div>
       <div class="field"><label>Mailtekst</label><textarea id="mBody" rows="15" placeholder="Skriv selv – eller fortæl AI'en til højre hvad mailen skal sige…"></textarea><div class="sub" style="margin-top:5px">Din faste signatur tilføjes automatisk ved afsendelse.</div></div>
       <div class="ai-rewrite-bar">
@@ -423,7 +427,7 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
         <button class="btn small" data-ai-command="Skriv mailen mere som Jesper: ligefrem, menneskelig og uden AI-klicheer.">Mere Jesper</button>
         <button class="btn small" data-ai-command="Gør afslutningen tydeligere med én naturlig call-to-action.">Skarpere afslutning</button>
       </div>
-      <div id="mSignaturePreview" class="card signature-preview" style="padding:10px;margin:10px 0"><div class="sub">Signatur tilføjes ved afsendelse</div><div class="mailbody" id="mSignatureText"></div></div>
+      <div id="mSignaturePreview" class="card signature-preview" style="padding:10px;margin:10px 0"><div class="sub"><strong>Signatur der sendes med mailen</strong></div><div class="mailbody" id="mSignatureText"></div></div>
     </div>
     <aside class="mail-ai-pane">
       <div class="ai-pane-top">
@@ -541,7 +545,20 @@ function bestEmailContact(cts){return (cts||[]).filter(x=>x?.email).slice().sort
 function leadById(id){return state.leads.find(x=>x.id===id)}
 function leadName(l){return company(l.company_id).name||'Ukendt virksomhed'}
 function activeLead(l){return !['VUNDET','TABT','IKKE RELEVANT'].includes(l.status)}
-function clientMailSignature(){return state.client?.settings?.mail_signature_text||''}
+function clientMailSignature(){return String(state.client?.settings?.mail_signature_text||'').trim()}
+function clientMailSignatureHtml(){return String(state.client?.settings?.mail_signature_html||state.client?.settings?.mail_signature||'').trim()}
+function sanitizeSignatureHtml(value){
+  const parser=new DOMParser(),doc=parser.parseFromString(String(value||''),'text/html');
+  doc.querySelectorAll('script,style,iframe,object,embed,form,input,button,meta,link').forEach(n=>n.remove());
+  doc.querySelectorAll('*').forEach(el=>{
+    [...el.attributes].forEach(a=>{
+      const name=a.name.toLowerCase(),val=String(a.value||'').trim();
+      if(name.startsWith('on'))el.removeAttribute(a.name);
+      if((name==='href'||name==='src')&&/^javascript:/i.test(val))el.removeAttribute(a.name);
+    });
+  });
+  return doc.body.innerHTML;
+}
 function showAuth(msg=''){ $('authScreen')?.classList.remove('hidden');$('appShell')?.classList.add('hidden');setText('authMessage',msg);}
 function showApp(){ $('authScreen')?.classList.add('hidden');$('appShell')?.classList.remove('hidden');setText('userEmail',state.session?.user?.email||''); }
 async function authInit(){const {data:{session}}=await supabase.auth.getSession();state.session=session;if(session){await startApp()}else showAuth();supabase.auth.onAuthStateChange(async(_e,s)=>{state.session=s;if(s)await startApp();else showAuth()})}
@@ -586,7 +603,7 @@ async function startApp(){
 const BASE_CRM_KEYS=['companies','contacts','leads','activities','mail','opps','offers','approvals','runs','tasks','requests','intelligence','integrations'];
 const BASE_STARTUP_KEYS=['companies','leads','activities','offers','approvals','tasks','mail'];
 function baseCrmQuery(key,cid){
-  if(key==='companies')return supabase.from('crm_companies').select('id,client_id,name,cvr,domain,phone,address,stoplisted,created_at,relationship_status,do_not_contact,do_not_contact_reason,industry,website_url,employee_size_text,company_summary,research_updated_at,minuba_relationship_status,minuba_relationship_summary,minuba_exact_match,minuba_chain_match,minuba_order_count,minuba_latest_order_date,minuba_latest_order_number,minuba_latest_order_address,minuba_related_locations,minuba_checked_at,legal_form,advertising_protected,robinson_check_required,robinson_checked_at,robinson_blocked,contact_compliance_status').eq('client_id',cid).order('name');
+  if(key==='companies')return supabase.from('crm_companies').select('id,client_id,name,cvr,domain,phone,email,address,stoplisted,created_at,relationship_status,do_not_contact,do_not_contact_reason,industry,website_url,employee_size_text,company_summary,research_updated_at,minuba_relationship_status,minuba_relationship_summary,minuba_exact_match,minuba_chain_match,minuba_order_count,minuba_latest_order_date,minuba_latest_order_number,minuba_latest_order_address,minuba_related_locations,minuba_checked_at,legal_form,advertising_protected,robinson_check_required,robinson_checked_at,robinson_blocked,contact_compliance_status').eq('client_id',cid).order('name');
   if(key==='contacts')return supabase.from('crm_contacts').select('*').eq('client_id',cid);
   if(key==='leads')return supabase.from('crm_leads').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
   if(key==='activities')return supabase.from('crm_activities').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500);
@@ -879,7 +896,18 @@ function closeMailModal(){
   }
 }
 function resetMailModal(){editingApprovalId=null;$('queueMail').textContent='Læg klar til godkendelse';closeMailModal()}
-function showMailSignature(){const sig=clientMailSignature();$('mSignatureText').textContent=sig;$('mSignaturePreview').classList.toggle('hidden',!sig)}
+function showMailSignature(){
+  const text=clientMailSignature(),html=clientMailSignatureHtml(),box=$('mSignatureText'),wrap=$('mSignaturePreview');
+  if(!box||!wrap)return;
+  if(html){
+    box.innerHTML=sanitizeSignatureHtml(html);
+    box.classList.add('signature-html-rendered');
+  }else{
+    box.textContent=text;
+    box.classList.remove('signature-html-rendered');
+  }
+  wrap.classList.toggle('hidden',!(html||text));
+}
 function inferMailPurpose(l){
   if(!l)return'Automatisk';
   const recentMails=state.mail.filter(m=>m.lead_id===l.id).sort((a,b)=>new Date(b.message_at)-new Date(a.message_at));
@@ -944,18 +972,49 @@ async function runMailAi(instruction,forcedMode=null){
   if(mailAiHistory.length>8)mailAiHistory=mailAiHistory.slice(-8);
   $('mAiPrompt').value='';renderMailAiSuggestion(d);setMailAiState(`AI · ${mailAiModel.replace('gpt-','GPT ')}`,'ai-ok');
 }
-function openMailComposerForCurrentLead(){
+async function resolveMailRecipientForLead(lead){
+  if(!lead)return {email:'',source:''};
+  const c=company(lead.company_id)||{},cts=contactsFor(lead.company_id)||[];
+  const named=bestEmailContact(cts);
+  if(named?.email)return {email:String(named.email).trim(),source:named.full_name?'Kontaktperson: '+named.full_name:'Verificeret kontaktperson'};
+  if(c.email)return {email:String(c.email).trim(),source:'Virksomhedens standardmail'};
+  try{
+    const [coRes,ctRes]=await Promise.all([
+      supabase.from('crm_companies').select('id,email').eq('client_id',state.client.id).eq('id',lead.company_id).limit(1),
+      supabase.from('crm_contacts').select('id,full_name,email,verified,title,role_relevance').eq('client_id',state.client.id).eq('company_id',lead.company_id)
+    ]);
+    const companyRow=Array.isArray(coRes.data)?coRes.data[0]:coRes.data;
+    const freshContacts=(ctRes.data||[]).filter(x=>String(x?.email||'').trim()),freshBest=bestEmailContact(freshContacts);
+    const freshEmail=String(freshBest?.email||companyRow?.email||'').trim();
+    if(companyRow?.email&&c)c.email=companyRow.email;
+    if(freshContacts.length){
+      const existingIds=new Set((state.contacts||[]).map(x=>x.id));
+      state.contacts=[...(state.contacts||[]),...freshContacts.filter(x=>!existingIds.has(x.id))];
+    }
+    return {
+      email:freshEmail,
+      source:freshBest?.email?(freshBest.full_name?'Kontaktperson: '+freshBest.full_name:'Verificeret kontaktperson'):(freshEmail?'Virksomhedens standardmail':'')
+    };
+  }catch(e){
+    console.warn('Kunne ikke hente mailmodtager',e);
+    return {email:'',source:''};
+  }
+}
+async function openMailComposerForCurrentLead(){
   if(!currentLead){toast('Åbn et lead først');return false}
   editingApprovalId=null;
-  const c=company(currentLead.company_id),cts=contactsFor(currentLead.company_id);
-  $('mTo').value=bestEmailContact(cts)?.email||c.email||'';
+  const lead=currentLead;
+  const recipient=await resolveMailRecipientForLead(lead);
+  if(currentLead?.id!==lead.id)return false;
+  $('mTo').value=recipient.email||'';
+  if($('mToSource'))$('mToSource').textContent=recipient.email?(recipient.source+' · '+recipient.email):'Ingen verificeret e-mail fundet endnu.';
   $('queueMail').textContent='Læg klar til godkendelse';
   prepareMailAiForCurrentLead(false);
   openMailModal();
-  if(!$('mTo').value.trim())toast('Ingen verificeret e-mail fundet endnu – tilføj modtager manuelt eller kør kontaktberigelse');
+  if(!recipient.email)toast('Ingen verificeret e-mail fundet endnu – tilføj modtager manuelt eller kør kontaktberigelse');
   return true;
 }
-$('openMailComposer').onclick=()=>openMailComposerForCurrentLead();
+$('openMailComposer').onclick=()=>{openMailComposerForCurrentLead()};
 const nativeMailModal=$('mailModal');
 if(nativeMailModal){
   nativeMailModal.addEventListener('close',()=>{
