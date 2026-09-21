@@ -14,6 +14,14 @@ must(html.includes('async function resolveMailRecipientForLead'),'recipient reso
 must(html.includes("supabase.from('crm_companies').select('id,email')"),'direct company email fallback missing');
 must(html.includes("bestEmailContact(cts)?.email||c.email||''")||html.includes('resolveMailRecipientForLead'),'mail composer email fallback missing');
 must(html.includes('id="mToSource"'),'recipient source UI missing');
+must(html.includes('function currentClientMail()'),'dynamic client mail helper missing');
+must(html.includes('function gmailAccount(status)'),'dynamic Gmail account resolver missing');
+must(html.includes("marker.textContent='Afsender: '+(account||'forbundet Gmail-konto')"),'mail sender UI is not dynamic');
+must(html.includes("confirm('Send mailen nu fra '+account+' til '+to+'?')"),'send confirmation does not use connected account');
+must(html.includes("toast('Mail sendt fra '+account)"),'send success does not use connected account');
+must(!html.includes("marker.textContent='Afsender: js@klimaeksperten.dk · Gmail forbundet'"),'hardcoded Klimaeksperten sender returned');
+must(!html.includes("q.textContent='Send fra js@klimaeksperten.dk'"),'hardcoded send button returned');
+must(!html.includes("confirm('Send mailen nu fra js@klimaeksperten.dk"),'hardcoded send confirmation returned');
 
 must(html.includes('function clientMailSignatureHtml()'),'HTML signature helper missing');
 must(html.includes('function sanitizeSignatureHtml'),'signature sanitizer missing');
