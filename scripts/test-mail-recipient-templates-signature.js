@@ -4,6 +4,7 @@ const html=fs.readFileSync('index.html','utf8');
 const perf=fs.readFileSync('performance-v1.js','utf8');
 const app=fs.readFileSync('api/app.js','utf8');
 const templates=fs.readFileSync('mail-templates-v1.js','utf8');
+const signature=fs.readFileSync('saas-mail-signature-v1.js','utf8');
 const migration=fs.readFileSync('supabase/migrations/20260921101500_startup_snapshot_company_email.sql','utf8');
 
 must(migration.includes('domain,phone,email,address'),'startup snapshot does not include company email');
@@ -19,6 +20,8 @@ must(html.includes('function sanitizeSignatureHtml'),'signature sanitizer missin
 must(html.includes("box.innerHTML=sanitizeSignatureHtml(html)"),'HTML signature is not rendered in composer');
 must(html.includes('Signatur der sendes med mailen'),'signature preview label missing');
 must(html.includes('#mailModal #mSignatureText{max-height:none!important'),'signature preview can still be clipped');
+must(signature.includes('/functions/v1/mail-signature-discover'),'dedicated signature discovery endpoint missing');
+must(!signature.includes("fetch(`${API}/functions/v1/mail-provider-auth`"),'signature discovery still calls mail-provider-auth');
 
 must(app.includes('/mail-templates-v1.js?v=20260921-2'),'mail templates module is not always loaded');
 must(templates.includes("document.createElement('dialog')"),'template manager is not a native dialog');
