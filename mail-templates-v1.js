@@ -101,31 +101,50 @@
     refreshSelectors();
   }
 
+  function ensureManagerStyle(){
+    if(byId('lmMailTemplateManagerStyle'))return;
+    const style=document.createElement('style');style.id='lmMailTemplateManagerStyle';style.textContent=`
+      #mailTemplateManager{inset:0!important;margin:0!important;padding:18px!important;border:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;background:transparent!important}
+      #mailTemplateManager::backdrop{background:rgba(2,10,16,.72)!important}
+      #mailTemplateManager .modal{background:#0b1f2a!important;color:#e8f1f5!important;border:1px solid #1f3a47!important;box-shadow:0 24px 60px rgba(0,0,0,.45)!important}
+      #mailTemplateManager .card{background:#102a36!important;color:#e8f1f5!important;border-color:#274553!important}
+      #mailTemplateManager input,#mailTemplateManager select,#mailTemplateManager textarea{background:#203543!important;color:#e8f1f5!important;border:1px solid #2c4a5a!important}
+      #mailTemplateManager input::placeholder,#mailTemplateManager textarea::placeholder{color:#88a2b0!important}
+      #mailTemplateManager .sub{color:#a9bfcb!important}
+      #mailTemplateManager .task{border-color:#274553!important}
+      #mailTemplateManager .mailbody{color:#cfe0e8!important}
+      #mailTemplateManager .btn:not(.primary){background:#17303c!important;color:#e8f1f5!important;border-color:#2b4655!important}
+      #mailTemplateManager .btn.primary{background:#4de0b0!important;color:#06261d!important;border-color:#4de0b0!important}
+      #mailTemplateManager .pill{background:#17303c!important;color:#e8f1f5!important;border-color:#2b4655!important}
+      @media(max-width:760px){#mailTemplateManager .grid2{grid-template-columns:1fr!important}}
+    `;document.head.appendChild(style);
+  }
+
   function ensureManager(){
     if(byId('mailTemplateManager'))return;
-    const modal=document.createElement('div');modal.className='modalback';modal.id='mailTemplateManager';
-    modal.innerHTML=`<div class="modal" style="width:min(900px,95vw)">
-      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2 style="margin:0">Mail-skabeloner</h2><div class="sub">Gem faste mails til leads og tilbud. Felter som kontaktperson og tilbudsnummer udfyldes automatisk.</div></div><button class="btn" id="closeMailTemplateManager">Luk</button></div>
+    ensureManagerStyle();
+    const modal=document.createElement('dialog');modal.className='modalback lm-native-dialog';modal.id='mailTemplateManager';
+    modal.innerHTML=`<form method="dialog" id="mailTemplateManagerCloseForm"></form><div class="modal" style="width:min(900px,95vw)">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2 style="margin:0">Mail-skabeloner</h2><div class="sub">Opret faste mails til leads og tilbud. Vælg evt. én som standard.</div></div><button type="submit" form="mailTemplateManagerCloseForm" class="btn" id="closeMailTemplateManager" value="close">Luk</button></div>
       <div class="grid2" style="grid-template-columns:minmax(0,1fr) minmax(300px,.8fr);margin-top:14px">
         <div class="card"><div id="mailTemplateList"></div></div>
         <div class="card">
           <h3 id="mailTemplateFormTitle" style="margin-top:0">Ny skabelon</h3>
-          <div class="field"><label>Navn på skabelon</label><input id="mailTemplateName" placeholder="Fx Gensend tilbud"></div>
+          <div class="field"><label>Navn på skabelon</label><input id="mailTemplateName" placeholder="Fx Opfølgning efter samtale"></div>
           <div class="field"><label>Bruges til</label><select id="mailTemplateScope"><option value="lead">Leads</option><option value="offer">Tilbud</option><option value="both">Begge</option></select></div>
-          <div class="field"><label>Emne</label><input id="mailTemplateSubject" placeholder="Fx Tilbud {{offer.number}}"></div>
-          <div class="field"><label>Mailtekst</label><textarea id="mailTemplateBody" rows="10"></textarea></div>
-          <div class="sub" style="margin-bottom:10px">Du kan bruge: {{contact.first_name}}, {{contact.full_name}}, {{company.name}}, {{offer.number}} og {{order.number}}.</div>
-          <label class="pill" style="margin-bottom:10px"><input type="checkbox" id="mailTemplateDefault"> Standard for denne type</label>
-          <div class="split"><button class="btn" id="newMailTemplate">Ny</button><button class="btn primary" id="saveMailTemplate">Gem skabelon</button><button class="btn danger hidden" id="deleteMailTemplate">Slet</button></div>
+          <div class="field"><label>Emne</label><input id="mailTemplateSubject" placeholder="Fx Opfølgning til {{company.name}}"></div>
+          <div class="field"><label>Mailtekst</label><textarea id="mailTemplateBody" rows="10" placeholder="Skriv den faste mailtekst her..."></textarea></div>
+          <div class="sub" style="margin-bottom:10px">Dynamiske felter: {{contact.first_name}}, {{contact.full_name}}, {{company.name}}, {{offer.number}} og {{order.number}}. Signaturen tilføjes automatisk og skal ikke skrives i skabelonen.</div>
+          <label class="pill" style="margin-bottom:10px"><input type="checkbox" id="mailTemplateDefault"> Brug automatisk som standard for denne type</label>
+          <div class="split"><button type="button" class="btn" id="newMailTemplate">Ny skabelon</button><button type="button" class="btn primary" id="saveMailTemplate">Gem skabelon</button><button type="button" class="btn danger hidden" id="deleteMailTemplate">Slet</button></div>
         </div>
       </div>
     </div>`;
     document.body.appendChild(modal);
-    byId('closeMailTemplateManager').onclick=()=>modal.classList.remove('open');
     byId('newMailTemplate').onclick=()=>resetForm();
     byId('saveMailTemplate').onclick=saveTemplate;
     byId('deleteMailTemplate').onclick=deleteTemplate;
-    modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('open')});
+    modal.addEventListener('close',()=>{editingId=null});
   }
 
   function renderList(){
@@ -146,7 +165,9 @@
   }
 
   async function openManager(scope){
-    ensureManager();await loadTemplates(true);byId('mailTemplateScope').dataset.managerScope=scope;resetForm(scope);renderList();byId('mailTemplateManager').classList.add('open');
+    ensureManager();await loadTemplates(true);byId('mailTemplateScope').dataset.managerScope=scope;resetForm(scope);renderList();
+    const modal=byId('mailTemplateManager');
+    try{if(modal&&!modal.open)modal.showModal()}catch(e){console.error('Kunne ikke åbne mail-skabeloner',e);if(typeof toast==='function')toast('Skabelonvinduet kunne ikke åbnes')}
   }
 
   async function saveTemplate(){
