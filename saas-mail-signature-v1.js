@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const VERSION='2026-09-17.4';
+const VERSION='2026-09-21.5';
 const API=window.SUPABASE_URL||'https://ouqhostcsvdyrkjefiya.supabase.co';
 const KEY=window.SUPABASE_KEY||'sb_publishable_reZRECu3Eg531rNn0yB6xQ_fXNyZ5CJ';
 const $=s=>document.querySelector(s);
@@ -11,7 +11,7 @@ function html(){return String(settings().mail_signature_html||settings().mail_si
 function signaturePresent(){return !!html()}
 function verified(){return signaturePresent()}
 async function session(){if(typeof supabase==='undefined')return null;const {data}=await supabase.auth.getSession();return data?.session||null}
-async function call(payload){const s=await session();if(!s?.access_token)throw new Error('Login-session mangler');const r=await fetch(`${API}/functions/v1/mail-provider-auth`,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify(payload)});const raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={error:raw}}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
+async function call(payload){const s=await session();if(!s?.access_token)throw new Error('Login-session mangler');const r=await fetch(`${API}/functions/v1/mail-signature-discover`,{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY,Authorization:'Bearer '+s.access_token},body:JSON.stringify(payload)});const raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={error:raw}}if(!r.ok)throw new Error(d.error||`HTTP ${r.status}`);return d}
 function msg(t,bad=false){const e=$('#lmMailSignatureMessage');if(e){e.textContent=t;e.style.color=bad?'#9f1239':'#166534'}}
 function render(){const p=$('#lmMailSignaturePreview'),pill=$('#lmMailSignatureStatus');const present=signaturePresent();if(p)p.innerHTML=html()||'<span class="sub">Signaturen findes automatisk efter mailen er forbundet.</span>';if(pill){pill.textContent=present?'✓ Signatur fundet':discovering?'Finder signatur…':'Afventer';pill.style.cssText=present?'background:#dcfce7;color:#166534':discovering?'background:#e0f2fe;color:#075985':'background:#fef3c7;color:#92400e'}if(present){const e=$('#lmMailSignatureMessage');if(e&&/Ukendt handling|Kunne ikke identificere signaturen/i.test(e.textContent||''))msg('✓ Den gemte signatur er fundet og bruges på mails fra Lead Manager.')}}
 async function discover(account=''){
