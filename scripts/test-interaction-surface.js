@@ -77,7 +77,7 @@ const interactionMarkers=[
   ["calendar next","$('nextWeek').onclick="],
   ["report load","qid('reportLoad')?.addEventListener('click'"],
   ["report ranges","document.querySelectorAll('[data-report-range]').forEach"],
-  ["drawer close","$('closeDrawer').onclick="],
+  ["drawer close","function closeLeadDrawer()"],
   ["lead save","$('saveLead').onclick="],
   ["new lead cancel","$('cancelNew').onclick="],
   ["new lead create","$('createNew').onclick="],
