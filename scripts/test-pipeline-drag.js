@@ -22,5 +22,9 @@ for(const [marker,message] of [
 
 if(drag.includes('await loadAll()'))throw new Error('pipeline drag must not reload all CRM data after a drop');
 if(drag.includes("card.addEventListener('pointermove'"))throw new Error('card-local pointermove returned; drag can fall off the card again');
+if(html.includes("board.onwheel=e=>"))throw new Error('pipeline must not hijack vertical mouse-wheel scrolling');
+if(html.includes("board.scrollLeft+=e.deltaY"))throw new Error('vertical wheel delta must not be converted to horizontal pipeline scroll');
+if(!html.includes("left.onclick=()=>board.scrollBy"))throw new Error('pipeline left arrow navigation missing');
+if(!html.includes("right.onclick=()=>board.scrollBy"))throw new Error('pipeline right arrow navigation missing');
 
 console.log('PASS: global pointer drag remains attached and successful drops update in place without full CRM rerender');
