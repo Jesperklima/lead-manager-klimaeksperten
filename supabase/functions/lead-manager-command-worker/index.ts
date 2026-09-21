@@ -30,7 +30,7 @@ function saysClosed(value:any){
   ].some(re=>re.test(text));
   return !negated;
 }
-const supported=new Set(['import_offers_from_mail','reconcile_offers_from_mail','scan_mail_sales_signals','source_freshness_check']);
+const supported=new Set(['import_offers_from_mail','reconcile_offers_from_mail','scan_mail_sales_signals','source_freshness_check','contact_enrichment']);
 
 function offerRefs(job:any){
   return [...new Set([
@@ -196,6 +196,219 @@ async function handleMailSignals(sb:any,job:any){
   return result;
 }
 
+
+function usablePhone(value:any){
+  const v=clean(value,120),digits=v.replace(/\D/g,'');
+  return digits.length>=6?v:'';
+}
+function usableEmail(value:any){
+  const v=clean(value,320).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)?v:'';
+}
+function cleanDomain(value:any){
+  const v=clean(value,500).toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0].split(':')[0];
+  return v.trim();
+}
+function sourceMatchesDomain(source:any,domain:any){
+  const d=cleanDomain(domain);
+  if(!d)return /^https?:\/\//i.test(clean(source,1800));
+  try{
+    const h=new URL(clean(source,1800)).hostname.toLowerCase().replace(/^www\./,'');
+    return h===d||h.endsWith('.'+d);
+  }catch{return false}
+}
+function emailMatchesDomain(email:any,domain:any){
+  const e=usableEmail(email),d=cleanDomain(domain);
+  if(!e||!d)return !!e;
+  const ed=e.split('@')[1]||'';
+  return ed===d||ed.endsWith('.'+d);
+}
+async function handleContactEnrichment(sb:any,job:any){
+  if(!job.company_id)throw new Error('Kontaktberigelse mangler company_id');
+  const {data:company,error:companyError}=await sb.from('crm_companies').select('*')
+    .eq('id',job.company_id).eq('client_id',job.client_id).single();
+  if(companyError||!company)throw new Error('Virksomheden til kontaktberigelse blev ikke fundet');
+
+  const {data:existing,error:contactError}=await sb.from('crm_contacts').select('*')
+    .eq('company_id',company.id).eq('client_id',job.client_id);
+  if(contactError)throw contactError;
+  const currentContacts=existing||[];
+  const currentPhone=usablePhone(company.phone);
+  const currentUsable=currentContacts.some((x:any)=>usablePhone(x.phone)||usableEmail(x.email));
+
+  let lead:any=null;
+  if(job.lead_id){
+    const {data}=await sb.from('crm_leads').select('id,status,next_action,manual_lock')
+      .eq('id',job.lead_id).eq('client_id',job.client_id).maybeSingle();
+    lead=data||null;
+  }
+
+  const automatic=clean(job.payload?.requested_from,100)==='automatic_missing_contact';
+  if(automatic&&(currentPhone||currentUsable)){
+    const result={company_id:company.id,already_usable:true,company_phone:currentPhone||null,contact_count:currentContacts.length};
+    await markDone(sb,job,'Virksomheden har allerede en brugbar kontaktkanal.',result);
+    return result;
+  }
+
+  const {data:apiKey,error:keyError}=await sb.rpc('get_openai_api_secret',{p_client_id:job.client_id});
+  if(keyError||!apiKey)throw new Error('OpenAI API-nøgle mangler til kontaktberigelse');
+
+  const schema={
+    type:'object',additionalProperties:false,
+    properties:{
+      company_phone:{type:'string'},
+      general_email:{type:'string'},
+      website_url:{type:'string'},
+      source_url:{type:'string'},
+      contact_name:{type:'string'},
+      contact_title:{type:'string'},
+      contact_phone:{type:'string'},
+      contact_email:{type:'string'},
+      contact_source_url:{type:'string'},
+      confidence:{type:'string',enum:['high','medium','low']}
+    },
+    required:['company_phone','general_email','website_url','source_url','contact_name','contact_title','contact_phone','contact_email','contact_source_url','confidence']
+  };
+  const input=[
+    'Find en brugbar, offentlig kontaktkanal til denne B2B-virksomhed eller myndighed.',
+    'Virksomhed: '+clean(company.name,500),
+    'Domæne: '+clean(company.domain,500),
+    'Hjemmeside: '+clean(company.website_url,1000),
+    'CVR: '+clean(company.cvr,100),
+    'Adresse: '+clean(company.address,1000),
+    'Eksisterende hovedtelefon: '+clean(company.phone,120),
+    '',
+    'Prioritet:',
+    '1) Find virksomhedens officielle hovedtelefon og generelle e-mail fra virksomhedens/myndighedens egen officielle hjemmeside.',
+    '2) Find derefter, hvis muligt, én relevant navngiven beslutningstager med offentlig arbejdstelefon eller arbejdsmail.',
+    '3) Brug kun oplysninger, der står eksplicit i en officiel kilde. Udled eller gæt aldrig e-mailadresser eller telefonnumre.',
+    '4) Hvis en værdi ikke kan dokumenteres sikkert, returnér tom streng for den værdi.',
+    '5) source_url/contact_source_url skal være den præcise officielle side, hvor kontaktoplysningen står.'
+  ].join('\n');
+
+  const response=await fetch('https://api.openai.com/v1/responses',{
+    method:'POST',
+    headers:{Authorization:'Bearer '+String(apiKey),'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'gpt-5.6-luna',
+      instructions:'Du er en kildekritisk dansk B2B research-agent. Gem aldrig gættede kontaktdata. Brug virksomhedens eller myndighedens egen officielle hjemmeside som primær kilde.',
+      input,
+      tools:[{type:'web_search',search_context_size:'medium',user_location:{type:'approximate',country:'DK'}}],
+      reasoning:{effort:'low'},
+      max_output_tokens:1800,
+      text:{format:{type:'json_schema',name:'contact_enrichment',strict:true,schema}},
+      store:false,
+      prompt_cache_key:'lm-contact-enrichment-'+String(job.client_id).slice(0,8)
+    })
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(clean(data?.error?.message||('OpenAI '+response.status),2000));
+  const result=parseResponse(data);
+  const confidence=clean(result.confidence,30);
+  const companyDomain=cleanDomain(company.domain||company.website_url);
+  const companySource=clean(result.source_url,1800);
+  const personSource=clean(result.contact_source_url,1800);
+  const officialCompanySource=confidence==='high'&&sourceMatchesDomain(companySource,companyDomain);
+  const officialPersonSource=confidence==='high'&&sourceMatchesDomain(personSource||companySource,companyDomain);
+
+  const foundPhone=officialCompanySource?usablePhone(result.company_phone):'';
+  const generalEmail=officialCompanySource&&emailMatchesDomain(result.general_email,companyDomain)?usableEmail(result.general_email):'';
+  const contactPhone=officialPersonSource?usablePhone(result.contact_phone):'';
+  const contactEmail=officialPersonSource&&emailMatchesDomain(result.contact_email,companyDomain)?usableEmail(result.contact_email):'';
+  const contactName=officialPersonSource?clean(result.contact_name,500):'';
+  const contactTitle=officialPersonSource?clean(result.contact_title,500):'';
+  const now=new Date().toISOString();
+
+  const companyPatch:any={research_updated_at:now};
+  if(foundPhone)companyPatch.phone=foundPhone;
+  const foundWebsite=clean(result.website_url,1000);
+  if(foundWebsite&&sourceMatchesDomain(foundWebsite,companyDomain||foundWebsite))companyPatch.website_url=foundWebsite;
+  const {error:companyUpdateError}=await sb.from('crm_companies').update(companyPatch)
+    .eq('id',company.id).eq('client_id',job.client_id);
+  if(companyUpdateError)throw companyUpdateError;
+
+  const normPhone=(v:any)=>usablePhone(v).replace(/\D/g,'');
+  const seenEmail=new Set(currentContacts.map((x:any)=>usableEmail(x.email)).filter(Boolean));
+  const seenPhone=new Set(currentContacts.map((x:any)=>normPhone(x.phone)).filter(Boolean));
+  const inserted:any[]=[];
+
+  async function insertContact(row:any){
+    const email=usableEmail(row.email),phone=usablePhone(row.phone),phoneKey=normPhone(phone);
+    if(!email&&!phone)return;
+    if((email&&seenEmail.has(email))||(phoneKey&&seenPhone.has(phoneKey)))return;
+    const source=clean(row.source_url,1800);
+    const payload:any={
+      client_id:job.client_id,company_id:company.id,
+      full_name:clean(row.full_name,500)||null,title:clean(row.title,500)||null,
+      phone:phone||null,email:email||null,source_url:source||null,
+      verified:true,source_type:'official_website',verified_at:now,confidence:'high',
+      role_relevance:clean(row.role_relevance,500)||null,is_decision_maker:row.is_decision_maker===true,
+      email_is_inferred:false,provenance_status:'documented',provenance_review_required:false,
+      provenance_note:'Kontaktdata verificeret mod officiel offentlig kilde af Lead Manager.',
+      source_obtained_at:now,collection_method:'indirect'
+    };
+    if(email){
+      payload.email_verification_method='exact_source_text';
+      payload.email_source_url=source||null;
+      payload.email_verified_at=now;
+    }
+    const {data:created,error}=await sb.from('crm_contacts').insert(payload).select('id,full_name,phone,email').single();
+    if(error)throw error;
+    inserted.push(created);
+    if(email)seenEmail.add(email);
+    if(phoneKey)seenPhone.add(phoneKey);
+  }
+
+  if(contactName&&(contactPhone||contactEmail)){
+    await insertContact({
+      full_name:contactName,title:contactTitle,phone:contactPhone,email:contactEmail,
+      source_url:personSource||companySource,role_relevance:'Relevant kontaktperson',is_decision_maker:true
+    });
+  }
+  if(generalEmail||foundPhone){
+    await insertContact({
+      full_name:clean(company.name,500)+' · hovedkontakt',title:'Generel kontakt',
+      phone:foundPhone||currentPhone,email:generalEmail,source_url:companySource,
+      role_relevance:'Standardkontakt',is_decision_maker:false
+    });
+  }
+
+  const usableCompanyPhone=foundPhone||currentPhone;
+  const usableAfter=!!usableCompanyPhone||currentUsable||inserted.some((x:any)=>usablePhone(x.phone)||usableEmail(x.email));
+  if(lead&&!lead.manual_lock){
+    if(!usableAfter&&!['TABT','IKKE RELEVANT','VUNDET'].includes(lead.status)){
+      const {error}=await sb.from('crm_leads').update({
+        status:'UNDER VURDERING',
+        next_action:'Mangler verificeret standardmail eller telefon – kræver manuel kontaktresearch',
+        next_at:null
+      }).eq('id',lead.id).eq('client_id',job.client_id);
+      if(error)throw error;
+    }else if(usableAfter&&lead.status==='UNDER VURDERING'&&/^Mangler verificeret standardmail eller telefon/.test(clean(lead.next_action,500))){
+      const {error}=await sb.from('crm_leads').update({
+        status:'NY',next_action:'Vurder lead og kontakt via verificeret kanal'
+      }).eq('id',lead.id).eq('client_id',job.client_id);
+      if(error)throw error;
+    }
+  }
+
+  const summary={
+    company_id:company.id,
+    usable:usableAfter,
+    company_phone:usableCompanyPhone||null,
+    general_email:generalEmail||null,
+    named_contact:contactName||null,
+    inserted_contacts:inserted,
+    source_url:companySource||personSource||null,
+    confidence
+  };
+  await markDone(
+    sb,job,
+    usableAfter?'Kontaktberigelse færdig. Der er nu mindst én brugbar kontaktkanal.':'Ingen verificeret standardmail eller telefon blev fundet. Leadet kræver manuel kontrol.',
+    summary
+  );
+  return summary;
+}
+
 async function handleFreshness(sb:any,job:any){
   if(!job.lead_id)throw new Error('Kildefriskhedskontrol mangler lead_id');
   const {data:lead,error:leadError}=await sb.from('crm_leads').select('*')
@@ -353,6 +566,7 @@ Deno.serve(async(req:Request)=>{
         if(action==='import_offers_from_mail'||action==='reconcile_offers_from_mail')result=await handleOfferSync(sb,url,job);
         else if(action==='scan_mail_sales_signals')result=await handleMailSignals(sb,job);
         else if(action==='source_freshness_check')result=await handleFreshness(sb,job);
+        else if(action==='contact_enrichment')result=await handleContactEnrichment(sb,job);
         results.push({id:job.id,action,status:'done',result});
       }catch(error){
         const message=await markError(sb,job,error);
