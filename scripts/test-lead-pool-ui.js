@@ -2,6 +2,7 @@ const fs=require('fs');
 
 const ui=fs.readFileSync('saas-customer-controls-v1.js','utf8');
 const migration=fs.readFileSync('supabase/migrations/20260919193601_lead_pool_ui_backend_v1.sql','utf8');
+const settingsMigration=fs.readFileSync('supabase/migrations/20260921080500_lead_settings_workspace_rpc.sql','utf8');
 
 for(const marker of [
   'crm_set_new_lead_pool_limit',
@@ -29,4 +30,19 @@ if(migration.includes('dispatch_autonomous_lead_hunter_v2_for_client')){
   throw new Error('Lead-pool refill must not dispatch Lead Hunter v2');
 }
 
-console.log('PASS: lead-pool UI 10/20/30 and v3 refill backend are wired');
+for(const marker of [
+  "if(window.LM_ACCESS?.platform_admin===true)return true",
+  "b.onclick=()=>saveLeadPoolLimit",
+  "edit.onclick=()=>",
+  "crm_update_lead_search_profile"
+]){
+  if(!ui.includes(marker))throw new Error('Lead settings Platform Owner marker missing: '+marker);
+}
+for(const marker of [
+  'crm_update_lead_search_profile',
+  'crm_can_manage_workspace',
+  'Platform Owner'
+]){
+  if(!settingsMigration.includes(marker))throw new Error('Lead settings workspace RPC marker missing: '+marker);
+}
+console.log('PASS: lead-pool UI 10/20/30, Platform Owner edit access, secure workspace save and v3 refill backend are wired');

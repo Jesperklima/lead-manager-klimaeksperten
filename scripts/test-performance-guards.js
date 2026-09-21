@@ -179,7 +179,7 @@ const customerControls=read('saas-customer-controls-v1.js');
 if(!customerControls.includes('function accessPlan()'))fail('customer controls access-plan helper missing');
 if(!customerControls.includes('function hydrateFromAccess()'))fail('customer controls bootstrap-plan hydration missing');
 if(!customerControls.includes("const local=hydrateFromAccess();if(local)return local"))fail('customer controls still require onboarding status at startup');
-if(!app.includes('saas-customer-controls-v1.js?v=20260919-3'))fail('customer controls cache version not bumped');
+if(!app.includes('saas-customer-controls-v1.js?v=20260921-4'))fail('customer controls cache version not bumped');
 const sessionPlanMigration=read('supabase/migrations/20260919150500_session_bootstrap_plan_context.sql');
 if(!sessionPlanMigration.includes("'plan',plan_ctx"))fail('session bootstrap plan context migration missing');
 if(!accessBootstrap.includes('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3'))fail('onboarding mail sync missing from onboarding lazy loader');
