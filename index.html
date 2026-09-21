@@ -699,7 +699,24 @@ function openLead(id){const l=leadById(id);if(!l)return;currentLead=l;const c=co
 
 </script>
 <script>
-$('closeDrawer').onclick=()=>{const closing=currentLead; $('drawer').classList.remove('open');currentLead=null;window.dispatchEvent(new CustomEvent('lm:lead-closed',{detail:{lead_id:closing?.id||null}}));};$('dStatus').onchange=statusExtras;function statusExtras(){$('lossWrap').classList.toggle('hidden',$('dStatus').value!=='TABT');$('wonWrap').classList.toggle('hidden',$('dStatus').value!=='VUNDET')}
+function closeLeadDrawer(){
+  const drawer=$('drawer'),closing=currentLead;
+  if(drawer){drawer.classList.remove('open');drawer.scrollTop=0}
+  currentLead=null;
+  window.dispatchEvent(new CustomEvent('lm:lead-closed',{detail:{lead_id:closing?.id||null}}));
+}
+document.addEventListener('click',e=>{
+  const close=e.target.closest?.('#closeDrawer');
+  if(!close)return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeLeadDrawer();
+},true);
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape'||!$('drawer')?.classList.contains('open'))return;
+  e.preventDefault();
+  closeLeadDrawer();
+});$('dStatus').onchange=statusExtras;function statusExtras(){$('lossWrap').classList.toggle('hidden',$('dStatus').value!=='TABT');$('wonWrap').classList.toggle('hidden',$('dStatus').value!=='VUNDET')}
 async function logActivity(l,type,summary,metadata={}){return supabase.from('crm_activities').insert({client_id:state.client.id,company_id:l.company_id,lead_id:l.id,type,actor_type:'user',actor_name:state.session.user.email,summary,metadata})}
 $('saveLead').onclick=async()=>{if(!currentLead)return;const prev=currentLead.status,nextAt=isoFromInputs($('dDate').value,$('dTime').value);const patch={status:$('dStatus').value,score:$('dScore').value===''?null:Math.max(0,Math.min(100,Number($('dScore').value))),priority:$('dPriority').value||null,planning_type:$('dPlanning').value,next_action:$('dNext').value.trim()||null,next_at:nextAt,manual_lock:$('dLock').checked,loss_reason:$('dStatus').value==='TABT'?($('dLoss').value.trim()||null):null,won_value:$('dStatus').value==='VUNDET'&&$('dWon').value!==''?Number($('dWon').value):null};if(prev!==patch.status)patch.manual_lock=true;const {error}=await supabase.from('crm_leads').update(patch).eq('id',currentLead.id);if(error){toast(error.message);return}if(prev!==patch.status)await logActivity(currentLead,'Status',`${prev} → ${patch.status} (manuel ændring)`,{previous:prev,next:patch.status,manual:true});await refreshCrmKeys('leads','activities');openLead(currentLead.id);toast('Lead gemt i CRM')}
 $('addNote').onclick=async()=>{if(!currentLead||!$('dNote').value.trim())return;const type=$('activityType').value,summary=$('dNote').value.trim();const {error}=await logActivity(currentLead,type,summary,{manual:true});if(error){toast(error.message);return}if(type==='Opkald'&&['NY','KLAR TIL KONTAKT'].includes(currentLead.status)&&!currentLead.manual_lock){await supabase.from('crm_leads').update({status:'I GANG'}).eq('id',currentLead.id)}await refreshCrmKeys('leads','activities');openLead(currentLead.id);toast('Aktivitet journalført')}
