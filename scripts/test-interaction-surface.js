@@ -3,6 +3,7 @@ const vm=require('vm');
 function must(v,m){if(!v)throw new Error(m)}
 const html=fs.readFileSync('index.html','utf8');
 const access=fs.readFileSync('access-bootstrap-v1.js','utf8');
+must(!html.includes('<script src="/saas-onboarding-v4.js'),'legacy onboarding v4 static startup returned');
 
 const views=[...html.matchAll(/<button[^>]*data-view="([^"]+)"/g)].map(m=>m[1]);
 must(views.length>=14,'expected full sidebar navigation');
