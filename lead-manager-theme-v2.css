@@ -74,11 +74,14 @@ body:before{
 }
 .lm-brand-logo{
   display:block;
-  width:min(180px,100%);
+  width:min(184px,100%);
   height:auto;
-  max-height:172px;
+  max-height:176px;
   object-fit:contain;
   object-position:left center;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 12px 28px rgba(0,0,0,.22),0 0 0 1px rgba(255,255,255,.08);
   opacity:0;
   transform:translateY(2px);
   transition:opacity .18s ease,transform .18s ease;

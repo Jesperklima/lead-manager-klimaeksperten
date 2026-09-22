@@ -22,16 +22,18 @@
 
   function enhanceBrand(){
     const brand=document.querySelector('.brand');
-    if(!brand||brand.dataset.lmV2==='1')return;
+    if(!brand)return;
+    if(brand.querySelector('.lm-brand-logo[data-lm-new-logo="1"]'))return;
+
     brand.dataset.lmV2='1';
     brand.setAttribute('aria-label','Lead Manager');
-
-    const previous=brand.innerHTML;
+    brand.classList.remove('lm-brand-ready');
     brand.innerHTML='';
 
     const logo=document.createElement('img');
     logo.className='lm-brand-logo';
-    logo.alt='Lead Manager';
+    logo.dataset.lmNewLogo='1';
+    logo.alt='Lead Manager – Lead flow · pipeline · growth';
     logo.decoding='async';
 
     const fallback=document.createElement('span');
@@ -41,28 +43,30 @@
     brand.appendChild(logo);
     brand.appendChild(fallback);
 
-    const logoParts=[
-      '/assets/lead-manager-logo.webp.b64.0',
-      '/assets/lead-manager-logo.webp.b64.1',
-      '/assets/lead-manager-logo.webp.b64.2',
-      '/assets/lead-manager-logo.webp.b64.3'
-    ];
-    const parts=logoParts.map(url=>
-      fetch(url+'?v=20260918-3',{cache:'force-cache'})
-        .then(response=>{
-          if(!response.ok)throw new Error('Logo asset kunne ikke hentes: '+url);
-          return response.text();
-        })
-    );
+    fetch('/assets/lead-manager-logo-20260922.webp.b64?v=20260922-1',{cache:'force-cache'})
+      .then(response=>{
+        if(!response.ok)throw new Error('Logo asset kunne ikke hentes');
+        return response.text();
+      })
+      .then(base64=>{
+        logo.onload=()=>brand.classList.add('lm-brand-ready');
+        logo.onerror=()=>brand.classList.remove('lm-brand-ready');
+        logo.src='data:image/webp;base64,'+base64.trim();
+      })
+      .catch(error=>{
+        console.warn('Lead Manager-logo kunne ikke indlæses',error);
+        brand.classList.remove('lm-brand-ready');
+      });
+  }
 
-    Promise.all(parts).then(chunks=>{
-      logo.onload=()=>brand.classList.add('lm-brand-ready');
-      logo.onerror=()=>{brand.innerHTML=previous;};
-      logo.src='data:image/webp;base64,'+chunks.join('');
-    }).catch(error=>{
-      console.warn('Lead Manager-logo kunne ikke indlæses',error);
-      brand.innerHTML=previous;
+  function observeBrand(){
+    const brand=document.querySelector('.brand');
+    if(!brand||brand.dataset.lmBrandObserver==='1')return;
+    brand.dataset.lmBrandObserver='1';
+    const observer=new MutationObserver(()=>{
+      if(!brand.querySelector('.lm-brand-logo[data-lm-new-logo="1"]'))enhanceBrand();
     });
+    observer.observe(brand,{childList:true,subtree:false});
   }
 
   function enhanceNav(){
@@ -150,6 +154,7 @@
     document.documentElement.classList.add('lm-theme-v2');
     document.body.classList.add('lm-theme-v2');
     enhanceBrand();
+    observeBrand();
     enhanceNav();
     enhanceTop();
     observeViews();
