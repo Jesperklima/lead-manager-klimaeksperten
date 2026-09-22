@@ -3,6 +3,7 @@ const fs=require('fs');
 const ui=fs.readFileSync('saas-customer-controls-v1.js','utf8');
 const migration=fs.readFileSync('supabase/migrations/20260919193601_lead_pool_ui_backend_v1.sql','utf8');
 const settingsMigration=fs.readFileSync('supabase/migrations/20260921080500_lead_settings_workspace_rpc.sql','utf8');
+const dashboard=fs.readFileSync('executive-dashboard-v1.js','utf8');
 
 for(const marker of [
   'crm_set_new_lead_pool_limit',
@@ -59,3 +60,22 @@ if(ui.includes('#lmLeadSettingsModal .lmcc{width:min(920px,96vw);max-height:92vh
   throw new Error('Lead settings modal light background returned');
 }
 console.log('PASS: lead-pool UI 10/20/30, Platform Owner edit access, secure workspace save, dark settings modal and v3 refill backend are wired');
+
+
+for(const marker of [
+  "supabase.rpc('crm_set_new_lead_pool_limit'",
+  "(lead.lead_pool||'standard')==='standard'",
+  "Finder ${missing} nye leads nu."
+]){
+  if(!dashboard.includes(marker))throw new Error('Executive lead-pool marker missing: '+marker);
+}
+if(dashboard.includes("supabase.from('crm_clients').update({settings})")){
+  throw new Error('Executive lead-pool control must use the tenant-safe RPC instead of a direct client update');
+}
+if(!ui.includes("state?.client?.id||ctx?.client?.id")){
+  throw new Error('Lead-pool save must prioritize the actively selected workspace');
+}
+if(!ui.includes("state?.client?.settings?.new_lead_pool_limit??ctx?.client?.settings?.new_lead_pool_limit")){
+  throw new Error('Lead-pool UI must read the active workspace setting before cached onboarding context');
+}
+console.log('PASS: executive and settings lead-pool controls persist through the RPC, use the active workspace and count standard NY leads only');
