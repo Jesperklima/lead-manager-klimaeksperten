@@ -16,10 +16,13 @@ for(const marker of [
   "const allowDecisiveOverrideOpen=!!matched&&decisiveInbound&&!closedStatuses.has(matched.status)",
   "matchType='mail_thread_offer'",
   'threadOfferByKey',
-  'decision_excerpt:decisionExcerpt(m.body)',
+  'quotedExternalReply',
+  "decisionSource=quotedReply?'quoted_external_customer_reply'",
+  'decision_sender:decisionSender',
+  'decision_excerpt:clean(decisionBody,1200)',
   'needs_review:!!analysis.needsReview',
   'Godkendt via mail – afventer ordreoprettelse i Minuba.',
-  "mode:'mail_decision_v2_thread_context_v13'"
+  "mode:'mail_decision_v2_quoted_customer_v14'"
 ]) assert(src.includes(marker),'missing mail-offer guard: '+marker);
 
 assert(!src.includes('fetchMicrosoftasync function fetchMicrosoft'),'duplicate fetchMicrosoft function marker');
@@ -55,6 +58,45 @@ assert(probe('Vi vil gerne gå videre, men kan du ændre prisen?')==='negotiatio
 assert(probe('Please proceed with the order.')==='won','clear English acceptance must be won');
 assert(probe('Tak for mailen. Vi vender tilbage.')==='review','non-decisive reply must not be auto-closed');
 
+function quotedExternalProbe(value,internalDomains){
+  const lines=String(value||'').split(/\r?\n/);
+  const quotePrefix=s=>s.replace(/^\s*>+\s?/,'').trim();
+  const quoteHeader=/^(?:den\s+.+\s+skrev\b|on\s+.+\s+wrote\b|fra:|from:)/i;
+  const metaHeader=/^(?:sendt|sent|dato|date|til|to|cc|emne|subject):/i;
+  const signatureStart=/^(?:med venlig hilsen|venlig hilsen|best regards|kind regards|with best regards)\b/i;
+  const emailRe2=/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig;
+  const domain=e=>String(e||'').toLowerCase().split('@')[1]||'';
+  for(let i=0;i<lines.length;i++){
+    const first=quotePrefix(lines[i]);if(!quoteHeader.test(first))continue;
+    let header=first,headerEnd=i;
+    for(let k=1;k<=3&&headerEnd+1<lines.length&&!header.match(emailRe2);k++){headerEnd++;header+=' '+quotePrefix(lines[headerEnd])}
+    const sender=((header.match(emailRe2)||[])[0]||'').toLowerCase();if(!sender||internalDomains.has(domain(sender)))continue;
+    let j=headerEnd+1;while(j<lines.length){const t=quotePrefix(lines[j]);if(!t||metaHeader.test(t)){j++;continue}break}
+    const body=[];let meaningful=0;
+    for(;j<lines.length;j++){const t=quotePrefix(lines[j]);if(quoteHeader.test(t)&&meaningful>0)break;if(signatureStart.test(t)&&meaningful>0)break;if(metaHeader.test(t)&&meaningful>0)break;body.push(t);if(t)meaningful++}
+    const text=body.join('\n').replace(/\n{3,}/g,'\n\n').trim();if(text)return{sender,text};
+  }
+  return null;
+}
+const quotedCarlZeiss=quotedExternalProbe(`Hej Frank
+
+Jeg undersøger hvornår vi kan presse den ind til service.
+
+Den fre. 11. sep. 2026 kl. 11.16 skrev Nielsen, Frank <
+frank.nielsen@zeiss.com>:
+
+> Hej Thomas
+>
+> Tak for dit tilbud, det vil vi gerne takke ja til.
+>
+> Kan vi booke en tid til service i den nærmeste fremtid?
+>
+> Med venlig hilsen
+> Frank`,new Set(['klimaeksperten.dk']));
+assert(quotedCarlZeiss&&quotedCarlZeiss.sender==='frank.nielsen@zeiss.com','quoted external customer sender must be extracted');
+assert(probe(quotedCarlZeiss.text)==='won','Carl Zeiss acceptance inside an internal quoted reply must be won');
+assert(src.includes("senderInternal&&!quotedReply&&analysis.decisive"),'internal decisive text must not auto-close without verified customer quote');
+
 for(const marker of [
   "'mail-offer-sync-every-15-minutes'",
   "'8-59/15 * * * *'",
@@ -63,4 +105,4 @@ for(const marker of [
   'timeout_milliseconds := 120000'
 ]) assert(cron.includes(marker),'missing mail-offer cron guard: '+marker);
 
-console.log('PASS: Mail Decision Engine v2, thread context, stale-status guards and acceptance classification');
+console.log('PASS: Mail Decision Engine v2, thread context, quoted customer decisions and acceptance classification');
