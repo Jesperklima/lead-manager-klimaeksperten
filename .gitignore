@@ -4,3 +4,7 @@
 !.env.example
 node_modules/
 .DS_Store
+
+supabase/.temp/
+.onboarding-test.json
+onboarding-test-results/

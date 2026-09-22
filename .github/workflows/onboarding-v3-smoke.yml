@@ -12,6 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Claim and route regression tests
+        run: |
+          node --test scripts/test-onboarding-chain.js
+          node scripts/test-onboarding-routing.js
+          node scripts/test-onboarding-v6.js
+      - name: Browser onboarding chain
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+          node scripts/test-onboarding-browser.js
       - name: JavaScript syntax
         run: |
           node --check saas-onboarding-v6.js
@@ -52,5 +65,5 @@ jobs:
       - name: Safe access bootstrap ownership remains
         shell: bash
         run: |
-          grep -q 'authInit deferred to access-bootstrap-v1.js' api/app.js
+          node scripts/test-onboarding-routing.js
           grep -q 'access-bootstrap-v1.js' api/app.js

@@ -33,7 +33,7 @@ input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:
     <div id="recoveryMode" class="hidden">
       <h1>Ny adgangskode</h1>
       <div class="sub">Vælg en ny adgangskode til din Lead Manager-konto.</div>
-      <div class="field"><label for="newPassword">Ny adgangskode</label><input id="newPassword" type="password" minlength="8" autocomplete="new-password"></div>
+      <div class="field"><label for="newPassword">Ny adgangskode</label><input id="newPassword" type="password" minlength="10" autocomplete="new-password"></div>
       <div class="field"><label for="newPasswordAgain">Gentag adgangskode</label><input id="newPasswordAgain" type="password" minlength="8" autocomplete="new-password"></div>
       <div class="actions"><button id="savePassword" class="btn primary">Gem ny adgangskode</button></div>
     </div>
@@ -125,7 +125,7 @@ input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:
   async function saveNewPassword(){
     clearMessage();const p=$('newPassword').value,p2=$('newPasswordAgain').value;
     if(!recoveryToken){showMessage('Nulstillingslinket mangler eller er udløbet. Bed om et nyt link.','error');return}
-    if(p.length<8){showMessage('Den nye adgangskode skal være mindst 8 tegn.','error');return}
+    if(p.length<10){showMessage('Den nye adgangskode skal være mindst 10 tegn.','error');return}
     if(p!==p2){showMessage('De to adgangskoder er ikke ens.','error');return}
     const btn=$('savePassword');btn.disabled=true;btn.textContent='Gemmer…';
     try{
@@ -137,13 +137,13 @@ input{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:
     }catch(e){showMessage(e.message,'error');btn.disabled=false;btn.textContent='Gem ny adgangskode'}
   }
 
-  $('email').value=localStorage.getItem(LAST_EMAIL)||'';
+  $('email').value=new URLSearchParams(location.search).get('email')||localStorage.getItem(LAST_EMAIL)||'';
   $('login').addEventListener('click',login);
   $('forgot').addEventListener('click',sendRecovery);
   $('savePassword').addEventListener('click',saveNewPassword);
   $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
   $('newPasswordAgain').addEventListener('keydown',e=>{if(e.key==='Enter')saveNewPassword()});
-  if(recoveryType==='recovery'&&recoveryToken){$('loginMode').classList.add('hidden');$('recoveryMode').classList.remove('hidden');showMessage('Nulstillingslinket er godkendt. Vælg din nye adgangskode.','ok')}
+  if(recoveryType==='recovery'&&recoveryToken){history.replaceState(null,'',location.pathname);$('loginMode').classList.add('hidden');$('recoveryMode').classList.remove('hidden');showMessage('Nulstillingslinket er godkendt. Vælg din nye adgangskode.','ok')}
   else validateExisting();
 })();
 </script>

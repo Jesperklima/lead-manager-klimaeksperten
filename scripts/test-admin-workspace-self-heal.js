@@ -10,5 +10,5 @@ for(const marker of [
   "if(!clientId||!valid(cr))throw new Error"
 ]) must(access.includes(marker),'missing stale-workspace self-heal marker: '+marker);
 must(!access.includes("if(!clientId)throw new Error('Intet workspace kunne vælges.')"),'old hard failure still present');
-must(app.includes("access-bootstrap-v1.js?v=20260920-5"),'access bootstrap cache version not bumped');
+must(app.includes("access-bootstrap-v1.js?v=20260921-atomic"),'access bootstrap cache version not bumped');
 console.log('PASS: stale platform-admin workspace self-heals');

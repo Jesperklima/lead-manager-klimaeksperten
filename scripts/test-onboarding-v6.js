@@ -15,7 +15,7 @@ must(!ui.includes('Trin ${step} af 6'),'legacy six-step UI returned');
 // 2) Invitation already knows company and e-mail.
 for(const marker of ["action:'inspect'","inviteInfo.company_name","inviteInfo.email","readonly"])
   must(ui.includes(marker),'invite prefill UI marker missing: '+marker);
-for(const marker of ["action==='inspect'","email:inviteEmail","company_name:client?.name||''"])
+for(const marker of ["action === 'inspect'","email: inviteEmail","company_name: client.name"])
   must(invite.includes(marker),'invite inspect marker missing: '+marker);
 
 // 3) Existing login can be reused.
@@ -47,7 +47,7 @@ must(!validateBlock.includes('step===3'),'integration step still has blocking va
 must(edge.includes("mailPreference=str(body.mail_provider||'later'"),'server complete does not default mail to later');
 must(edge.includes("onboarding_completed:true"),'server does not complete onboarding without integrations');
 
-must(boot.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260920-8')"),'central loader is not on onboarding v6');
+must(boot.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260921-atomic')"),'central loader is not on onboarding v6');
 must(!boot.includes("loadLazyScript('/saas-onboarding-v5.js"),'central loader still loads onboarding v5');
 
 console.log('PASS: Onboarding v2 requirements — 4 steps, invite prefill, login reuse, server resume, optional mail/CRM');
