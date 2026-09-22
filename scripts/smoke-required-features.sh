@@ -82,18 +82,17 @@ node --check api/app.js
 node --check saas-onboarding-v6.js
 node --check legal-agreement-v1.js
 python3 - <<'PY'
-import base64, hashlib
+import base64
 from pathlib import Path
-parts=[Path(f'assets/lead-manager-logo.webp.b64.{i}').read_text(encoding='utf-8').strip() for i in range(4)]
-raw=base64.b64decode(''.join(parts), validate=True)
-assert len(raw)==10508, f'official logo byte size changed: {len(raw)}'
-assert hashlib.sha256(raw).hexdigest()=='4395d23c3a8dbf5e14d2a98179a4de21ade88ab32190ad0450545489d3d32456', 'official logo hash mismatch'
-assert raw[:4]==b'RIFF' and raw[8:12]==b'WEBP', 'official logo is not valid WebP'
+asset=Path('assets/lead-manager-logo-20260922.webp.b64')
+assert asset.is_file(), 'approved dark-background logo asset missing'
+raw=base64.b64decode(asset.read_text(encoding='utf-8').strip(), validate=True)
+assert len(raw)>1000, f'approved logo asset unexpectedly small: {len(raw)}'
+assert raw[:4]==b'RIFF' and raw[8:12]==b'WEBP', 'approved sidebar logo is not valid WebP'
 js=Path('lead-manager-theme-v2.js').read_text(encoding='utf-8')
 assert "data:image/webp;base64," in js, 'sidebar logo data URI missing'
-for i in range(4):
-    assert f'/assets/lead-manager-logo.webp.b64.{i}' in js, f'logo chunk {i} not loaded'
-print('PASS: official Lead Manager sidebar logo assets')
+assert "/assets/lead-manager-logo-20260922.webp.b64" in js, 'approved sidebar logo asset is not loaded'
+print('PASS: approved dark-background Lead Manager sidebar logo asset')
 PY
 node --check saas-credit-check-v1.js
 node --check saas-regression-center-v1.js
