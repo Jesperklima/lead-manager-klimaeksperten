@@ -25,6 +25,16 @@ const server = http.createServer(async (request, response) => {
   response.setHeader('Content-Type', file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');
   response.end(fs.readFileSync(file));
 });
+async function assertReadableOnboarding(page, selector) {
+  const colors = await page.locator(selector).evaluateAll(elements => elements.map(element => getComputedStyle(element).color));
+  assert.ok(colors.length > 0, 'Expected visible onboarding text');
+  for (const color of colors) {
+    const channels = color.match(/[\d.]+/g).slice(0, 3).map(value => Number(value) / 255);
+    const linear = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    assert.ok(1.05 / (luminance + 0.05) >= 4.5, 'Unreadable text on white onboarding card: ' + color);
+  }
+}
 async function run() {
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
   const origin='http://127.0.0.1:'+server.address().port;
@@ -73,6 +83,12 @@ async function run() {
     await page.goto(origin+'/?onboarding='+token);
     await page.locator('#oc4Email').waitFor();
     assert.equal(await page.locator('#oc4Email').inputValue(),user.email);
+    await assertReadableOnboarding(page, '#lmClaim4 h1, #lmClaim4 .sub, #lmClaim4 label, #lmClaim4 a');
+    assert.equal(await page.getByRole('button',{name:'Log ind',exact:true}).count(),0);
+    await page.setViewportSize({width:375,height:812});
+    const card = await page.locator('.ob4card').boundingBox();
+    assert.ok(card.x >= 0 && card.x + card.width <= 375, 'Invitation form overflows mobile viewport');
+    await page.setViewportSize({width:1280,height:720});
     await page.locator('#oc4Pass').fill('short');
     await page.locator('#oc4Pass2').fill('short');
     await page.locator('#oc4Go').click();
@@ -88,6 +104,7 @@ async function run() {
     await page.locator('#lmMfaCode').fill('123456');
     await page.locator('#lmMfaVerify').click();
     await page.locator('#ob4LegalAck').waitFor();
+    await assertReadableOnboarding(page, '#lmOb4 h1, #lmOb4 .sub, #lmOb4 .ob4field label');
     await page.locator('[data-list="services"]').fill('ERP rådgivning');
     await page.locator('#ob4LegalAck').check();
     await page.locator('#ob4Next').click();
@@ -113,6 +130,7 @@ async function run() {
     assert.equal(globalLogout,0);
     await page.goto(origin+'/?onboarding='+'b'.repeat(43));
     await page.getByRole('heading',{name:'Invitationen kunne ikke åbnes'}).waitFor();
+    await assertReadableOnboarding(page, '#lmClaim4 h1, #lmClaim4 a');
     assert.equal(await page.locator('#oc4Pass').count(),0);
     assert.deepEqual(errors,[]);
     console.log('PASS browser: fresh invitation → password → MFA → four steps → failed save/retry → reload/resume → correct workspace; used/invalid links; no global signout');
