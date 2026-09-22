@@ -1,165 +1,111 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
-const cors={
-  'Access-Control-Allow-Origin':'*',
-  'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods':'POST, OPTIONS'
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
-const str=(v:unknown,max=600)=>String(v??'').trim().slice(0,max);
-const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-const sha256=async(v:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+});
+const failures: Record<string, [number, string]> = {
+  INVALID_INVITE: [404, 'Invitationslinket er ugyldigt. Bed om en ny invitation.'],
+  INVITE_REVOKED: [410, 'Invitationen er trukket tilbage. Bed om en ny invitation.'],
+  INVITE_EXPIRED: [410, 'Invitationen er udløbet. Bed om en ny invitation.'],
+  INVITE_USED: [409, 'Invitationen er allerede brugt. Gå til login.'],
+  EMAIL_MISMATCH: [403, 'E-mailadressen matcher ikke invitationen.'],
+  MEMBERSHIP_MISSING: [409, 'Kundeadgangen mangler. Kontakt administratoren.'],
+  MEMBERSHIP_USER_MISMATCH: [409, 'Login og kundeadgang matcher ikke. Kontakt administratoren.'],
+  WORKSPACE_MISSING: [409, 'Virksomheden kunne ikke findes. Kontakt administratoren.'],
+};
+const fail = (code: string) => json({ code, error: failures[code][1] }, failures[code][0]);
+const sha256 = async (value: string) => Array.from(
+  new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))),
+).map(byte => byte.toString(16).padStart(2, '0')).join('');
 
-function logError(err:unknown){
-  if(err instanceof Error)return {name:err.name,message:err.message,stack:err.stack};
-  if(typeof err==='object'&&err!==null){const v=err as Record<string,unknown>;return {message:typeof v.message==='string'?v.message:'Unknown object error',code:v.code,details:v.details,hint:v.hint}}
-  return {message:String(err)};
-}
-
-Deno.serve(async(req:Request)=>{
-  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
-  if(req.method!=='POST')return json({error:'Method not allowed'},405);
-  try{
-    const body=await req.json().catch(()=>({}));
-    const action=str(body.action||'claim',40);
-    const inviteToken=str(body.token,1000);
-    const suppliedEmail=str(body.email,320).toLowerCase();
-    const password=String(body.password||'');
-    if(inviteToken.length<30)return json({error:'Invitationslinket er ugyldigt',code:'INVALID_INVITE'},400);
-
-    const url=Deno.env.get('SUPABASE_URL')!;
-    const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const anonKey=Deno.env.get('SUPABASE_ANON_KEY')!;
-    const admin=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
-    const authClient=createClient(url,anonKey,{auth:{persistSession:false,autoRefreshToken:false}});
-    const hash=await sha256(inviteToken);
-
-    const {data:invite,error:inviteError}=await admin.from('crm_onboarding_invites').select('*').eq('token_hash',hash).maybeSingle();
-    if(inviteError)throw inviteError;
-    if(!invite)return json({error:'Invitationslinket findes ikke eller er ugyldigt',code:'INVALID_INVITE'},404);
-
-    const inviteEmail=String(invite.email||'').toLowerCase();
-    const expired=new Date(invite.expires_at).getTime()<Date.now();
-    if(expired&&invite.status!=='claimed'){
-      await admin.from('crm_onboarding_invites').update({status:'expired'}).eq('id',invite.id);
-      return json({error:'Invitationslinket er udløbet. Bed om en ny invitation.',code:'INVITE_EXPIRED'},410);
-    }
-    if(invite.status==='revoked')return json({error:'Invitationen er trukket tilbage',code:'INVITE_REVOKED'},410);
-
-    const [{data:client},{data:membership,error:membershipError}]=await Promise.all([
-      admin.from('crm_clients').select('id,name').eq('id',invite.client_id).maybeSingle(),
-      admin.from('crm_users').select('email,client_id,role,active,auth_user_id').eq('client_id',invite.client_id).ilike('email',inviteEmail).eq('active',true).maybeSingle()
-    ]);
-    if(membershipError)throw membershipError;
-
-    if(action==='inspect'){
-      return json({
-        ok:true,
-        status:invite.status,
-        claimed:invite.status==='claimed'||!!invite.used_at,
-        email:inviteEmail,
-        company_name:client?.name||'',
-        client_id:invite.client_id,
-        plan_code:invite.plan_code,
-        existing_login:!!membership?.auth_user_id,
-        expires_at:invite.expires_at
-      });
-    }
-
-    if(action!=='claim')return json({error:'Ukendt handling',code:'UNKNOWN_ACTION'},400);
-    if(invite.status==='claimed'||invite.used_at)return json({
-      error:'Invitationen er allerede brugt. Log ind med din eksisterende Lead Manager-konto.',
-      code:'INVITE_USED',
-      email:inviteEmail,
-      login_existing:true
-    },409);
-    if(!membership)return json({error:'Kundeadgangen blev ikke fundet',code:'MEMBERSHIP_MISSING'},404);
-    if(suppliedEmail&&suppliedEmail!==inviteEmail)return json({error:'E-mailadressen matcher ikke invitationen',code:'EMAIL_MISMATCH'},403);
-    if(!emailOk(inviteEmail))return json({error:'Invitationens e-mail er ugyldig',code:'INVALID_EMAIL'},400);
-    if(password.length<10)return json({error:'Password skal være mindst 10 tegn',code:'PASSWORD_TOO_SHORT'},400);
-
-    let userId:string|null=null;
-    let createdNew=false;
-    let boundNow=false;
-
-    if(membership.auth_user_id){
-      const {data:login,error:loginError}=await authClient.auth.signInWithPassword({email:inviteEmail,password});
-      if(loginError||!login?.user){
-        return json({
-          error:'Der findes allerede et login med denne e-mail. Brug dit eksisterende password.',
-          code:'EXISTING_LOGIN_PASSWORD_REQUIRED',
-          existing_login:true,
-          email:inviteEmail
-        },409);
-      }
-      if(login.user.id!==membership.auth_user_id)return json({error:'Login og kundeadgang matcher ikke. Kontakt administrator.',code:'MEMBERSHIP_USER_MISMATCH'},409);
-      userId=login.user.id;
-    }else{
-      const {data:created,error:createError}=await admin.auth.admin.createUser({
-        email:inviteEmail,
-        password,
-        email_confirm:true,
-        user_metadata:{lead_manager_client_id:invite.client_id,onboarding_invite_id:invite.id}
-      });
-      if(!createError&&created?.user){
-        userId=created.user.id;
-        createdNew=true;
-      }else{
-        const message=String(createError?.message||'');
-        if(!/already|registered|exists/i.test(message))throw createError||new Error('Login kunne ikke oprettes');
-        const {data:login,error:loginError}=await authClient.auth.signInWithPassword({email:inviteEmail,password});
-        if(loginError||!login?.user){
-          return json({
-            error:'Der findes allerede et login med denne e-mail. Brug dit eksisterende password.',
-            code:'EXISTING_LOGIN_PASSWORD_REQUIRED',
-            existing_login:true,
-            email:inviteEmail
-          },409);
-        }
-        userId=login.user.id;
-      }
-
-      const {data:bound,error:bindError}=await admin.from('crm_users')
-        .update({auth_user_id:userId})
-        .eq('client_id',invite.client_id)
-        .ilike('email',inviteEmail)
-        .eq('active',true)
-        .is('auth_user_id',null)
-        .select('email,client_id,auth_user_id')
-        .maybeSingle();
-
-      if(bindError||!bound||bound.auth_user_id!==userId){
-        if(createdNew&&userId)await admin.auth.admin.deleteUser(userId);
-        console.error('invite membership bind failed',logError(bindError||new Error('Membership was not bound')));
-        return json({error:'Kundeloginet kunne ikke knyttes til invitationen. Prøv igen.',code:'MEMBERSHIP_BIND_FAILED'},500);
-      }
-      boundNow=true;
-    }
-
-    const now=new Date().toISOString();
-    const {error:inviteUpdateError}=await admin.from('crm_onboarding_invites').update({
-      status:'claimed',
-      used_at:now,
-      metadata:{...(invite.metadata||{}),claimed_user_id:userId,reused_existing_login:!createdNew,claimed_at:now}
-    }).eq('id',invite.id);
-
-    if(inviteUpdateError){
-      if(boundNow&&userId)await admin.from('crm_users').update({auth_user_id:null}).eq('client_id',invite.client_id).ilike('email',inviteEmail).eq('auth_user_id',userId);
-      if(createdNew&&userId)await admin.auth.admin.deleteUser(userId);
-      throw inviteUpdateError;
-    }
-
-    return json({
-      ok:true,
-      email:inviteEmail,
-      client_id:invite.client_id,
-      company_name:client?.name||'',
-      plan_code:invite.plan_code,
-      claimed:true,
-      reused_existing_login:!createdNew
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  try {
+    const body = await req.json().catch(() => null);
+    const action = body?.action || 'claim';
+    const token = body?.token;
+    if (!['inspect', 'claim'].includes(action)) return json({ error: 'Ukendt handling' }, 400);
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) return fail('INVALID_INVITE');
+    const url = Deno.env.get('SUPABASE_URL')!;
+    const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-  }catch(err){
-    console.error('saas-invite-claim failed',logError(err));
-    return json({error:'Login kunne ikke oprettes på grund af en teknisk fejl. Prøv igen.',code:'CLAIM_FAILED'},500);
+    const hash = await sha256(token);
+    const { data: invite, error: lookupError } = await admin.from('crm_onboarding_invites')
+      .select('*').eq('token_hash', hash).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!invite) return fail('INVALID_INVITE');
+    if (invite.status === 'revoked') return fail('INVITE_REVOKED');
+    const expiresAt = Date.parse(invite.expires_at);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || invite.status === 'expired') return fail('INVITE_EXPIRED');
+    if (!['created', 'sent', 'claimed'].includes(invite.status)) return fail('INVALID_INVITE');
+    const inviteEmail = String(invite.email).trim().toLowerCase();
+    if (body.email && String(body.email).trim().toLowerCase() !== inviteEmail) return fail('EMAIL_MISMATCH');
+    const [clientResult, memberResult, planResult] = await Promise.all([
+      admin.from('crm_clients').select('id,name').eq('id', invite.client_id).maybeSingle(),
+      admin.from('crm_users').select('email,client_id,auth_user_id,active')
+        .eq('client_id', invite.client_id).eq('email', invite.email).eq('active', true).maybeSingle(),
+      admin.from('crm_usage_limits').select('plan_code').eq('client_id', invite.client_id).maybeSingle(),
+    ]);
+    for (const result of [clientResult, memberResult, planResult]) if (result.error) throw result.error;
+    const client = clientResult.data;
+    const membership = memberResult.data;
+    if (!client) return fail('WORKSPACE_MISSING');
+    if (!membership) return fail('MEMBERSHIP_MISSING');
+    const claimed = invite.status === 'claimed' || !!invite.used_at;
+    if (action === 'inspect') return json({
+      ok: true, status: invite.status, claimed, email: inviteEmail,
+      company_name: client.name, client_id: invite.client_id,
+      plan_code: planResult.data?.plan_code || invite.plan_code,
+      existing_login: !!membership.auth_user_id, expires_at: invite.expires_at,
+    });
+
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!password || password.length > 256) return json({ code: 'PASSWORD_INVALID', error: 'Indtast en adgangskode på højst 256 tegn.' }, 400);
+    const authClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    let reusedExistingLogin = true;
+    let userId = membership.auth_user_id;
+    if (!userId && !claimed) {
+      if (password.length < 10) return json({ code: 'PASSWORD_TOO_SHORT', error: 'Password skal være mindst 10 tegn.' }, 400);
+      const created = await admin.auth.admin.createUser({
+        email: inviteEmail, password, email_confirm: true,
+        app_metadata: { onboarding_invite_id: invite.id },
+      });
+      if (created.error && !['email_exists', 'user_already_exists'].includes(created.error.code || '')
+        && !/already|registered|exists/i.test(created.error.message)) throw created.error;
+      if (created.data?.user) {
+        userId = created.data.user.id;
+        reusedExistingLogin = false;
+      }
+    }
+    const { data: login, error: loginError } = await authClient.auth.signInWithPassword({ email: inviteEmail, password });
+    if (loginError || !login?.user || !login?.session) {
+      return json({
+        code: loginError?.status === 429 ? 'RATE_LIMITED' : 'EXISTING_LOGIN_PASSWORD_REQUIRED',
+        error: loginError?.status === 429 ? 'For mange forsøg. Vent lidt og prøv igen.' : 'Login kunne ikke bekræftes. Brug dit eksisterende password, eller vælg Glemt adgangskode.',
+        existing_login: true,
+      }, loginError?.status === 429 ? 429 : 409);
+    }
+    if (userId && userId !== login.user.id) return fail('MEMBERSHIP_USER_MISMATCH');
+    const { data: result, error: finalizeError } = await admin.rpc('crm_finalize_onboarding_invite', {
+      p_token_hash: hash, p_user_id: login.user.id, p_verified_email: login.user.email,
+    });
+    if (finalizeError) {
+      const code = Object.keys(failures).find(value => finalizeError.message.includes(value));
+      if (code) return fail(code);
+      throw finalizeError;
+    }
+    return json({ ...result, reused_existing_login: reusedExistingLogin, session: login.session });
+  } catch (error) {
+    console.error('saas-invite-claim', { code: (error as { code?: string })?.code || 'CLAIM_FAILED' });
+    return json({ code: 'CLAIM_FAILED', error: 'Login kunne ikke færdiggøres. Prøv igen med samme adgangskode.' }, 500);
   }
 });

@@ -69,7 +69,7 @@ function onboardingToken(){return new URLSearchParams(location.search).get('onbo
 function ensureOnboardingScript(){
  if(onboardingScriptPromise)return onboardingScriptPromise;
  onboardingScriptPromise=(async()=>{
-  if(!window.__LM_ONBOARDING_V6)await loadLazyScript('/saas-onboarding-v6.js?v=20260920-8');
+  if(!window.__LM_ONBOARDING_V6)await loadLazyScript('/saas-onboarding-v6.js?v=20260921-atomic');
   await loadLazyScript('/saas-onboarding-mail-account-sync-v1.js?v=20260919-3');
  })().catch(error=>{onboardingScriptPromise=null;throw error});
  return onboardingScriptPromise;
@@ -133,6 +133,7 @@ async function openWorkspace(access){
  if(!access.platform_admin&&document.getElementById('leadmanager')?.classList.contains('active'))ensureSettingsHub().catch(error=>console.warn('settings lazy load',error));
 }
 async function controlledStartApp(){
+ if(onboardingToken())return;
  if(bootPromise)return bootPromise;
  bootPromise=(async()=>{
   const loading=document.getElementById('loading');if(loading)loading.classList.remove('hidden');
@@ -166,6 +167,7 @@ async function controlledStartApp(){
  })();return bootPromise;
 }
 async function rescueActiveWorkspace(){
+ if(onboardingToken())return;
  if(rescuePromise)return rescuePromise;
  if(bootPromise)return null;
  if(['onboarding','denied','login','mfa'].includes(window.LM_ACCESS?.next_route||''))return null;

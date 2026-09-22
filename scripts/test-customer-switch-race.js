@@ -1,5 +1,5 @@
 const fs=require('fs');
-const s=fs.readFileSync('saas-admin-client-switcher-v1.js','utf8');
+const s=fs.readFileSync('saas-admin-client-switcher-v1.js','utf8').replace(/\r\n/g,'\n');
 const migration=fs.readFileSync('supabase/migrations/20260920193000_startup_snapshot_tenant_identity_fix.sql','utf8');
 function assert(v,m){if(!v)throw new Error(m)}
 

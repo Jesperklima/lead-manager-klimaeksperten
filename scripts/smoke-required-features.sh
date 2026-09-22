@@ -72,9 +72,10 @@ from pathlib import Path
 s=Path('index.html').read_text(encoding='utf-8')
 m=re.search(r'<script id="lm-required-views-v1">(.*?)</script>',s,re.S)
 assert m, 'required views JS missing'
-Path('/tmp/required-views.js').write_text(m.group(1),encoding='utf-8')
+import tempfile
+Path(tempfile.gettempdir(),'lm-required-views.js').write_text(m.group(1),encoding='utf-8')
 PY
-node --check /tmp/required-views.js
+node --check "$(node -p "require('path').join(require('os').tmpdir(),'lm-required-views.js')")"
 node --check executive-dashboard-v1.js
 node --check lead-manager-theme-v2.js
 node --check api/app.js
