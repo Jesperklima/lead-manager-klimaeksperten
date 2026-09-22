@@ -23,14 +23,25 @@
   async function saveNewLeadPoolLimit(value){
     const limit=Number(value);
     if(!allowedNewLeadPoolSizes.includes(limit)||!state?.client?.id)return;
-    const currentSettings=(state.client.settings&&typeof state.client.settings==='object')?state.client.settings:{};
-    const settings={...currentSettings,new_lead_pool_limit:limit};
-    const {error}=await supabase.from('crm_clients').update({settings}).eq('id',state.client.id);
-    if(error){toast(`Kunne ikke gemme puljestørrelse: ${error.message}`);renderNewLeadPoolControl();return}
-    state.client={...state.client,settings};
-    renderNewLeadPoolControl();
-    renderAttention(state.leads||[],state.offers||[],state.approvals||[]);
-    toast(`Puljen Nye er sat til ${limit} leads`);
+    const clientId=state.client.id;
+    const select=byId('newLeadPoolSize');
+    if(select)select.disabled=true;
+    try{
+      const {data,error}=await supabase.rpc('crm_set_new_lead_pool_limit',{p_client_id:clientId,p_limit:limit});
+      if(error)throw error;
+      const currentSettings=(state.client.settings&&typeof state.client.settings==='object')?state.client.settings:{};
+      state.client={...state.client,settings:{...currentSettings,new_lead_pool_limit:limit}};
+      renderNewLeadPoolControl();
+      renderAttention(state.leads||[],state.offers||[],state.approvals||[]);
+      const currentNy=Number(data?.current_ny);
+      const knownNy=Number.isFinite(currentNy)?currentNy:(state.leads||[]).filter(lead=>lead.status==='NY'&&(lead.lead_pool||'standard')==='standard').length;
+      const missing=Math.max(0,limit-knownNy);
+      toast(missing?`Puljen er sat til ${limit}. Finder ${missing} nye leads nu.`:`Puljen er sat til ${limit} og er klar.`);
+      window.dispatchEvent(new CustomEvent('lm:lead-pool-limit-changed',{detail:{client_id:clientId,new_limit:limit,result:data||null}}));
+    }catch(error){
+      toast(`Kunne ikke gemme puljestørrelse: ${error?.message||error}`);
+      renderNewLeadPoolControl();
+    }
   }
 
   function renderNewLeadPoolControl(){
@@ -47,7 +58,7 @@
       (actions||pipeline).appendChild(wrap);
     }
     const limit=newLeadPoolLimit();
-    const count=(state.leads||[]).filter(lead=>lead.status==='NY').length;
+    const count=(state.leads||[]).filter(lead=>lead.status==='NY'&&(lead.lead_pool||'standard')==='standard').length;
     wrap.innerHTML=`<span>Nye:</span><select id="newLeadPoolSize" aria-label="Antal leads i puljen Nye" style="border:0;background:transparent;font-weight:800;color:inherit;outline:none"><option value="10" ${limit===10?'selected':''}>10</option><option value="20" ${limit===20?'selected':''}>20</option><option value="30" ${limit===30?'selected':''}>30</option></select><span class="sub" style="font-size:11px">${count}/${limit}</span>`;
     byId('newLeadPoolSize').onchange=event=>saveNewLeadPoolLimit(event.target.value);
   }
