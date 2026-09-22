@@ -129,6 +129,7 @@ function render(){
       try{
         select.disabled=true;
         await run({action:'change_role',email:select.dataset.email,role:select.value});
+        select.dataset.previous=select.value;
         if(typeof toast==='function')toast('Brugerrollen er opdateret');
       }catch(error){
         if(previous)select.value=previous;
