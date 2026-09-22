@@ -133,6 +133,8 @@ node scripts/test-performance-guards.js
 node scripts/test-onboarding-v6.js
 node --check saas-workspace-users-v1.js
 node scripts/test-workspace-user-invites.js
+node --check saas-admin-customer-invite-v1.js
+node scripts/test-admin-customer-invite-settings.js
 test -s executive-dashboard-v1.css
 test -s lead-manager-theme-v2.css
 grep -q 'lead-manager-theme-v2.css' index.html

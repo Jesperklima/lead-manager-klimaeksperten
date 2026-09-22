@@ -346,6 +346,7 @@ function renderAccount(){
   card.querySelectorAll('[data-lm-plan-change]').forEach(b=>b.addEventListener('click',()=>openPlanModal(b.dataset.lmPlanChange)));
   card.querySelectorAll('[data-lm-plan-more]').forEach(b=>b.addEventListener('click',()=>openPlanDetails(b.dataset.lmPlanMore)));
   $('#lmOpenPaymentTerms')?.addEventListener('click',openPaymentTerms);
+  window.LMAdminCustomerInvite?.mount?.();
   window.LMWorkspaceUsers?.mount?.();
 }
 
