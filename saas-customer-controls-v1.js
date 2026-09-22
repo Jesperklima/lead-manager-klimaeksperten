@@ -51,7 +51,7 @@ function canEditLeadSettings(){
   return ['owner','admin'].includes(membershipRole)||['workspace_owner','workspace_admin'].includes(accessRole);
 }
 function currentLeadPoolLimit(){
-  const raw=Number(ctx?.client?.settings?.new_lead_pool_limit??state?.client?.settings?.new_lead_pool_limit??10);
+  const raw=Number(state?.client?.settings?.new_lead_pool_limit??ctx?.client?.settings?.new_lead_pool_limit??10);
   return [10,20,30].includes(raw)?raw:10;
 }
 function ensureLeadPoolStyle(){
@@ -89,16 +89,18 @@ function renderLeadPoolButtons(message=''){
 async function saveLeadPoolLimit(limit){
   const next=Number(limit),current=currentLeadPoolLimit();
   if(poolBusy||!canEditLeadSettings()||![10,20,30].includes(next)||next===current)return;
-  const clientId=ctx?.client?.id||state?.client?.id;if(!clientId)return;
+  const clientId=state?.client?.id||ctx?.client?.id;if(!clientId)return;
   poolBusy=true;renderLeadPoolButtons('Gemmer…');
   try{
     const {data,error}=await supabase.rpc('crm_set_new_lead_pool_limit',{p_client_id:clientId,p_limit:next});
     if(error)throw error;
-    if(ctx?.client){ctx.client.settings={...(ctx.client.settings||{}),new_lead_pool_limit:next};}
+    if(ctx?.client?.id===clientId){ctx.client.settings={...(ctx.client.settings||{}),new_lead_pool_limit:next};}
     if(state?.client?.id===clientId){state.client.settings={...(state.client.settings||{}),new_lead_pool_limit:next};}
-    const refill=next>current;
-    renderLeadPoolButtons(refill?`Puljen er sat til ${next}. Lead Manager fylder op automatisk.`:`Puljen er sat til ${next}.`);
-    if(typeof toast==='function')toast(`Nye leads i puljen: ${next}`);
+    const currentNy=Number(data?.current_ny);
+    const knownNy=Number.isFinite(currentNy)?currentNy:(state?.leads||[]).filter(l=>l.status==='NY'&&(l.lead_pool||'standard')==='standard').length;
+    const missing=Math.max(0,next-knownNy);
+    renderLeadPoolButtons(missing?`Puljen er sat til ${next}. Finder ${missing} nye leads nu.`:`Puljen er sat til ${next} og er klar.`);
+    if(typeof toast==='function')toast(missing?`Puljen er sat til ${next}. Finder ${missing} nye leads nu.`:`Nye leads i puljen: ${next}`);
     window.dispatchEvent(new CustomEvent('lm:lead-pool-limit-changed',{detail:{client_id:clientId,old_limit:current,new_limit:next,result:data||null}}));
   }catch(e){
     renderLeadPoolButtons(e?.message||String(e));
