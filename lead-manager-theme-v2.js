@@ -63,10 +63,10 @@
     const brand=document.querySelector('.brand');
     if(!brand||brand.dataset.lmBrandObserver==='1')return;
     brand.dataset.lmBrandObserver='1';
-    const observer=new MutationObserver(()=>{
-      if(!brand.querySelector('.lm-brand-logo[data-lm-new-logo="1"]'))enhanceBrand();
-    });
-    observer.observe(brand,{childList:true,subtree:false});
+    const refresh=()=>requestAnimationFrame(enhanceBrand);
+    window.addEventListener('lm:client-data-ready',refresh);
+    window.addEventListener('pageshow',refresh);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
   }
 
   function enhanceNav(){
