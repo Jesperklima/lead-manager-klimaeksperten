@@ -43,7 +43,7 @@
     brand.appendChild(logo);
     brand.appendChild(fallback);
 
-    fetch('/assets/lead-manager-logo-20260922.webp.b64?v=20260922-1',{cache:'force-cache'})
+    fetch('/assets/lead-manager-logo-20260922.webp.b64?v=20260922-dark-2',{cache:'force-cache'})
       .then(response=>{
         if(!response.ok)throw new Error('Logo asset kunne ikke hentes');
         return response.text();

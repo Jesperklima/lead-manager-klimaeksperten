@@ -66,22 +66,22 @@ body:before{
   display:flex!important;
   align-items:center!important;
   justify-content:flex-start!important;
-  min-height:150px!important;
+  min-height:196px!important;
   margin:0 4px 18px!important;
-  padding:4px 4px 8px!important;
+  padding:2px 4px 8px!important;
   color:#fff!important;
   overflow:hidden;
 }
 .lm-brand-logo{
   display:block;
-  width:min(184px,100%);
+  width:min(188px,100%);
   height:auto;
-  max-height:176px;
+  max-height:204px;
   object-fit:contain;
   object-position:left center;
-  border-radius:14px;
-  background:#fff;
-  box-shadow:0 12px 28px rgba(0,0,0,.22),0 0 0 1px rgba(255,255,255,.08);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
   opacity:0;
   transform:translateY(2px);
   transition:opacity .18s ease,transform .18s ease;
