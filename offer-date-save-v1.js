@@ -22,8 +22,11 @@
   async function readSavedDate(offerId){
     let lastError=null;
     for(let attempt=0;attempt<3;attempt++){
-      const r=await supabase.from('crm_offers').select('id,follow_up_date').eq('id',offerId).maybeSingle();
-      if(!r.error)return normalizeDate(r.data?.follow_up_date||null);
+      const r=await supabase.from('crm_offers').select('id,follow_up_date').eq('id',offerId).limit(1);
+      if(!r.error){
+        const row=Array.isArray(r.data)?r.data[0]:r.data;
+        return normalizeDate(row?.follow_up_date||null);
+      }
       lastError=r.error;
       await wait(120*(attempt+1));
     }
