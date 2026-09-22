@@ -36,3 +36,12 @@
 5. Issue a new, unused invitation for Thomas and inspect it without consuming it. Check production entry routes and the actual rendered form.
 
 Do not run a blanket database rollback or restore: other workspaces are live. If application rollback is required, restore only the previous frontend/function versions; leave the additive service-role-only SQL functions in place.
+
+## Production verification and visual follow-up
+
+- PR #106 merged as `df2a26ba7331b4201a316b9ce3f5e4b29625e226`; Vercel production deployment `dpl_HKuhXMUGzu4uw4fq64PNQx6gPoUE` was READY on the canonical domain.
+- Released Supabase versions: `saas-invite-claim` 4, `saas-onboarding` 15, `saas-admin-invite` 7.
+- Production `/`, `/login`, `/index`, `/api/app` and both onboarding startup bundles returned HTTP 200. Fresh invitation inspection returned Thomas/Vention/Business with `claimed:false` and `existing_login:false`; wrong-email and invalid-token requests were rejected.
+- Visual inspection found inherited dark-theme text on the light onboarding card. Scoped colors now isolate onboarding from the application theme; browser tests enforce at least 4.5:1 contrast for heading, secondary text, labels and links, plus a 375px mobile form-fit check. The covered background login is excluded from accessibility and keyboard focus.
+- The full browser chain and release gate were repeated after this visual correction. The correction changes no backend or invitation state.
+- Supabase advisors confirm no warnings for the two new service-only functions. Separate pre-existing warnings include `pg_net` in public and anonymous execution on other SECURITY DEFINER functions; those unrelated database definitions were not changed. Review: https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
