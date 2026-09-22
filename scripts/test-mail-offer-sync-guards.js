@@ -3,6 +3,7 @@ const fs=require('fs');
 function assert(v,m){if(!v)throw new Error(m)}
 const src=fs.readFileSync('supabase/functions/mail-offer-sync/index.ts','utf8');
 const cron=fs.readFileSync('supabase/migrations/20260920055800_schedule_mail_offer_sync.sql','utf8');
+const threadCandidates=fs.readFileSync('supabase/migrations/20260922094500_mail_decision_v2_thread_candidates.sql','utf8');
 
 for(const marker of [
   'loadStoredPendingMessages',
@@ -96,6 +97,15 @@ frank.nielsen@zeiss.com>:
 assert(quotedCarlZeiss&&quotedCarlZeiss.sender==='frank.nielsen@zeiss.com','quoted external customer sender must be extracted');
 assert(probe(quotedCarlZeiss.text)==='won','Carl Zeiss acceptance inside an internal quoted reply must be won');
 assert(src.includes("senderInternal&&!quotedReply&&analysis.decisive"),'internal decisive text must not auto-close without verified customer quote');
+
+for(const marker of [
+  "create or replace function public.crm_guard_mail_offer_sync_candidates()",
+  "'offer_sync_candidate',true",
+  "coalesce(metadata->>'offer_sync_result','') = 'THREAD_LINKED_NO_AUTO_STATUS'",
+  "message_at >= now() - interval '45 days'",
+  "takke(r)?[[:space:]]+ja"
+]) assert(threadCandidates.includes(marker),'missing thread-candidate migration guard: '+marker);
+assert(!threadCandidates.includes("'offer_sync_result','THREAD_LINKED_NO_AUTO_STATUS'"),'new trigger must not suppress safely thread-linked customer mail');
 
 for(const marker of [
   "'mail-offer-sync-every-15-minutes'",
