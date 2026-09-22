@@ -16,7 +16,7 @@ must(html.includes('dialog.modalback[open]{display:flex!important'),'mail dialog
 must(!html.includes('id="mailModal" popover="manual"'),'legacy mail popover returned');
 
 
-const themeIndex=html.indexOf('<link rel="stylesheet" href="/lead-manager-theme-v2.css?v=20260918-1">');
+const themeIndex=html.indexOf('lead-manager-theme-v2.css?v=');
 const darkIndex=html.indexOf('id="lm-mail-dialog-dark-v1"');
 must(themeIndex>=0&&darkIndex>themeIndex,'mail dark-theme override must load after main theme');
 
