@@ -103,4 +103,9 @@ for(const m of staticButtons){
   }
 }
 
+const offerDateSave=fs.readFileSync('offer-date-save-v1.js','utf8');
+must(!offerDateSave.includes('.maybeSingle('),'unsupported maybeSingle returned to offer date save flow');
+must(offerDateSave.includes(".eq('id',offerId).limit(1)"),'offer date verification is not bounded to one row');
+must(offerDateSave.includes('Array.isArray(r.data)?r.data[0]:r.data'),'offer date verification does not normalize array response');
+
 console.log('PASS: full interaction surface, sequential sidebar switching, and primary button bindings');
