@@ -1,4 +1,5 @@
 const assert=require('assert');
+const fs=require('fs');
 const core=require('../activity-report-core-v2.js');
 
 assert.equal(core.categoryFor({type:'Indgående mail'}),'Mails');
@@ -33,6 +34,7 @@ assert(csv.includes('"Hej ""verden"""'));
 const xlsx=core.buildXlsx(rows,cols,{'Periode':'2026-09-01 – 2026-09-30','Antal':rows.length});
 const buf=Buffer.from(xlsx);
 assert.equal(buf[0],0x50);assert.equal(buf[1],0x4b);
+fs.writeFileSync('/tmp/activity-report-v2-test.xlsx',buf);
 const txt=buf.toString('utf8');
 for(const marker of ['[Content_Types].xml','xl/workbook.xml','xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml','Oversigt','Aktiviteter']){
   assert(txt.includes(marker),marker+' missing from xlsx');
