@@ -221,14 +221,18 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
     for(const x of(ld.messages||[])){const id=clean(x?.id,1000);if(id&&!ids.includes(id))ids.push(id)}
     pageToken=clean(ld?.nextPageToken,2000);pages++;
   }while(pageToken&&pages<20&&ids.length<10000);
-  const known=new Set<string>();
+  const known=new Set<string>(),legacyReinspect=new Set<string>();
   for(let i=0;i<ids.length;i+=200){
     const batchIds=ids.slice(i,i+200);if(!batchIds.length)continue;
-    const{data,error}=await admin.from('crm_mail_messages').select('external_message_id').eq('client_id',clientId).eq('provider','gmail').in('external_message_id',batchIds);
+    const{data,error}=await admin.from('crm_mail_messages').select('external_message_id,metadata').eq('client_id',clientId).eq('provider','gmail').in('external_message_id',batchIds);
     if(error)throw new Error(errText(error));
-    for(const row of data||[])known.add(clean(row.external_message_id,1000));
+    for(const row of data||[]){
+      const id=clean(row.external_message_id,1000);if(!id)continue;known.add(id);
+      const meta=row.metadata||{},refs=Array.isArray(meta.offer_sync_refs)?meta.offer_sync_refs.map(norm).filter(Boolean):[];
+      if(backfillDays>0&&meta.offer_sync_processed===true&&!refs.length)legacyReinspect.add(id);
+    }
   }
-  const pending=ids.filter((id:string)=>!known.has(id)).slice(0,300);
+  const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id)).slice(0,300);
   const rows:any[]=[];
   for(let i=0;i<pending.length;i+=5){
     const batch=await Promise.all(pending.slice(i,i+5).map(async(id:string)=>{
@@ -240,7 +244,7 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
       const outbound=!!from&&(from===account||internalDomains.has(domainOf(from)));
       const body=clean(gmailBody(m.payload),30000),attachments=gmailAttachmentNames(m.payload),embedded=emailsInText(body);
       const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account&&!internalDomains.has(domainOf(x))))];
-      return{provider:'gmail',id:clean(m.id,1000),thread:clean(m.threadId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:gmailHeader(m.payload,'Subject'),body,attachments,at:m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString(),url:`https://mail.google.com/mail/u/0/#all/${m.id}`,correspondents};
+      return{provider:'gmail',id:clean(m.id,1000),thread:clean(m.threadId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:gmailHeader(m.payload,'Subject'),body,attachments,at:m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString(),url:`https://mail.google.com/mail/u/0/#all/${m.id}`,correspondents,reinspect_legacy:legacyReinspect.has(id)};
     }));
     rows.push(...batch.filter(Boolean));
   }
@@ -345,7 +349,8 @@ async function loadStoredPendingMessages(admin:any,clientId:string,integrations:
     const cc=Array.isArray(m.cc_emails)?m.cc_emails.map(lower).filter(Boolean):[];
     const body=clean(m.body_text,30000),embedded=emailsInText(body),outbound=m.direction==='outbound'||internalDomains.has(domainOf(from));
     const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&!internalAccounts.has(x)&&x!==account&&!internalDomains.has(domainOf(x))))];
-    const meta=m.metadata||{},attachments=Array.isArray(meta.attachments)?meta.attachments:Array.isArray(meta.attachment_names)?meta.attachment_names:[];
+    const meta=m.metadata||{};let attachments=Array.isArray(meta.attachments)?meta.attachments:Array.isArray(meta.attachment_names)?meta.attachment_names:Array.isArray(meta.offer_sync_evidence?.attachments)?meta.offer_sync_evidence.attachments:[];
+    if(!attachments.length&&Array.isArray(meta.offer_sync_refs))attachments=meta.offer_sync_refs.map((ref:any)=>`Tilbud ${clean(ref,160)}`).filter((x:string)=>x!=='Tilbud ');
     rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents});
   }
   return rows;
@@ -424,7 +429,7 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     else expandedMessages.push({...baseMessage,target_ref:messageRefs[0]||null,target_index:0,target_count:1,all_offer_refs:messageRefs});
   }
   for(const m of expandedMessages.sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime()||Number(a.target_index||0)-Number(b.target_index||0))){
-    const key=`${m.provider}:${m.id}`;let existing=existingByKey.get(key);if(existing?.metadata?.offer_sync_processed)continue;
+    const key=`${m.provider}:${m.id}`;let existing=existingByKey.get(key);if(existing?.metadata?.offer_sync_processed&&!m.reinspect_legacy)continue;
     const threadMatched=m.thread?threadOfferByKey.get(`${m.provider}:${m.thread}`)||null:null;if(!isCandidate(m)&&!threadMatched)continue;
     const evidence=evidenceText(m),refs=m.target_ref?[m.target_ref]:explicitRefs(evidence);
     let matched:any=null,matchType='';for(const ref of refs){const rows=(offers||[]).filter((o:any)=>norm(o.offer_ref)===ref);if(rows.length===1){matched=rows[0];matchType='explicit_offer_ref';break}}
