@@ -120,6 +120,7 @@ node scripts/test-lead-drawer-close.js
 node scripts/test-dynamic-button-bindings.js
 node scripts/test-mail-composer-top-layer.js
 node scripts/test-mail-recipient-templates-signature.js
+node scripts/test-reliable-mail-send.js
 node scripts/test-contact-channel-fallback.js
 node scripts/test-external-crm-foundation.js
 node scripts/test-external-crm-complete.js
