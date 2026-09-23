@@ -31,7 +31,7 @@ function inferPipelineStatus(a,m){
   const s=String(a.summary||a.detail||'');const hit=s.match(/→\s*([^,(]+)/);return hit?hit[1].trim():'';
 }
 function rowBase(at,source){
-  const f=fmtDateTime(at);return {at,source,date:f.date,time:f.time,category:'Øvrige',type:'',company:'',actor:'',detail:'',status:'',mailDirection:'',offerStatus:'',leadStatus:'',pipelineStatus:'',offerRef:''};
+  const f=fmtDateTime(at);return {at,source,date:f.date,time:f.time,category:'',type:'',company:'',actor:'',detail:'',status:'',mailDirection:'',offerStatus:'',leadStatus:'',pipelineStatus:'',offerRef:''};
 }
 function normalize(activities,mails,leads,offers){
   const out=[];
