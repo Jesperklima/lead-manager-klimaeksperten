@@ -7,7 +7,7 @@ const threadCandidates=fs.readFileSync('supabase/migrations/20260922094500_mail_
 
 for(const marker of [
   'loadStoredPendingMessages',
-  "const pending=ids.filter((id:string)=>!known.has(id))",
+  "const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id))",
   'IGNORED_STALE_OFFER_STATUS',
   'IGNORED_CLOSED_OFFER_REOPEN',
   'IGNORED_CLOSED_STATUS_CONFLICT',
