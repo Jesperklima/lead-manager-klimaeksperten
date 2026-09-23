@@ -22,6 +22,21 @@ jobs:
           node --check scripts/test-activity-report-v2.js
       - name: Activity report regression tests
         run: node scripts/test-activity-report-v2.js
+      - name: Validate generated Excel package
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          import xml.etree.ElementTree as ET
+          path='/tmp/activity-report-v2-test.xlsx'
+          with zipfile.ZipFile(path) as z:
+              names=set(z.namelist())
+              required={'[Content_Types].xml','xl/workbook.xml','xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml'}
+              assert required <= names, f'missing xlsx entries: {required-names}'
+              ET.fromstring(z.read('xl/workbook.xml'))
+              ET.fromstring(z.read('xl/worksheets/sheet1.xml'))
+              ET.fromstring(z.read('xl/worksheets/sheet2.xml'))
+          print('PASS: generated XLSX opens as a valid ZIP/XML workbook package')
+          PY
       - name: Verify runtime injection
         run: |
           python3 - <<'PY'
@@ -33,7 +48,7 @@ jobs:
           assert ui in app, 'activity report UI asset missing'
           assert app.index(core) < app.index(ui), 'core must load before UI'
           js=Path('activity-report-v2.js').read_text(encoding='utf-8')
-          for marker in ['lmReportTabs','lmReportExportModal','Download Excel (.xlsx)','Download CSV','Gem visning','Pipelinestatus','window.loadActivityReport=loadReport']:
+          for marker in ["category:''",'lmReportTabs','lmReportExportModal','Download Excel (.xlsx)','Download CSV','Gem visning','Pipelinestatus','window.loadActivityReport=loadReport']:
               assert marker in js, f'missing UI marker: {marker}'
           print('PASS: runtime assets and report controls present')
           PY

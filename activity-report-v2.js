@@ -31,7 +31,7 @@ function inferPipelineStatus(a,m){
   const s=String(a.summary||a.detail||'');const hit=s.match(/→\s*([^,(]+)/);return hit?hit[1].trim():'';
 }
 function rowBase(at,source){
-  const f=fmtDateTime(at);return {at,source,date:f.date,time:f.time,category:'Øvrige',type:'',company:'',actor:'',detail:'',status:'',mailDirection:'',offerStatus:'',leadStatus:'',pipelineStatus:'',offerRef:''};
+  const f=fmtDateTime(at);return {at,source,date:f.date,time:f.time,category:'',type:'',company:'',actor:'',detail:'',status:'',mailDirection:'',offerStatus:'',leadStatus:'',pipelineStatus:'',offerRef:''};
 }
 function normalize(activities,mails,leads,offers){
   const out=[];
@@ -69,12 +69,12 @@ function apply(){
   rs.filtered=core.sortRows(core.filterRows(rs.rows,filterState()),rs.sortKey,rs.sortDir);
   renderKpis();renderTabs();renderTable();updateCount();
 }
-function optionHtml(values,current){
-  return '<option value="">Alle</option>'+values.map(v=>'<option'+(v===current?' selected':'')+'>'+esc(v)+'</option>').join('');
+function optionHtml(values,current,label){
+  return '<option value="">'+esc(label)+': alle</option>'+values.map(v=>'<option'+(v===current?' selected':'')+'>'+esc(v)+'</option>').join('');
 }
 function populateFilters(){
-  const map={lmRfCompany:'company',lmRfType:'type',lmRfActor:'actor',lmRfMail:'mailDirection',lmRfOffer:'offerStatus',lmRfLead:'leadStatus',lmRfPipeline:'pipelineStatus'};
-  Object.entries(map).forEach(([id,key])=>{const el=q(id);if(el)el.innerHTML=optionHtml(uniq(key),rs.filters[key]||'')});
+  const map={lmRfCompany:['company','Virksomhed'],lmRfType:['type','Type'],lmRfActor:['actor','Bruger / aktør'],lmRfMail:['mailDirection','Mailretning'],lmRfOffer:['offerStatus','Tilbudsstatus'],lmRfLead:['leadStatus','Leadstatus'],lmRfPipeline:['pipelineStatus','Pipelinestatus']};
+  Object.entries(map).forEach(([id,[key,label]])=>{const el=q(id);if(el){el.title=label;el.innerHTML=optionHtml(uniq(key),rs.filters[key]||'',label)}});
 }
 function renderTabs(){
   const host=q('lmReportTabs');if(!host)return;
@@ -149,12 +149,16 @@ function openExport(){
   modal.classList.add('open');
 }
 function closeExport(){q('lmReportExportModal')?.classList.remove('open')}
-function doCsv(){
+function syncExportColumns(){
   q('lmExportCols')?.querySelectorAll('input').forEach(x=>x.checked?rs.selected.add(x.value):rs.selected.delete(x.value));
+  if(!rs.selected.size){window.toast?.('Vælg mindst én kolonne til eksport');return false}return true;
+}
+function doCsv(){
+  if(!syncExportColumns())return;
   const csv=core.toCsv(rs.filtered,selectedColumns());download(new Blob([csv],{type:'text/csv;charset=utf-8'}),filename('csv'));closeExport();
 }
 function doXlsx(){
-  q('lmExportCols')?.querySelectorAll('input').forEach(x=>x.checked?rs.selected.add(x.value):rs.selected.delete(x.value));
+  if(!syncExportColumns())return;
   const bytes=core.buildXlsx(rs.filtered,selectedColumns(),exportOverview());download(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),filename('xlsx'));closeExport();
 }
 function viewsKey(){return 'lm.activityReport.v2.views.'+clientKey()}
