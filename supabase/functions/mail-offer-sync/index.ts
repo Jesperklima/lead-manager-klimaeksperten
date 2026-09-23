@@ -424,7 +424,7 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     else expandedMessages.push({...baseMessage,target_ref:messageRefs[0]||null,target_index:0,target_count:1,all_offer_refs:messageRefs});
   }
   for(const m of expandedMessages.sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime()||Number(a.target_index||0)-Number(b.target_index||0))){
-    const key=`${m.provider}:${m.id}`,existing=existingByKey.get(key);if(existing?.metadata?.offer_sync_processed)continue;
+    const key=`${m.provider}:${m.id}`;let existing=existingByKey.get(key);if(existing?.metadata?.offer_sync_processed)continue;
     const threadMatched=m.thread?threadOfferByKey.get(`${m.provider}:${m.thread}`)||null:null;if(!isCandidate(m)&&!threadMatched)continue;
     const evidence=evidenceText(m),refs=m.target_ref?[m.target_ref]:explicitRefs(evidence);
     let matched:any=null,matchType='';for(const ref of refs){const rows=(offers||[]).filter((o:any)=>norm(o.offer_ref)===ref);if(rows.length===1){matched=rows[0];matchType='explicit_offer_ref';break}}
