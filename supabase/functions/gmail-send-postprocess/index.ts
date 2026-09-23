@@ -8,6 +8,37 @@ const corsHeaders={
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 const trim=(v:unknown,max=200)=>String(v??'').trim().slice(0,max);
 
+async function finalizeJob(admin:any,jobId:string){
+  const {data,error}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:jobId});
+  if(error)throw error;
+
+  const {data:job,error:jobError}=await admin.from('crm_mail_send_jobs')
+    .select('id,client_id,gmail_message_id,attachment_filename,attachment_source,source_message_id')
+    .eq('id',jobId).maybeSingle();
+  if(jobError)throw jobError;
+
+  if(job?.gmail_message_id&&job?.attachment_filename){
+    const {data:mail,error:mailError}=await admin.from('crm_mail_messages')
+      .select('id,metadata')
+      .eq('client_id',job.client_id)
+      .eq('provider','gmail')
+      .eq('external_message_id',job.gmail_message_id)
+      .maybeSingle();
+    if(mailError)throw mailError;
+    if(mail?.id){
+      const metadata={
+        ...(mail.metadata||{}),
+        attachment_filename:job.attachment_filename,
+        attachment_source:job.attachment_source||'minuba_original_mail',
+        source_message_id:job.source_message_id||null
+      };
+      const {error:updateError}=await admin.from('crm_mail_messages').update({metadata}).eq('id',mail.id);
+      if(updateError)throw updateError;
+    }
+  }
+  return data;
+}
+
 Deno.serve(async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});
   if(req.method!=='POST')return json({error:'Method not allowed'},405);
@@ -23,8 +54,7 @@ Deno.serve(async(req:Request)=>{
     const body=await req.json().catch(()=>({}));
     const jobId=trim(body.job_id,80);
     if(jobId){
-      const {data,error}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:jobId});
-      if(error)throw error;
+      const data=await finalizeJob(admin,jobId);
       return json({ok:true,result:data});
     }
 
@@ -39,8 +69,7 @@ Deno.serve(async(req:Request)=>{
     const results:any[]=[];
     for(const job of jobs||[]){
       try{
-        const {data,error}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
-        if(error)throw error;
+        const data=await finalizeJob(admin,job.id);
         results.push({job_id:job.id,ok:true,result:data});
       }catch(e){
         results.push({job_id:job.id,ok:false,error:e instanceof Error?e.message:String(e)});
