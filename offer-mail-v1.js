@@ -11,6 +11,8 @@
   const firstEmail=value=>(String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
   const lower=v=>String(v||'').trim().toLowerCase();
   let minubaContactOptions=[];
+  let currentSendId=null;
+  let sendState='idle';
 
   function offer(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
   function companyContacts(o){try{return typeof contactsFor==='function'?contactsFor(o.company_id):((state?.contacts||[]).filter(x=>x.company_id===o.company_id))}catch{return[]}}
@@ -40,6 +42,35 @@
   function emitOfferMailLifecycle(name){window.dispatchEvent(new CustomEvent(name,{detail:{offer_id:offer()?.id||null}}))}
   function openOfferMailModal(){const modal=byId('offerMailModal');if(!modal)return;modal.classList.add('open');emitOfferMailLifecycle('lm:offer-mail-opened')}
   function closeOfferMailModal(){const modal=byId('offerMailModal');if(!modal)return;modal.classList.remove('open');emitOfferMailLifecycle('lm:offer-mail-closed')}
+  function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
+  const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing']);
+  function isSentResult(data){return !!data?.sent||sentStatuses.has(String(data?.status||''))}
+  function mailErrorFrom(result){const e=new Error(result?.error?.message||'Mailafsendelsen fejlede');Object.assign(e,result?.error||{});return e}
+  function friendlyMailError(error){
+    const status=Number(error?.status||0),code=String(error?.code||''),message=String(error?.message||'');
+    if(status===546||/^546(?:\s|$)/.test(message))return 'Mailtjenesten blev afbrudt under afsendelsen. Lead Manager kontrollerer automatisk, om Gmail nåede at sende mailen.';
+    if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen. Du kan prøve at sende igen.';
+    if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
+    return message||'Mailen kunne ikke sendes.';
+  }
+  async function pollSendStatus(requestId,tries=4){
+    for(let i=0;i<tries;i++){
+      if(i)await new Promise(r=>setTimeout(r,800));
+      const check=await callProtectedEdge('gmail-direct-send',{action:'status',client_id:state.client.id,request_id:requestId});
+      if(check?.data&&isSentResult(check.data))return {state:'sent',data:check.data};
+      if(check?.data?.status==='failed'||check?.error?.code==='SEND_INTERRUPTED_NOT_FOUND')return {state:'failed',error:check.error||check.data};
+      if(check?.error&&Number(check.error.status)!==546&&check.error.code!=='SEND_JOB_NOT_FOUND')return {state:'failed',error:check.error};
+    }
+    return {state:'pending'};
+  }
+  async function finishSuccessfulSend(o,name,to){
+    closeOfferMailModal();
+    currentSendId=null;sendState='idle';
+    if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');
+    else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});
+    if(typeof openOffer==='function')openOffer(o.id);
+    if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
+  }
 
   function ensureModal(){
     if(byId('offerMailModal'))return;
@@ -154,7 +185,7 @@
 
   function openMail(){
     ensureModal();const o=offer();if(!o){if(typeof toast==='function')toast('Åbn et tilbud først');return}if(!composerReady()){if(typeof toast==='function')toast('Mailvinduet kunne ikke indlæses. Genindlæs siden.');return}
-    minubaContactOptions=[];
+    minubaContactOptions=[];currentSendId=makeSendId();sendState='idle';
     const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
     setNodeText('offerMailMeta',[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · '));
     setNodeValue('offerMailTo',to);setNodeValue('offerMailContactName',String(o.contact_person||''));setNodeValue('offerMailSubject',`Opfølgning på tilbud ${ref}`);setNodeValue('offerMailBody',`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`);setNodeValue('offerMailFollow',byId('oFollow')?.value||o.follow_up_date||plusDays(7));setNodeText('offerMailSender',`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`);
@@ -170,14 +201,46 @@
     if(bouncedContact(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl (Account disabled). Vælg en anden adresse.`);return}
     o.contact_person=name;o.contact_details=to;
     if(typeof supabase!=='undefined')await supabase.from('crm_offers').update({contact_person:name||null,contact_details:to,updated_at:new Date().toISOString()}).eq('id',o.id);
-    if(!confirm(`Send mailen nu fra ${sender()} til ${name?name+' · ':''}${to}?`))return;
-    const button=byId('sendOfferMail');if(!button){console.warn('[Offer mail] Send-knap mangler efter render');return}const old=button.textContent;button.disabled=true;button.textContent='Sender…';
+    if(sendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${name?name+' · ':''}${to}?`))return;
+    if(!currentSendId)currentSendId=makeSendId();
+    const requestId=currentSendId,button=byId('sendOfferMail');
+    if(!button){console.warn('[Offer mail] Send-knap mangler efter render');return}
+    const old='Send mail';button.disabled=true;button.textContent=sendState==='uncertain'?'Kontrollerer…':'Sender…';
     try{
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
-      const result=await callProtectedEdge('gmail-direct-send',{client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,follow_up_date:follow||null,ai_generated:false,ai_model:null});
-      if(result?.error)throw new Error(result.error.message||String(result.error));
-      closeOfferMailModal();if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});if(typeof openOffer==='function')openOffer(o.id);if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
-    }catch(error){alert('Mailen blev ikke sendt: '+(error?.message||String(error)))}finally{button.disabled=false;button.textContent=old}
+      const result=await callProtectedEdge('gmail-direct-send',{
+        client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,
+        follow_up_date:follow||null,ai_generated:false,ai_model:null,request_id:requestId
+      });
+      if(result?.error)throw mailErrorFrom(result);
+      if(isSentResult(result?.data)){await finishSuccessfulSend(o,name,to);return}
+      if(result?.data?.status==='sending'||result?.data?.code==='SEND_IN_PROGRESS'){
+        const checked=await pollSendStatus(requestId,5);
+        if(checked.state==='sent'){await finishSuccessfulSend(o,name,to);return}
+        if(checked.state==='failed')throw Object.assign(new Error(checked.error?.message||'Afsendelsen fejlede'),checked.error||{});
+        sendState='uncertain';
+        alert('Afsendelsen er stadig ved at blive kontrolleret. Lead Manager genbruger samme send-id, så et nyt klik kan ikke sende mailen dobbelt.');
+        return;
+      }
+      throw new Error('Gmail returnerede ingen sikker afsendelsesstatus.');
+    }catch(error){
+      const status=Number(error?.status||0),raw=String(error?.message||'');
+      if(status===546||/^546(?:\s|$)/.test(raw)){
+        const checked=await pollSendStatus(requestId,5);
+        if(checked.state==='sent'){await finishSuccessfulSend(o,name,to);return}
+        if(checked.state==='pending'){
+          sendState='uncertain';
+          alert('Mailtjenesten blev afbrudt, men Lead Manager har låst dette sendeforsøg og kontrollerer status. Brug “Kontroller status” i stedet for at oprette en ny afsendelse.');
+          return;
+        }
+        error=Object.assign(new Error(checked.error?.message||raw),checked.error||{});
+      }
+      sendState='idle';currentSendId=makeSendId();
+      alert('Mailen blev ikke sendt: '+friendlyMailError(error));
+    }finally{
+      button.disabled=false;
+      button.textContent=sendState==='uncertain'?'Kontroller status':old;
+    }
   }
 
   function scheduleButton(){setTimeout(ensureButton,0)}
