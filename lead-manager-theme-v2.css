@@ -503,3 +503,93 @@ a:hover{color:#83efd0}
 }
 
 /* Official sidebar logo deployed 2026-09-18 */
+
+/* 2026-09-23: keep injected customer/detail surfaces inside the dark CRM theme.
+   These components were still carrying legacy light backgrounds from index.html. */
+.contact-card,
+.customer-contact,
+.customer-summary,
+.intel-v2-angle,
+.gmail-direct-note,
+.minuba-rel,
+.minuba-rel.exact,
+.minuba-rel.chain,
+.minuba-rel.none,
+.minuba-rel.warn{
+  background:linear-gradient(180deg,rgba(13,31,43,.96),rgba(9,25,36,.97))!important;
+  border-color:rgba(125,166,187,.16)!important;
+  color:var(--text)!important;
+}
+.customer-contact:hover{
+  border-color:rgba(52,225,178,.24)!important;
+}
+.customer-section-title,
+.customer-label,
+.customer-contact-role,
+.minuba-meta,
+.intel-v2-source,
+.gmail-direct-note,
+.lm-mail-sender{
+  color:#7f99aa!important;
+}
+.customer-contact-name,
+.customer-value,
+.customer-summary,
+.minuba-rel strong,
+.gmail-direct-note strong{
+  color:#eaf4f8!important;
+}
+.customer-value a,
+.customer-summary a,
+.minuba-rel a{
+  color:#59ddba!important;
+}
+.customer-badge,
+.minuba-tag,
+.gmail-direct-status{
+  background:rgba(255,255,255,.045)!important;
+  color:#c9d9e1!important;
+  border-color:rgba(125,166,187,.16)!important;
+}
+.customer-badge.ok,
+.gmail-direct-status.ok{
+  background:rgba(74,222,128,.09)!important;
+  color:#8ff0ae!important;
+  border-color:rgba(74,222,128,.18)!important;
+}
+.gmail-direct-status.bad{
+  background:rgba(251,113,133,.1)!important;
+  color:#ff9aaa!important;
+  border-color:rgba(251,113,133,.18)!important;
+}
+.customer-warning,
+.minuba-rel.warn{
+  background:rgba(251,191,36,.075)!important;
+  border-color:rgba(251,191,36,.18)!important;
+  color:#efd57b!important;
+}
+.customer-progress{
+  background:rgba(56,189,248,.07)!important;
+  border-color:rgba(56,189,248,.18)!important;
+  color:#9edfff!important;
+}
+.minuba-rel.exact{
+  background:rgba(74,222,128,.06)!important;
+  border-color:rgba(74,222,128,.17)!important;
+}
+.minuba-rel.chain{
+  background:rgba(56,189,248,.06)!important;
+  border-color:rgba(56,189,248,.17)!important;
+}
+.minuba-rel.none{
+  background:rgba(255,255,255,.025)!important;
+  border-color:rgba(125,166,187,.14)!important;
+}
+.drawer .customer-contact,
+.drawer .customer-summary,
+.drawer .minuba-rel,
+.drawer .intel-v2-angle,
+.drawer .gmail-direct-note{
+  box-shadow:none!important;
+}
+
