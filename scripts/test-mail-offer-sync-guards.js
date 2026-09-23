@@ -40,6 +40,7 @@ assert(src.includes("expandedMessages:any[]"),'multi-offer mail expansion missin
 assert(src.includes("target_ref:ref")&&src.includes("target_count:messageRefs.length"),'multi-offer per-reference targets missing');
 assert(src.includes("offer_sync_refs:allOfferRefs"),'processed offer references must be persisted');
 assert(src.includes("offer_sync_processed:targetComplete"),'multi-offer mail must only complete after final reference');
+assert(src.includes("const key=`${m.provider}:${m.id}`;let existing=existingByKey.get(key)"),'multi-offer mail state must remain mutable after first insert');
 
 
 function sourceRegex(name){
