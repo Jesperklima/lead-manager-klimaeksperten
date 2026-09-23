@@ -41,6 +41,10 @@ assert(src.includes("target_ref:ref")&&src.includes("target_count:messageRefs.le
 assert(src.includes("offer_sync_refs:allOfferRefs"),'processed offer references must be persisted');
 assert(src.includes("offer_sync_processed:targetComplete"),'multi-offer mail must only complete after final reference');
 assert(src.includes("const key=`${m.provider}:${m.id}`;let existing=existingByKey.get(key)"),'multi-offer mail state must remain mutable after first insert');
+assert(src.includes("legacyReinspect=new Set<string>()"),'legacy Gmail backfill reinspection set missing');
+assert(src.includes("reinspect_legacy:legacyReinspect.has(id)"),'legacy Gmail backfill marker missing');
+assert(src.includes("meta.offer_sync_evidence?.attachments"),'stored mail must recover attachment evidence');
+assert(src.includes("offer_sync_processed&&!m.reinspect_legacy"),'legacy processed mail must be reinspectable during backfill');
 
 
 function sourceRegex(name){
