@@ -1,0 +1,41 @@
+name: Activity report v2 smoke
+
+on:
+  push:
+    branches:
+      - "feat/activity-report-v2-*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax
+        run: |
+          node --check activity-report-core-v2.js
+          node --check activity-report-v2.js
+          node --check scripts/test-activity-report-v2.js
+      - name: Activity report regression tests
+        run: node scripts/test-activity-report-v2.js
+      - name: Verify runtime injection
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          app=Path('api/app.js').read_text(encoding='utf-8')
+          core='/activity-report-core-v2.js?v=20260923-1'
+          ui='/activity-report-v2.js?v=20260923-1'
+          assert core in app, 'activity report core asset missing'
+          assert ui in app, 'activity report UI asset missing'
+          assert app.index(core) < app.index(ui), 'core must load before UI'
+          js=Path('activity-report-v2.js').read_text(encoding='utf-8')
+          for marker in ['lmReportTabs','lmReportExportModal','Download Excel (.xlsx)','Download CSV','Gem visning','Pipelinestatus','window.loadActivityReport=loadReport']:
+              assert marker in js, f'missing UI marker: {marker}'
+          print('PASS: runtime assets and report controls present')
+          PY
+      - name: Existing required feature smoke
+        run: bash scripts/smoke-required-features.sh
