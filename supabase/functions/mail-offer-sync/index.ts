@@ -207,22 +207,28 @@ async function microsoftToken(admin:any,clientId:string){
   const d=await r.json().catch(()=>({}));if(!r.ok||!d.access_token)throw new Error(clean(d?.error_description||d?.error||'Microsoft tokenfejl',1000));
   if(d.refresh_token&&d.refresh_token!==refresh)await admin.rpc('crm_set_microsoft_refresh_token',{p_client_id:clientId,p_refresh_token:d.refresh_token,p_account:mat?.account,p_scope:d.scope||scope});return{access:String(d.access_token),account:lower(mat?.account)};
 }
-async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:number){
+async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:number,internalDomains:Set<string>){
   const{access,account}=await gmailToken(admin,clientId);
   const since=backfillDays>0?new Date(Date.now()-backfillDays*86400000):lastSync?new Date(new Date(lastSync).getTime()-48*3600000):new Date(Date.now()-14*86400000);
   const after=Math.floor(since.getTime()/1000);
   const q=`after:${after} {tilbud tilbuddet offer quotation quote proposal overslag "takke ja" "takker ja" accepterer accepteret godkendt bestiller "sæt i gang" "gå videre" "tager imod" accepted approved "go ahead" proceed}`;
-  const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+access}});
-  const ld=await lr.json().catch(()=>({}));
-  if(!lr.ok)throw new Error(clean(ld?.error?.message||`Gmail-fejl (${lr.status})`,1000));
-  const ids=(ld.messages||[]).slice(0,100).map((x:any)=>clean(x?.id,1000)).filter(Boolean);
+  const ids:string[]=[];let pageToken='';let pages=0;
+  do{
+    const params=new URLSearchParams({maxResults:'500',q});if(pageToken)params.set('pageToken',pageToken);
+    const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?'+params.toString(),{headers:{Authorization:'Bearer '+access}});
+    const ld=await lr.json().catch(()=>({}));
+    if(!lr.ok)throw new Error(clean(ld?.error?.message||`Gmail-fejl (${lr.status})`,1000));
+    for(const x of(ld.messages||[])){const id=clean(x?.id,1000);if(id&&!ids.includes(id))ids.push(id)}
+    pageToken=clean(ld?.nextPageToken,2000);pages++;
+  }while(pageToken&&pages<20&&ids.length<10000);
   const known=new Set<string>();
-  if(ids.length){
-    const{data,error}=await admin.from('crm_mail_messages').select('external_message_id').eq('client_id',clientId).eq('provider','gmail').in('external_message_id',ids);
+  for(let i=0;i<ids.length;i+=200){
+    const batchIds=ids.slice(i,i+200);if(!batchIds.length)continue;
+    const{data,error}=await admin.from('crm_mail_messages').select('external_message_id').eq('client_id',clientId).eq('provider','gmail').in('external_message_id',batchIds);
     if(error)throw new Error(errText(error));
     for(const row of data||[])known.add(clean(row.external_message_id,1000));
   }
-  const pending=ids.filter((id:string)=>!known.has(id));
+  const pending=ids.filter((id:string)=>!known.has(id)).slice(0,300);
   const rows:any[]=[];
   for(let i=0;i<pending.length;i+=5){
     const batch=await Promise.all(pending.slice(i,i+5).map(async(id:string)=>{
@@ -230,8 +236,10 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
       const m=await r.json().catch(()=>({}));
       if(!r.ok)return null;
       const fromRaw=gmailHeader(m.payload,'From'),toRaw=gmailHeader(m.payload,'To'),ccRaw=gmailHeader(m.payload,'Cc');
-      const from=lower((fromRaw.match(emailRe)||[fromRaw])[0]),to=(toRaw.match(emailRe)||[]).map(lower),cc=(ccRaw.match(emailRe)||[]).map(lower),outbound=!!account&&from===account;
-      const body=clean(gmailBody(m.payload),30000),attachments=gmailAttachmentNames(m.payload),embedded=emailsInText(body),correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account))];
+      const from=lower((fromRaw.match(emailRe)||[fromRaw])[0]),to=(toRaw.match(emailRe)||[]).map(lower),cc=(ccRaw.match(emailRe)||[]).map(lower);
+      const outbound=!!from&&(from===account||internalDomains.has(domainOf(from)));
+      const body=clean(gmailBody(m.payload),30000),attachments=gmailAttachmentNames(m.payload),embedded=emailsInText(body);
+      const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account&&!internalDomains.has(domainOf(x))))];
       return{provider:'gmail',id:clean(m.id,1000),thread:clean(m.threadId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:gmailHeader(m.payload,'Subject'),body,attachments,at:m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString(),url:`https://mail.google.com/mail/u/0/#all/${m.id}`,correspondents};
     }));
     rows.push(...batch.filter(Boolean));
@@ -239,15 +247,22 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
   return rows;
 }
 
-async function fetchMicrosoft(admin:any,clientId:string,lastSync:any,backfillDays:number){
+async function fetchMicrosoft(admin:any,clientId:string,lastSync:any,backfillDays:number,internalDomains:Set<string>){
   const{access,account}=await microsoftToken(admin,clientId);
   const since=backfillDays>0?new Date(Date.now()-backfillDays*86400000):lastSync?new Date(new Date(lastSync).getTime()-48*3600000):new Date(Date.now()-14*86400000);
   const params=new URLSearchParams({'$top':'100','$select':'id,subject,body,bodyPreview,receivedDateTime,sentDateTime,from,toRecipients,ccRecipients,webLink,conversationId,hasAttachments','$filter':`receivedDateTime ge ${since.toISOString()}`,'$orderby':'receivedDateTime desc'});
-  const r=await fetch('https://graph.microsoft.com/v1.0/me/messages?'+params,{headers:{Authorization:'Bearer '+access,Prefer:'outlook.body-content-type="text"'}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(clean(d?.error?.message||`Microsoft Graph-fejl (${r.status})`,1000));
-  const rows:any[]=[];for(const m of(d.value||[])){
-    const from=lower(m?.from?.emailAddress?.address),to=(m.toRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean),cc=(m.ccRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean),outbound=!!account&&from===account,body=clean(m.body?.content||m.bodyPreview,30000);let attachments:string[]=[];
+  let next='https://graph.microsoft.com/v1.0/me/messages?'+params.toString(),pages=0;const messages:any[]=[];
+  while(next&&pages<20&&messages.length<2000){
+    const r=await fetch(next,{headers:{Authorization:'Bearer '+access,Prefer:'outlook.body-content-type="text"'}}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(clean(d?.error?.message||`Microsoft Graph-fejl (${r.status})`,1000));
+    messages.push(...(d.value||[]));next=clean(d['@odata.nextLink'],4000);pages++;
+  }
+  const rows:any[]=[];for(const m of messages){
+    const from=lower(m?.from?.emailAddress?.address),to=(m.toRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean),cc=(m.ccRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean);
+    const outbound=!!from&&(from===account||internalDomains.has(domainOf(from))),body=clean(m.body?.content||m.bodyPreview,30000);let attachments:string[]=[];
     if(m.hasAttachments){const ar=await fetch(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(m.id)}/attachments?$select=name`,{headers:{Authorization:'Bearer '+access}});const ad=await ar.json().catch(()=>({}));if(ar.ok)attachments=(ad.value||[]).map((x:any)=>clean(x?.name,1000)).filter(Boolean)}
-    const embedded=emailsInText(body),correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account))];rows.push({provider:'microsoft',id:clean(m.id,1000),thread:clean(m.conversationId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.receivedDateTime||m.sentDateTime||new Date().toISOString(),url:clean(m.webLink,2000),correspondents});
+    const embedded=emailsInText(body),correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account&&!internalDomains.has(domainOf(x))))];
+    rows.push({provider:'microsoft',id:clean(m.id,1000),thread:clean(m.conversationId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.receivedDateTime||m.sentDateTime||new Date().toISOString(),url:clean(m.webLink,2000),correspondents});
   }return rows;
 }
 
@@ -309,7 +324,7 @@ async function applyProposal(admin:any,p:any,actor='Mail & Conversation Agent'){
   return offer;
 }
 
-async function loadStoredPendingMessages(admin:any,clientId:string,integrations:any[],backfillDays:number){
+async function loadStoredPendingMessages(admin:any,clientId:string,integrations:any[],backfillDays:number,internalDomains:Set<string>){
   const days=Math.max(45,backfillDays||0),since=new Date(Date.now()-days*86400000).toISOString();
   const{data,error}=await admin.from('crm_mail_messages').select('*').eq('client_id',clientId).gte('message_at',since).order('message_at',{ascending:false}).limit(500);
   if(error)throw new Error(errText(error));
@@ -328,10 +343,10 @@ async function loadStoredPendingMessages(admin:any,clientId:string,integrations:
     const provider=clean(m.provider,80),account=accountByProvider.get(provider)||'',from=lower(m.from_email);
     const to=Array.isArray(m.to_emails)?m.to_emails.map(lower).filter(Boolean):[];
     const cc=Array.isArray(m.cc_emails)?m.cc_emails.map(lower).filter(Boolean):[];
-    const body=clean(m.body_text,30000),embedded=emailsInText(body),outbound=m.direction==='outbound';
-    const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&!internalAccounts.has(x)&&x!==account))];
+    const body=clean(m.body_text,30000),embedded=emailsInText(body),outbound=m.direction==='outbound'||internalDomains.has(domainOf(from));
+    const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&!internalAccounts.has(x)&&x!==account&&!internalDomains.has(domainOf(x))))];
     const meta=m.metadata||{},attachments=Array.isArray(meta.attachments)?meta.attachments:Array.isArray(meta.attachment_names)?meta.attachment_names:[];
-    rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:m.direction||'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents});
+    rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents});
   }
   return rows;
 }
@@ -390,9 +405,9 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     for(const c of companies||[]){companyById.set(c.id,c);for(const d0 of[c.domain,c.website_url]){const d=normalizeDomain(d0);if(!d)continue;const a=companyByDomain.get(d)||[];if(!a.includes(c.id))a.push(c.id);companyByDomain.set(d,a)}}
   };rebuildMaps();
   const mailConnected=(integrations||[]).filter((i:any)=>['gmail','microsoft'].includes(i.provider)&&i.status==='connected'),providerResults:any[]=[],successfulProviders:string[]=[];
-  let allMessages:any[]=await loadStoredPendingMessages(admin,clientId,integrations||[],backfillDays);
+  let allMessages:any[]=await loadStoredPendingMessages(admin,clientId,integrations||[],backfillDays,internalDomains);
   providerResults.push({provider:'stored_mail',pending:allMessages.length});
-  for(const i of mailConnected){try{const rows=i.provider==='microsoft'?await fetchMicrosoft(admin,clientId,i.last_sync_at,backfillDays):await fetchGmail(admin,clientId,i.last_sync_at,backfillDays);allMessages.push(...rows);providerResults.push({provider:i.provider,new_messages:rows.length});successfulProviders.push(i.provider)}catch(e){const msg=errText(e);providerResults.push({provider:i.provider,error:msg});if(!dryRun)await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider',i.provider)}}
+  for(const i of mailConnected){try{const rows=i.provider==='microsoft'?await fetchMicrosoft(admin,clientId,i.last_sync_at,backfillDays,internalDomains):await fetchGmail(admin,clientId,i.last_sync_at,backfillDays,internalDomains);allMessages.push(...rows);providerResults.push({provider:i.provider,new_messages:rows.length});successfulProviders.push(i.provider)}catch(e){const msg=errText(e);providerResults.push({provider:i.provider,error:msg});if(!dryRun)await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider',i.provider)}}
   allMessages=[...new Map(allMessages.map((m:any)=>[`${m.provider}:${m.id}`,m])).values()];
   let minuba:any={enabled:false,rows:[]};
   if((integrations||[]).some((i:any)=>i.provider==='minuba'&&i.status==='connected')){try{minuba=await loadMinubaProposals(admin,clientId);providerResults.push({provider:'minuba_validation',active_proposals:minuba.rows.length})}catch(e){minuba={enabled:true,rows:[],error:errText(e)};providerResults.push({provider:'minuba_validation',error:minuba.error})}}
