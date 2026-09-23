@@ -13,7 +13,7 @@ for(const marker of [
   'IGNORED_CLOSED_STATUS_CONFLICT',
   'markMailIgnored',
   'PENDING_APPROVAL',
-  "offer_sync_processed:true",
+  "offer_sync_processed:targetComplete",
   "const allowDecisiveOverrideOpen=!!matched&&decisiveInbound&&!closedStatuses.has(matched.status)",
   "matchType='mail_thread_offer'",
   'threadOfferByKey',
