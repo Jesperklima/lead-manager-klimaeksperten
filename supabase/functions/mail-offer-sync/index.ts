@@ -207,22 +207,28 @@ async function microsoftToken(admin:any,clientId:string){
   const d=await r.json().catch(()=>({}));if(!r.ok||!d.access_token)throw new Error(clean(d?.error_description||d?.error||'Microsoft tokenfejl',1000));
   if(d.refresh_token&&d.refresh_token!==refresh)await admin.rpc('crm_set_microsoft_refresh_token',{p_client_id:clientId,p_refresh_token:d.refresh_token,p_account:mat?.account,p_scope:d.scope||scope});return{access:String(d.access_token),account:lower(mat?.account)};
 }
-async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:number){
+async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:number,internalDomains:Set<string>){
   const{access,account}=await gmailToken(admin,clientId);
   const since=backfillDays>0?new Date(Date.now()-backfillDays*86400000):lastSync?new Date(new Date(lastSync).getTime()-48*3600000):new Date(Date.now()-14*86400000);
   const after=Math.floor(since.getTime()/1000);
   const q=`after:${after} {tilbud tilbuddet offer quotation quote proposal overslag "takke ja" "takker ja" accepterer accepteret godkendt bestiller "sæt i gang" "gå videre" "tager imod" accepted approved "go ahead" proceed}`;
-  const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+access}});
-  const ld=await lr.json().catch(()=>({}));
-  if(!lr.ok)throw new Error(clean(ld?.error?.message||`Gmail-fejl (${lr.status})`,1000));
-  const ids=(ld.messages||[]).slice(0,100).map((x:any)=>clean(x?.id,1000)).filter(Boolean);
+  const ids:string[]=[];let pageToken='';let pages=0;
+  do{
+    const params=new URLSearchParams({maxResults:'500',q});if(pageToken)params.set('pageToken',pageToken);
+    const lr=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?'+params.toString(),{headers:{Authorization:'Bearer '+access}});
+    const ld=await lr.json().catch(()=>({}));
+    if(!lr.ok)throw new Error(clean(ld?.error?.message||`Gmail-fejl (${lr.status})`,1000));
+    for(const x of(ld.messages||[])){const id=clean(x?.id,1000);if(id&&!ids.includes(id))ids.push(id)}
+    pageToken=clean(ld?.nextPageToken,2000);pages++;
+  }while(pageToken&&pages<20&&ids.length<10000);
   const known=new Set<string>();
-  if(ids.length){
-    const{data,error}=await admin.from('crm_mail_messages').select('external_message_id').eq('client_id',clientId).eq('provider','gmail').in('external_message_id',ids);
+  for(let i=0;i<ids.length;i+=200){
+    const batchIds=ids.slice(i,i+200);if(!batchIds.length)continue;
+    const{data,error}=await admin.from('crm_mail_messages').select('external_message_id').eq('client_id',clientId).eq('provider','gmail').in('external_message_id',batchIds);
     if(error)throw new Error(errText(error));
     for(const row of data||[])known.add(clean(row.external_message_id,1000));
   }
-  const pending=ids.filter((id:string)=>!known.has(id));
+  const pending=ids.filter((id:string)=>!known.has(id)).slice(0,300);
   const rows:any[]=[];
   for(let i=0;i<pending.length;i+=5){
     const batch=await Promise.all(pending.slice(i,i+5).map(async(id:string)=>{
@@ -230,8 +236,10 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
       const m=await r.json().catch(()=>({}));
       if(!r.ok)return null;
       const fromRaw=gmailHeader(m.payload,'From'),toRaw=gmailHeader(m.payload,'To'),ccRaw=gmailHeader(m.payload,'Cc');
-      const from=lower((fromRaw.match(emailRe)||[fromRaw])[0]),to=(toRaw.match(emailRe)||[]).map(lower),cc=(ccRaw.match(emailRe)||[]).map(lower),outbound=!!account&&from===account;
-      const body=clean(gmailBody(m.payload),30000),attachments=gmailAttachmentNames(m.payload),embedded=emailsInText(body),correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account))];
+      const from=lower((fromRaw.match(emailRe)||[fromRaw])[0]),to=(toRaw.match(emailRe)||[]).map(lower),cc=(ccRaw.match(emailRe)||[]).map(lower);
+      const outbound=!!from&&(from===account||internalDomains.has(domainOf(from)));
+      const body=clean(gmailBody(m.payload),30000),attachments=gmailAttachmentNames(m.payload),embedded=emailsInText(body);
+      const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account&&!internalDomains.has(domainOf(x))))];
       return{provider:'gmail',id:clean(m.id,1000),thread:clean(m.threadId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:gmailHeader(m.payload,'Subject'),body,attachments,at:m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString(),url:`https://mail.google.com/mail/u/0/#all/${m.id}`,correspondents};
     }));
     rows.push(...batch.filter(Boolean));
@@ -239,15 +247,22 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
   return rows;
 }
 
-async function fetchMicrosoft(admin:any,clientId:string,lastSync:any,backfillDays:number){
+async function fetchMicrosoft(admin:any,clientId:string,lastSync:any,backfillDays:number,internalDomains:Set<string>){
   const{access,account}=await microsoftToken(admin,clientId);
   const since=backfillDays>0?new Date(Date.now()-backfillDays*86400000):lastSync?new Date(new Date(lastSync).getTime()-48*3600000):new Date(Date.now()-14*86400000);
   const params=new URLSearchParams({'$top':'100','$select':'id,subject,body,bodyPreview,receivedDateTime,sentDateTime,from,toRecipients,ccRecipients,webLink,conversationId,hasAttachments','$filter':`receivedDateTime ge ${since.toISOString()}`,'$orderby':'receivedDateTime desc'});
-  const r=await fetch('https://graph.microsoft.com/v1.0/me/messages?'+params,{headers:{Authorization:'Bearer '+access,Prefer:'outlook.body-content-type="text"'}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(clean(d?.error?.message||`Microsoft Graph-fejl (${r.status})`,1000));
-  const rows:any[]=[];for(const m of(d.value||[])){
-    const from=lower(m?.from?.emailAddress?.address),to=(m.toRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean),cc=(m.ccRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean),outbound=!!account&&from===account,body=clean(m.body?.content||m.bodyPreview,30000);let attachments:string[]=[];
+  let next='https://graph.microsoft.com/v1.0/me/messages?'+params.toString(),pages=0;const messages:any[]=[];
+  while(next&&pages<20&&messages.length<2000){
+    const r=await fetch(next,{headers:{Authorization:'Bearer '+access,Prefer:'outlook.body-content-type="text"'}}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(clean(d?.error?.message||`Microsoft Graph-fejl (${r.status})`,1000));
+    messages.push(...(d.value||[]));next=clean(d['@odata.nextLink'],4000);pages++;
+  }
+  const rows:any[]=[];for(const m of messages){
+    const from=lower(m?.from?.emailAddress?.address),to=(m.toRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean),cc=(m.ccRecipients||[]).map((x:any)=>lower(x?.emailAddress?.address)).filter(Boolean);
+    const outbound=!!from&&(from===account||internalDomains.has(domainOf(from))),body=clean(m.body?.content||m.bodyPreview,30000);let attachments:string[]=[];
     if(m.hasAttachments){const ar=await fetch(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(m.id)}/attachments?$select=name`,{headers:{Authorization:'Bearer '+access}});const ad=await ar.json().catch(()=>({}));if(ar.ok)attachments=(ad.value||[]).map((x:any)=>clean(x?.name,1000)).filter(Boolean)}
-    const embedded=emailsInText(body),correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account))];rows.push({provider:'microsoft',id:clean(m.id,1000),thread:clean(m.conversationId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.receivedDateTime||m.sentDateTime||new Date().toISOString(),url:clean(m.webLink,2000),correspondents});
+    const embedded=emailsInText(body),correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&x!==account&&!internalDomains.has(domainOf(x))))];
+    rows.push({provider:'microsoft',id:clean(m.id,1000),thread:clean(m.conversationId,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.receivedDateTime||m.sentDateTime||new Date().toISOString(),url:clean(m.webLink,2000),correspondents});
   }return rows;
 }
 
@@ -291,7 +306,7 @@ async function sendGmailFollowUpNotice(admin:any,clientId:string,recipient:strin
   const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:JSON.stringify({raw:b64urlEncode(raw)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(clean(d?.error?.message||`Gmail-kvittering fejlede (${r.status})`,1000));
 }
 async function applyProposal(admin:any,p:any,actor='Mail & Conversation Agent'){
-  const now=new Date().toISOString();let offer=p.offer||null;
+  const now=new Date().toISOString();let offer=p.offer||null;const targetComplete=p.target_complete!==false;const allOfferRefs=[...new Set((Array.isArray(p.all_offer_refs)?p.all_offer_refs:[p.offer_ref]).map((x:any)=>norm(x)).filter(Boolean))];
   const min=p.minuba_info||null;
   if(!offer&&p.create_offer){
     const payload:any={client_id:p.client_id,company_id:p.company_id,lead_id:p.lead_id||null,offer_ref:p.offer_ref,customer_name:p.customer_name||null,sent_date:min?.sent_date||p.message_at.slice(0,10),follow_up_date:p.follow_up_date,follow_up_owner:p.owner||null,status:p.status,status_reason:p.reason,current_comment:p.comment,status_source:'mail_sync',status_updated_at:now,contact_person:min?.contact_person||null,contact_details:min?.contact_details||null,installation_address:min?.installation_address||null,raw:{created_from_mail:true,external_message_id:p.external_message_id,source_evidence:'explicit_mail_minuba_validated'}};
@@ -304,12 +319,12 @@ async function applyProposal(admin:any,p:any,actor='Mail & Conversation Agent'){
   }
   if(!offer)return null;
   if(closedStatuses.has(p.status)){await admin.from('crm_tasks').update({status:'done',updated_at:now}).eq('client_id',p.client_id).eq('offer_id',offer.id).eq('task_type','offer_followup').eq('status','open')}
-  await admin.from('crm_mail_messages').update({offer_id:offer.id,company_id:offer.company_id,lead_id:offer.lead_id,contact_id:p.contact_id||null,metadata:{...(p.mail_metadata||{}),offer_sync_processed:true,offer_sync_result:p.status,offer_sync_reason:p.reason,offer_sync_evidence:p.evidence||{}}}).eq('client_id',p.client_id).eq('provider',p.provider).eq('external_message_id',p.external_message_id);
+  await admin.from('crm_mail_messages').update({offer_id:offer.id,company_id:offer.company_id,lead_id:offer.lead_id,contact_id:p.contact_id||null,metadata:{...(p.mail_metadata||{}),offer_sync_processed:targetComplete,offer_sync_result:p.status,offer_sync_reason:p.reason,offer_sync_evidence:p.evidence||{},offer_sync_refs:allOfferRefs}}).eq('client_id',p.client_id).eq('provider',p.provider).eq('external_message_id',p.external_message_id);
   await admin.from('crm_activities').insert({client_id:p.client_id,company_id:offer.company_id,lead_id:offer.lead_id,offer_id:offer.id,type:'Mail→tilbud',actor_type:'agent',actor_name:actor,summary:p.comment,metadata:{provider:p.provider,external_message_id:p.external_message_id,previous_status:p.previous_status||null,status:p.status,follow_up_date:p.follow_up_date,automatic:true,evidence:p.evidence||{},minuba_validated:!!min}});
   return offer;
 }
 
-async function loadStoredPendingMessages(admin:any,clientId:string,integrations:any[],backfillDays:number){
+async function loadStoredPendingMessages(admin:any,clientId:string,integrations:any[],backfillDays:number,internalDomains:Set<string>){
   const days=Math.max(45,backfillDays||0),since=new Date(Date.now()-days*86400000).toISOString();
   const{data,error}=await admin.from('crm_mail_messages').select('*').eq('client_id',clientId).gte('message_at',since).order('message_at',{ascending:false}).limit(500);
   if(error)throw new Error(errText(error));
@@ -328,16 +343,16 @@ async function loadStoredPendingMessages(admin:any,clientId:string,integrations:
     const provider=clean(m.provider,80),account=accountByProvider.get(provider)||'',from=lower(m.from_email);
     const to=Array.isArray(m.to_emails)?m.to_emails.map(lower).filter(Boolean):[];
     const cc=Array.isArray(m.cc_emails)?m.cc_emails.map(lower).filter(Boolean):[];
-    const body=clean(m.body_text,30000),embedded=emailsInText(body),outbound=m.direction==='outbound';
-    const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&!internalAccounts.has(x)&&x!==account))];
+    const body=clean(m.body_text,30000),embedded=emailsInText(body),outbound=m.direction==='outbound'||internalDomains.has(domainOf(from));
+    const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&!internalAccounts.has(x)&&x!==account&&!internalDomains.has(domainOf(x))))];
     const meta=m.metadata||{},attachments=Array.isArray(meta.attachments)?meta.attachments:Array.isArray(meta.attachment_names)?meta.attachment_names:[];
-    rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:m.direction||'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents});
+    rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents});
   }
   return rows;
 }
 
-async function markMailIgnored(admin:any,clientId:string,m:any,existing:any,matched:any,result:string,reason:string){
-  const metadata={...(existing?.metadata||{}),source_url:clean(existing?.metadata?.source_url||m.url,3000),offer_sync_candidate:false,offer_sync_processed:true,offer_sync_result:result,offer_sync_reason:reason};
+async function markMailIgnored(admin:any,clientId:string,m:any,existing:any,matched:any,result:string,reason:string,complete=true,allRefs:string[]=[]){
+  const metadata={...(existing?.metadata||{}),source_url:clean(existing?.metadata?.source_url||m.url,3000),offer_sync_candidate:false,offer_sync_processed:complete,offer_sync_result:result,offer_sync_reason:reason,offer_sync_refs:[...new Set(allRefs.map(norm).filter(Boolean))]};
   if(existing){
     const{error}=await admin.from('crm_mail_messages').update({
       company_id:matched?.company_id||existing.company_id||null,
@@ -390,9 +405,9 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     for(const c of companies||[]){companyById.set(c.id,c);for(const d0 of[c.domain,c.website_url]){const d=normalizeDomain(d0);if(!d)continue;const a=companyByDomain.get(d)||[];if(!a.includes(c.id))a.push(c.id);companyByDomain.set(d,a)}}
   };rebuildMaps();
   const mailConnected=(integrations||[]).filter((i:any)=>['gmail','microsoft'].includes(i.provider)&&i.status==='connected'),providerResults:any[]=[],successfulProviders:string[]=[];
-  let allMessages:any[]=await loadStoredPendingMessages(admin,clientId,integrations||[],backfillDays);
+  let allMessages:any[]=await loadStoredPendingMessages(admin,clientId,integrations||[],backfillDays,internalDomains);
   providerResults.push({provider:'stored_mail',pending:allMessages.length});
-  for(const i of mailConnected){try{const rows=i.provider==='microsoft'?await fetchMicrosoft(admin,clientId,i.last_sync_at,backfillDays):await fetchGmail(admin,clientId,i.last_sync_at,backfillDays);allMessages.push(...rows);providerResults.push({provider:i.provider,new_messages:rows.length});successfulProviders.push(i.provider)}catch(e){const msg=errText(e);providerResults.push({provider:i.provider,error:msg});if(!dryRun)await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider',i.provider)}}
+  for(const i of mailConnected){try{const rows=i.provider==='microsoft'?await fetchMicrosoft(admin,clientId,i.last_sync_at,backfillDays,internalDomains):await fetchGmail(admin,clientId,i.last_sync_at,backfillDays,internalDomains);allMessages.push(...rows);providerResults.push({provider:i.provider,new_messages:rows.length});successfulProviders.push(i.provider)}catch(e){const msg=errText(e);providerResults.push({provider:i.provider,error:msg});if(!dryRun)await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider',i.provider)}}
   allMessages=[...new Map(allMessages.map((m:any)=>[`${m.provider}:${m.id}`,m])).values()];
   let minuba:any={enabled:false,rows:[]};
   if((integrations||[]).some((i:any)=>i.provider==='minuba'&&i.status==='connected')){try{minuba=await loadMinubaProposals(admin,clientId);providerResults.push({provider:'minuba_validation',active_proposals:minuba.rows.length})}catch(e){minuba={enabled:true,rows:[],error:errText(e)};providerResults.push({provider:'minuba_validation',error:minuba.error})}}
@@ -402,10 +417,16 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
   for(const m of allMessages){if(!m.thread)continue;const a=threadIdsByProvider.get(m.provider)||[];if(!a.includes(m.thread))a.push(m.thread);threadIdsByProvider.set(m.provider,a)}
   for(const[provider,threads]of threadIdsByProvider){for(let i=0;i<threads.length;i+=100){const batch=threads.slice(i,i+100);if(!batch.length)continue;const{data}=await admin.from('crm_mail_messages').select('external_thread_id,offer_id,message_at').eq('client_id',clientId).eq('provider',provider).in('external_thread_id',batch).order('message_at',{ascending:false});for(const row of(data||[])){if(!row.offer_id||!row.external_thread_id)continue;const k=`${provider}:${row.external_thread_id}`;if(threadOfferByKey.has(k))continue;const offer=(offers||[]).find((o:any)=>o.id===row.offer_id);if(offer)threadOfferByKey.set(k,offer)}}}
   const proposals:any[]=[],followUpNotices:any[]=[];let stored=0,processed=0,ignored=0,approvals=0,minubaCreated=0;
-  for(const m of allMessages.sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime())){
+  const expandedMessages:any[]=[];
+  for(const baseMessage of allMessages){
+    const messageRefs=explicitRefs(evidenceText(baseMessage));
+    if(messageRefs.length>1){messageRefs.forEach((ref,index)=>expandedMessages.push({...baseMessage,target_ref:ref,target_index:index,target_count:messageRefs.length,all_offer_refs:messageRefs}))}
+    else expandedMessages.push({...baseMessage,target_ref:messageRefs[0]||null,target_index:0,target_count:1,all_offer_refs:messageRefs});
+  }
+  for(const m of expandedMessages.sort((a,b)=>new Date(a.at).getTime()-new Date(b.at).getTime()||Number(a.target_index||0)-Number(b.target_index||0))){
     const key=`${m.provider}:${m.id}`,existing=existingByKey.get(key);if(existing?.metadata?.offer_sync_processed)continue;
     const threadMatched=m.thread?threadOfferByKey.get(`${m.provider}:${m.thread}`)||null:null;if(!isCandidate(m)&&!threadMatched)continue;
-    const evidence=evidenceText(m),refs=explicitRefs(evidence);
+    const evidence=evidenceText(m),refs=m.target_ref?[m.target_ref]:explicitRefs(evidence);
     let matched:any=null,matchType='';for(const ref of refs){const rows=(offers||[]).filter((o:any)=>norm(o.offer_ref)===ref);if(rows.length===1){matched=rows[0];matchType='explicit_offer_ref';break}}
     if(!matched&&threadMatched){matched=threadMatched;matchType='mail_thread_offer'}
     if(!matched&&!refs.length)continue;
@@ -432,7 +453,7 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
           ?`Tilbuddet står allerede som ${matched.status}; et modstridende mailsignal kræver manuel kontrol.`
           :`Tilbuddet står allerede som ${matched.status}; en almindelig opfølgningsmail må ikke genåbne det automatisk.`;
       proposals.push({client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,offer:{id:matched.id,offer_ref:matched.offer_ref,status:matched.status,manual_lock:matched.manual_lock},offer_ref:matched.offer_ref,status:matched.status,ignored:true,offer_sync_result:result,reason});
-      if(!dryRun){await markMailIgnored(admin,clientId,m,existing,matched,result,reason);ignored++}
+      if(!dryRun){await markMailIgnored(admin,clientId,m,existing,matched,result,reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++}
       continue;
     }
     if(offerRef&&minuba.enabled&&!minuba.error){const row=minuba.rows.find((x:any)=>minubaMatchesRef(x,norm(offerRef)));if(row&&!isMinubaDraft(row)){min=minubaInfo(row,offerRef);if(!companyId){const company=await ensureMinubaCompany(admin,clientId,min,companies||[]);companyId=company.id;rebuildMaps()}if(companyId){const contact=await ensureMinubaContact(admin,clientId,companyId,min,contacts||[]);contactId=contact?.id||null;rebuildMaps()}}else if(!matched)minubaExplanation=`Tilbud ${offerRef} blev ikke fundet som et aktivt PROPOSAL i Minuba og oprettes derfor ikke automatisk.`}
@@ -443,16 +464,16 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     const decisionNote=analysis.status==='VUNDET'&&m.direction==='inbound'?(min?' Godkendt via mail – afventer ordreoprettelse i Minuba.':' Godkendt via mail.'):analysis.status==='TABT'&&m.direction==='inbound'?' Kundens afslag er registreret via mail.':'';
     const comment=`${analysis.reason}${decisionNote} Mail: ${m.subject||'(uden emne)'} (${new Date(m.at).toLocaleDateString('da-DK')}).`+(analysis.kind==='long_delay'?' Tilbuddet kræver ny beregning ved genoptagelse.':'')+(min&&analysis.status!=='VUNDET'?' Verificeret som aktivt tilbud i Minuba.':'');
     const evidenceMeta={offer_refs:refs,attachments:m.attachments||[],matched_company_by_email:emailCompanyIds,matched_company_by_name:nameCompanyIds,mail_only:!min,minuba_validated:!!min,sender:m.from,decision_sender:decisionSender,decision_source:decisionSource,message_at:m.at,message_id:m.id,thread_id:m.thread,direction:m.direction,decision_excerpt:clean(decisionBody,1200).replace(/\s+/g,' ').slice(0,600),classification:analysis.kind,needs_review:!!analysis.needsReview};
-    const proposal:any={client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,company_id:companyId,contact_id:contactId,lead_id:matched?.lead_id||null,offer:matched,create_offer:canCreate,offer_ref:offerRef,customer_name:customerName,previous_status:matched?.status||null,status:analysis.status,follow_up_date:analysis.followUp,owner,reason:analysis.reason,comment,mail_metadata:{...(existing?.metadata||{}),source_url:m.url,offer_sync_candidate:true},match_type:matchType||(canCreate?'explicit_minuba_validated':'uncertain'),needs_review:!!analysis.needsReview,evidence:evidenceMeta,minuba_info:min};
+    const proposal:any={client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,company_id:companyId,contact_id:contactId,lead_id:matched?.lead_id||null,offer:matched,create_offer:canCreate,offer_ref:offerRef,customer_name:customerName,previous_status:matched?.status||null,status:analysis.status,follow_up_date:analysis.followUp,owner,reason:analysis.reason,comment,mail_metadata:{...(existing?.metadata||{}),source_url:m.url,offer_sync_candidate:true,offer_sync_refs:m.all_offer_refs||refs},match_type:matchType||(canCreate?'explicit_minuba_validated':'uncertain'),needs_review:!!analysis.needsReview,evidence:evidenceMeta,minuba_info:min,target_complete:m.target_index===m.target_count-1,all_offer_refs:m.all_offer_refs||refs};
     proposals.push({...proposal,offer:matched?{id:matched.id,offer_ref:matched.offer_ref,status:matched.status,manual_lock:matched.manual_lock}:null,minuba_info:min?{offer_ref:min.offer_ref,customer_name:min.customer_name,status:min.minuba_status}:null});if(dryRun)continue;
-    if(!existing){const ins=await admin.from('crm_mail_messages').insert({client_id:clientId,company_id:companyId,lead_id:proposal.lead_id,offer_id:matched?.id||null,contact_id:contactId,provider:m.provider,external_message_id:m.id,external_thread_id:m.thread,direction:m.direction,from_email:m.from,to_emails:m.to,cc_emails:m.cc,subject:m.subject,body_text:m.body,message_at:m.at,metadata:proposal.mail_metadata}).select('*').single();if(ins.error)throw new Error(errText(ins.error));proposal.mail_metadata=ins.data.metadata||{};stored++}
+    if(!existing){const ins=await admin.from('crm_mail_messages').insert({client_id:clientId,company_id:companyId,lead_id:proposal.lead_id,offer_id:matched?.id||null,contact_id:contactId,provider:m.provider,external_message_id:m.id,external_thread_id:m.thread,direction:m.direction,from_email:m.from,to_emails:m.to,cc_emails:m.cc,subject:m.subject,body_text:m.body,message_at:m.at,metadata:proposal.mail_metadata}).select('*').single();if(ins.error)throw new Error(errText(ins.error));proposal.mail_metadata=ins.data.metadata||{};existing=ins.data;existingByKey.set(key,ins.data);stored++}
     const automatic=highConfidence&&!matched?.manual_lock&&!analysis.needsReview;
     if(automatic){const applied=await applyProposal(admin,proposal);processed++;if(applied){if(matched)Object.assign(matched,applied);else if(Array.isArray(offers))offers.push(applied);if(m.thread)threadOfferByKey.set(`${m.provider}:${m.thread}`,applied)}if(applied&&proposal.follow_up_date)followUpNotices.push({...proposal,offer:applied});if(canCreate&&min)minubaCreated++;await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id})}
     else{
       const explanation=analysis.needsReview?'Kundens seneste svar er ikke entydigt; eksisterende opfølgning er bevaret og kræver kontrol.':minubaExplanation||(!companyId?'Kunden kunne ikke matches sikkert ud fra mailen eller Minuba.':!matched&&!canCreate?'Tilbuddet står i mailen, men kan ikke oprettes automatisk med sikkerhed.':matched?.manual_lock?'Tilbuddet er manuelt låst.':'Kræver kontrol.');
       const{data:prior}=await admin.from('crm_approvals').select('id').eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id}).limit(1);
       if(!prior?.length){const ins=await admin.from('crm_approvals').insert({client_id:clientId,lead_id:proposal.lead_id,action_type:'offer_mail_update',status:'pending',payload:{...proposal,offer:matched?{id:matched.id,offer_ref:matched.offer_ref,status:matched.status}:null,minuba_info:min?{offer_ref:min.offer_ref,customer_name:min.customer_name,status:min.minuba_status}:null,subject:m.subject,from:m.from,explanation},ai_generated:false});if(ins.error)throw new Error(errText(ins.error));approvals++}
-      const pendingMeta={...(proposal.mail_metadata||{}),offer_sync_candidate:true,offer_sync_processed:true,offer_sync_result:'PENDING_APPROVAL',offer_sync_reason:explanation};
+      const pendingMeta={...(proposal.mail_metadata||{}),offer_sync_candidate:true,offer_sync_processed:proposal.target_complete!==false,offer_sync_result:'PENDING_APPROVAL',offer_sync_reason:explanation,offer_sync_refs:proposal.all_offer_refs||[]};
       const pending=await admin.from('crm_mail_messages').update({metadata:pendingMeta}).eq('client_id',clientId).eq('provider',m.provider).eq('external_message_id',m.id);
       if(pending.error)throw new Error(errText(pending.error));
     }
@@ -460,7 +481,7 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
   if(!dryRun){
     if(followUpNotices.length){try{await sendGmailFollowUpNotice(admin,clientId,owner,followUpNotices)}catch(e){providerResults.push({provider:'gmail_notification',error:errText(e)})}}
     const now=new Date().toISOString();for(const p of successfulProviders)await admin.from('crm_integrations').update({last_sync_at:now,last_error:null,updated_at:now}).eq('client_id',clientId).eq('provider',p);
-    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,mode:'mail_decision_v2_quoted_customer_v14'}});
+    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,mode:'mail_decision_v3_paginated_multi_offer_v15'}});
   }
   return{client_id:clientId,dry_run:dryRun,providers:providerResults,fetched:allMessages.length,candidates:proposals.length,stored,processed,ignored,approvals,minuba_created:minubaCreated,proposals:proposals.slice(0,25)};
 }

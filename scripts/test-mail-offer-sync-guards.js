@@ -13,7 +13,7 @@ for(const marker of [
   'IGNORED_CLOSED_STATUS_CONFLICT',
   'markMailIgnored',
   'PENDING_APPROVAL',
-  "offer_sync_processed:true",
+  "offer_sync_processed:targetComplete",
   "const allowDecisiveOverrideOpen=!!matched&&decisiveInbound&&!closedStatuses.has(matched.status)",
   "matchType='mail_thread_offer'",
   'threadOfferByKey',
@@ -23,7 +23,7 @@ for(const marker of [
   'decision_excerpt:clean(decisionBody,1200)',
   'needs_review:!!analysis.needsReview',
   'Godkendt via mail – afventer ordreoprettelse i Minuba.',
-  "mode:'mail_decision_v2_quoted_customer_v14'"
+  "mode:'mail_decision_v3_paginated_multi_offer_v15'"
 ]) assert(src.includes(marker),'missing mail-offer guard: '+marker);
 
 assert(!src.includes('fetchMicrosoftasync function fetchMicrosoft'),'duplicate fetchMicrosoft function marker');
@@ -31,6 +31,16 @@ assert((src.match(/async function fetchGmail/g)||[]).length===1,'fetchGmail must
 assert((src.match(/async function fetchMicrosoft/g)||[]).length===1,'fetchMicrosoft must exist exactly once');
 assert((src.match(/async function loadStoredPendingMessages/g)||[]).length===1,'stored pending loader must exist exactly once');
 assert(src.includes('"takke ja" "takker ja"'),'Gmail candidate search does not include clear acceptance language');
+assert(src.includes("maxResults:'500'"),'Gmail search must request large pages');
+assert(src.includes("pageToken")&&src.includes("nextPageToken"),'Gmail search must follow pagination');
+assert(src.includes("pages<20")&&src.includes("ids.length<10000"),'Gmail pagination safety bounds missing');
+assert(src.includes(".slice(0,300)"),'Gmail detail processing must be bounded per run');
+assert(src.includes("internalDomains.has(domainOf(from))"),'internal sender aliases must be classified as outbound');
+assert(src.includes("expandedMessages:any[]"),'multi-offer mail expansion missing');
+assert(src.includes("target_ref:ref")&&src.includes("target_count:messageRefs.length"),'multi-offer per-reference targets missing');
+assert(src.includes("offer_sync_refs:allOfferRefs"),'processed offer references must be persisted');
+assert(src.includes("offer_sync_processed:targetComplete"),'multi-offer mail must only complete after final reference');
+
 
 function sourceRegex(name){
   const marker='const '+name+'=/';
