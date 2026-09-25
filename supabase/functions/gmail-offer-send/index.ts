@@ -19,11 +19,160 @@ const senderName=(client:any)=>trim(client?.settings?.mail_sender_name||client?.
 const fromB64Url=(s:string)=>{let x=String(s||'').replaceAll('-','+').replaceAll('_','/');while(x.length%4)x+='=';return x};
 const wrap76=(s:string)=>s.match(/.{1,76}/g)?.join('\r\n')||s;
 
-function findAttachmentPart(payload:any,target:string):any{
-  if(!payload)return null;
-  const filename=String(payload.filename||'').trim();
-  if(filename&&filename.toLowerCase()===target.toLowerCase()&&String(payload.mimeType||'').toLowerCase()==='application/pdf')return payload;
-  for(const p of payload.parts||[]){const found=findAttachmentPart(p,target);if(found)return found}
+const refNorm=(v:any)=>trim(v,300).toLowerCase().replace(/[^a-z0-9æøå]+/g,'');
+const headerValue=(payload:any,name:string)=>trim((payload?.headers||[]).find((h:any)=>String(h?.name||'').toLowerCase()===name.toLowerCase())?.value,3000);
+function collectPdfParts(payload:any,out:any[]=[]):any[]{
+  if(!payload)return out;
+  const filename=trim(payload.filename,1000),mime=trim(payload.mimeType,200).toLowerCase();
+  if(filename&&(mime==='application/pdf'||/\.pdf$/i.test(filename)))out.push({part:payload,filename});
+  for(const p of payload.parts||[])collectPdfParts(p,out);
+  return out;
+}
+function pdfB64Valid(value:string){
+  const b64=String(value||'').replace(/\s+/g,'');
+  if(b64.length<1200)return false;
+  try{return atob(b64.slice(0,32)).startsWith('%PDF-')}catch{return false}
+}
+function arrayFrom(value:any){
+  if(Array.isArray(value))return value;
+  for(const k of ['files','Files','data','items','results'])if(Array.isArray(value?.[k]))return value[k];
+  return[];
+}
+function minubaOfferId(offer:any){return trim(offer?.minuba_offer_id||offer?.minuba_raw?.id||offer?.minuba_raw?.orderId,200)}
+function minubaPdfScore(item:any,offerRef:string,minubaId:string){
+  const name=trim(item?.filename||item?.fileName||item?.name||item?.title,1000),n=refNorm(name),target=refNorm(offerRef);
+  const mime=trim(item?.mimeType||item?.contentType||item?.type,200).toLowerCase();
+  if(!(mime.includes('pdf')||/\.pdf$/i.test(name)))return -999;
+  let score=0;
+  if(target&&n.includes(target))score+=90;
+  if(/tilbud|offer|quote|quotation|proposal/i.test(name))score+=20;
+  const relation=trim(item?.orderId||item?.parentId||item?.entityId||item?.relationId,200);
+  if(minubaId&&relation&&relation.toLowerCase()===minubaId.toLowerCase())score+=50;
+  return score;
+}
+async function minubaAccessToken(admin:any,clientId:string){
+  const {data:intg}=await admin.from('crm_integrations').select('status').eq('client_id',clientId).eq('provider','minuba').maybeSingle();
+  if(intg?.status!=='connected')return null;
+  const tenantSecret=async(kind:string)=>{const {data,error}=await admin.rpc('get_minuba_oauth_secret_for_service',{p_client_id:clientId,p_kind:kind});if(error)throw error;return String(data||'')};
+  let access=await tenantSecret('access_token'),refresh=await tenantSecret('refresh_token');
+  if(!access||!refresh)return null;
+  const {data:platform,error:pe}=await admin.from('crm_integrations').select('client_id,config').eq('provider','minuba').eq('config->>is_platform_oauth_client','true').limit(1).maybeSingle();
+  if(pe||!platform?.client_id)return null;
+  const [{data:cid},{data:secret}]=await Promise.all([
+    admin.rpc('get_minuba_oauth_secret_for_service',{p_client_id:platform.client_id,p_kind:'client_id'}),
+    admin.rpc('get_minuba_oauth_secret_for_service',{p_client_id:platform.client_id,p_kind:'client_secret'})
+  ]);
+  if(!cid||!secret)return null;
+  const {data:conn}=await admin.from('crm_oauth_connections').select('token_expires_at,scope').eq('client_id',clientId).eq('provider','minuba').maybeSingle();
+  async function refreshAccess(){
+    const r=await fetch(String((platform.config||{}).oauth_token_url||'https://auth.minuba.dk/oauth2/token'),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json','Authorization':'Basic '+btoa(String(cid)+':'+String(secret))},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refresh})});
+    const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token)return false;
+    access=String(j.access_token);refresh=String(j.refresh_token||refresh);
+    await admin.rpc('set_minuba_oauth_tokens',{p_client_id:clientId,p_access_token:access,p_refresh_token:refresh,p_expires_at:new Date(Date.now()+Number(j.expires_in||3599)*1000).toISOString(),p_scope:String(j.scope||conn?.scope||'Administrator')});
+    return true;
+  }
+  if(conn?.token_expires_at&&new Date(conn.token_expires_at).getTime()<=Date.now()+60000){if(!await refreshAccess())return null}
+  return{token:access,refresh:refreshAccess};
+}
+async function minubaPdfCandidate(admin:any,clientId:string,offer:any,offerRef:string){
+  const stableId=minubaOfferId(offer);if(!stableId)return null;
+  let auth:any=null;try{auth=await minubaAccessToken(admin,clientId)}catch(e){console.error('[gmail-offer-send] Minuba token lookup failed',e)}
+  if(!auth?.token)return null;
+  const get=async(path:string,accept='application/json,application/pdf,*/*')=>{
+    const once=()=>fetch('https://app.minuba.dk/api/1/'+path,{headers:{Accept:accept,Authorization:'Bearer '+auth.token}});
+    let r=await once();if(r.status===401&&await auth.refresh())r=await once();return r;
+  };
+  const items:any[]=[];
+  for(const key of ['orderId','parentId']){
+    const r=await get('File?'+new URLSearchParams({[key]:stableId}).toString());
+    if(!r.ok)continue;
+    const ct=String(r.headers.get('content-type')||'').toLowerCase();
+    if(!ct.includes('json'))continue;
+    const data=await r.json().catch(()=>null);for(const item of arrayFrom(data))items.push(item);
+  }
+  const ranked=items.map(item=>({item,score:minubaPdfScore(item,offerRef,stableId)})).filter(x=>x.score>=90).sort((a,b)=>b.score-a.score);
+  for(const {item} of ranked.slice(0,5)){
+    const filename=trim(item?.filename||item?.fileName||item?.name||item?.title,1000)||`Tilbud ${offerRef}.pdf`;
+    const embedded=trim(item?.data||item?.content||item?.base64,20_000_000).replace(/^data:application\/pdf;base64,/i,'');
+    if(pdfB64Valid(embedded))return{b64:embedded,filename,source:'minuba_file',messageId:'',attachmentId:trim(item?.id,500),minubaOfferId:stableId};
+    const direct=trim(item?.downloadUrl||item?.downloadURL||item?.url||item?.href,5000);
+    if(/^https:\/\//i.test(direct)){
+      const r=await fetch(direct,{headers:{Accept:'application/pdf,*/*',Authorization:'Bearer '+auth.token}});
+      if(r.ok){const bytes=new Uint8Array(await r.arrayBuffer()),b64=bytesToB64(bytes);if(pdfB64Valid(b64))return{b64,filename,source:'minuba_file',messageId:'',attachmentId:trim(item?.id,500),minubaOfferId:stableId}}
+    }
+    const fileId=trim(item?.id,500);
+    if(fileId){
+      for(const path of ['File?id='+encodeURIComponent(fileId),'File/'+encodeURIComponent(fileId)]){
+        const r=await get(path);if(!r.ok)continue;
+        const ct=String(r.headers.get('content-type')||'').toLowerCase();
+        if(ct.includes('pdf')||ct.includes('octet-stream')){const b64=bytesToB64(new Uint8Array(await r.arrayBuffer()));if(pdfB64Valid(b64))return{b64,filename,source:'minuba_file',messageId:'',attachmentId:fileId,minubaOfferId:stableId}}
+        else{const j=await r.json().catch(()=>null),embedded2=trim(j?.data||j?.content||j?.base64,20_000_000).replace(/^data:application\/pdf;base64,/i,'');if(pdfB64Valid(embedded2))return{b64:embedded2,filename,source:'minuba_file',messageId:'',attachmentId:fileId,minubaOfferId:stableId}}
+      }
+    }
+  }
+  return null;
+}
+async function gmailAttachmentB64(accessToken:string,messageId:string,part:any){
+  if(part?.body?.data)return fromB64Url(part.body.data);
+  const aid=trim(part?.body?.attachmentId,1000);if(!aid)return'';
+  const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(aid)}`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
+  if(!r.ok)return'';const d=await r.json().catch(()=>({}));return d?.data?fromB64Url(d.data):'';
+}
+async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:string,accessToken:string){
+  const expected=`Tilbud ${offerRef}.pdf`,target=refNorm(offerRef),ids:string[]=[];
+  const add=(id:any)=>{const v=trim(id,1000);if(v&&!ids.includes(v))ids.push(v)};
+  add(offer?.pdf_source_message_id);
+  const {data:linked}=await admin.from('crm_mail_messages').select('external_message_id').eq('client_id',clientId).eq('offer_id',offer.id).eq('provider','gmail').order('message_at',{ascending:false}).limit(20);
+  for(const row of linked||[])add(row.external_message_id);
+  const queries=[`filename:"${expected.replaceAll('\\','').replaceAll('"','')}"`,`"${offerRef.replaceAll('"','')}" has:attachment`];
+  for(const q of queries){
+    const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
+    if(!r.ok)continue;const d=await r.json().catch(()=>({}));for(const m of d.messages||[])add(m.id);
+  }
+  const linkedIds=new Set((linked||[]).map((x:any)=>String(x.external_message_id||''))),candidates:any[]=[];
+  for(const mid of ids.slice(0,140)){
+    const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mid)}?format=full`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
+    if(!r.ok)continue;const msg=await r.json().catch(()=>({})),subject=headerValue(msg.payload,'Subject'),from=headerValue(msg.payload,'From'),evidence=refNorm(subject+' '+String(msg.snippet||''));
+    for(const {part,filename} of collectPdfParts(msg.payload)){
+      const nf=refNorm(filename);let score=0;
+      if(nf===refNorm(expected))score+=120;
+      else if(target&&nf.includes(target))score+=80;
+      if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=15;
+      if(target&&evidence.includes(target))score+=40;
+      if(/@minuba\.dk/i.test(from)||/minuba/i.test(from))score+=20;
+      if(linkedIds.has(mid))score+=100;
+      if(String(offer?.pdf_source_message_id||'')===mid)score+=150;
+      const numbered=filename.match(/(?:tilbud|offer|quote|quotation|proposal)[ _-]*(\d{3,8})/i);
+      if(numbered&&refNorm(numbered[1])!==target)score-=180;
+      if(score<80)continue;
+      const b64=await gmailAttachmentB64(accessToken,mid,part);if(!pdfB64Valid(b64))continue;
+      candidates.push({b64,filename,source:String(offer?.pdf_source_message_id||'')===mid?'gmail_cache':linkedIds.has(mid)?'gmail_linked':'gmail_search',messageId:mid,attachmentId:trim(part?.body?.attachmentId,1000),score,date:Number(msg.internalDate||0)});
+    }
+  }
+  candidates.sort((a,b)=>b.score-a.score||b.date-a.date);
+  return candidates[0]||null;
+}
+async function resolveOfferPdf(admin:any,clientId:string,offer:any,offerRef:string,gmailToken:string){
+  const stableId=minubaOfferId(offer);
+  let found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
+  if(!found)found=await gmailPdfCandidate(admin,clientId,offer,offerRef,gmailToken);
+  if(found){
+    const now=new Date().toISOString();
+    await admin.from('crm_offers').update({
+      minuba_offer_id:found.minubaOfferId||stableId||null,
+      pdf_source_message_id:found.messageId||null,
+      pdf_source_attachment_id:found.attachmentId||null,
+      pdf_source_filename:found.filename,
+      pdf_source_kind:found.source,
+      pdf_verified_at:now,
+      pdf_last_error:null,
+      updated_at:now
+    }).eq('id',offer.id).eq('client_id',clientId);
+    return found;
+  }
+  const diagnostic=`Ingen verificeret PDF-kilde fundet for tilbud ${offerRef}`;
+  await admin.from('crm_offers').update({minuba_offer_id:stableId||null,pdf_last_error:diagnostic,updated_at:new Date().toISOString()}).eq('id',offer.id).eq('client_id',clientId);
+  console.error('[gmail-offer-send] OFFER_PDF_NOT_FOUND',{client_id:clientId,offer_id:offer.id,offer_ref:offerRef,minuba_offer_id:stableId||null});
   return null;
 }
 
@@ -101,7 +250,9 @@ Deno.serve(async(req:Request)=>{
     const clientId=trim(body.client_id,80);
     let requestId=trim(body.request_id,80);
     if(action==='send'&&!requestId)requestId=crypto.randomUUID();
-    if(!clientId||!requestId||!uuidOk(requestId))return json({error:'Mangler gyldigt klient- eller send-id',code:'SEND_ID_INVALID'},400);
+    if(!clientId)return json({error:'Mangler klient-id',code:'CLIENT_ID_MISSING'},400);
+    if(['send','status'].includes(action)&&(!requestId||!uuidOk(requestId)))return json({error:'Mangler gyldigt send-id',code:'SEND_ID_INVALID'},400);
+    if(!['send','status','pdf_status'].includes(action))return json({error:'Ukendt handling',code:'ACTION_INVALID'},400);
 
     const {data:membership,error:memberError}=await admin.from('crm_users')
       .select('email,client_id,role,auth_user_id')
@@ -109,9 +260,11 @@ Deno.serve(async(req:Request)=>{
     if(memberError)throw memberError;
     if(!membership)return json({error:'Ingen adgang til denne klient'},403);
 
-    let {data:existing,error:existingError}=await admin.from('crm_mail_send_jobs')
-      .select('*').eq('client_id',clientId).eq('send_id',requestId).maybeSingle();
-    if(existingError)throw existingError;
+    let existing:any=null;
+    if(action!=='pdf_status'){
+      const existingR=await admin.from('crm_mail_send_jobs').select('*').eq('client_id',clientId).eq('send_id',requestId).maybeSingle();
+      if(existingR.error)throw existingR.error;existing=existingR.data;
+    }
 
     if(existing){
       if(['sent','sent_pending_postprocess','postprocessing'].includes(existing.status)){
@@ -160,15 +313,18 @@ Deno.serve(async(req:Request)=>{
 
     const offerId=trim(body.offer_id,80),leadId=trim(body.lead_id,80),to=trim(body.to,320).toLowerCase(),subject=trim(body.subject,700),mailBody=trim(body.body,12000);
     let followUpDate=trim(body.follow_up_date,10),followUpAt=trim(body.follow_up_at,60);
-    if(!followUpDate){const d=new Date();d.setUTCDate(d.getUTCDate()+7);followUpDate=ymd(d)}
-    if(!dateOk(followUpDate))return json({error:'Opfølgningsdatoen er ugyldig',code:'FOLLOWUP_DATE_INVALID'},400);
-    if(followUpAt&&Number.isNaN(new Date(followUpAt).getTime()))return json({error:'Opfølgningstidspunktet er ugyldigt',code:'FOLLOWUP_AT_INVALID'},400);
-    if(!followUpAt)followUpAt=followUpDate+'T08:00:00.000Z';
-    if(!offerId||!emailOk(to)||!subject||!mailBody)return json({error:'Mangler gyldigt tilbud, modtager, emne eller mailtekst'},400);
+    if(!offerId)return json({error:'Mangler gyldigt tilbud',code:'OFFER_ID_MISSING'},400);
+    if(action==='send'){
+      if(!followUpDate){const d=new Date();d.setUTCDate(d.getUTCDate()+7);followUpDate=ymd(d)}
+      if(!dateOk(followUpDate))return json({error:'Opfølgningsdatoen er ugyldig',code:'FOLLOWUP_DATE_INVALID'},400);
+      if(followUpAt&&Number.isNaN(new Date(followUpAt).getTime()))return json({error:'Opfølgningstidspunktet er ugyldigt',code:'FOLLOWUP_AT_INVALID'},400);
+      if(!followUpAt)followUpAt=followUpDate+'T08:00:00.000Z';
+      if(!emailOk(to)||!subject||!mailBody)return json({error:'Mangler gyldig modtager, emne eller mailtekst'},400);
+    }
 
     const [clientR,offerR,materialR,limitsR,usageR]=await Promise.all([
       admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single(),
-      admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
+      admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
       admin.rpc('get_gmail_oauth_material',{p_client_id:clientId}),
       admin.from('crm_usage_limits').select('*').eq('client_id',clientId).maybeSingle(),
       admin.rpc('crm_usage_snapshot',{p_client_id:clientId})
@@ -182,13 +338,13 @@ Deno.serve(async(req:Request)=>{
     const effectiveLeadId=String(leadId||offer.lead_id||'')||null;
     const offerRef=trim(offer.offer_ref,160);if(!offerRef)return json({error:'Tilbudsnummer mangler, så den rigtige PDF kan ikke findes',code:'OFFER_REF_MISSING'},412);
 
-    if(limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
+    if(action==='send'&&limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
     const dailyLimit=Number(limits?.daily_mail_send_limit||100),sentToday=Number(usage?.mail_sends_today||0);
-    if(sentToday>=dailyLimit)return json({error:'Dagens fair-use grænse for mails er nået',code:'MAIL_DAILY_LIMIT',limit:dailyLimit},429);
+    if(action==='send'&&sentToday>=dailyLimit)return json({error:'Dagens fair-use grænse for mails er nået',code:'MAIL_DAILY_LIMIT',limit:dailyLimit},429);
 
     const from=String(client.settings?.mail||mat?.account||'').trim().toLowerCase(),connectedAccount=String(mat?.account||'').trim().toLowerCase(),fromName=senderName(client);
-    if(!emailOk(from))return json({error:'Afsendermail mangler i kundeprofilen',code:'FROM_NOT_CONFIGURED'},412);
-    if(!connectedAccount||connectedAccount!==from)return json({error:`Den forbundne Gmail-konto (${connectedAccount||'ingen'}) matcher ikke kundens afsendermail (${from})`,code:'FROM_ACCOUNT_MISMATCH'},412);
+    if(action==='send'&&!emailOk(from))return json({error:'Afsendermail mangler i kundeprofilen',code:'FROM_NOT_CONFIGURED'},412);
+    if(action==='send'&&(!connectedAccount||connectedAccount!==from))return json({error:`Den forbundne Gmail-konto (${connectedAccount||'ingen'}) matcher ikke kundens afsendermail (${from})`,code:'FROM_ACCOUNT_MISMATCH'},412);
 
     let accessToken='';
     try{accessToken=await refreshAccessToken(mat)}
@@ -198,28 +354,15 @@ Deno.serve(async(req:Request)=>{
       return json({error:msg,code:String(e?.code||'GMAIL_TOKEN_ERROR')},Number(e?.status||502));
     }
 
-    const pdfName=`Tilbud ${offerRef}.pdf`;
-    const searchQ=`filename:"${pdfName.replaceAll('\\','').replaceAll('"','')}"`;
-    const searchResp=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25&q='+encodeURIComponent(searchQ),{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-    const searchData=await searchResp.json().catch(()=>({}));
-    if(!searchResp.ok)return json({error:'Kunne ikke søge efter den oprindelige Minuba-PDF i mailen',code:'OFFER_PDF_SEARCH_ERROR'},502);
-
-    let attachmentB64='',sourceMessageId='';
-    for(const m of searchData.messages||[]){
-      const mid=String(m.id||'');if(!mid)continue;
-      const mr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mid)}?format=full`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-      if(!mr.ok)continue;
-      const msg=await mr.json().catch(()=>({}));
-      const part=findAttachmentPart(msg.payload,pdfName);if(!part)continue;
-      if(part.body?.data){attachmentB64=fromB64Url(part.body.data);sourceMessageId=mid;break}
-      const aid=String(part.body?.attachmentId||'');if(!aid)continue;
-      const ar=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mid)}/attachments/${encodeURIComponent(aid)}`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-      if(!ar.ok)continue;
-      const ad=await ar.json().catch(()=>({}));
-      if(ad?.data){attachmentB64=fromB64Url(ad.data);sourceMessageId=mid;break}
+    const expectedPdfName=`Tilbud ${offerRef}.pdf`;
+    const resolvedPdf=await resolveOfferPdf(admin,clientId,offer,offerRef,accessToken);
+    if(action==='pdf_status'){
+      if(!resolvedPdf)return json({ok:true,ready:false,code:'OFFER_PDF_NOT_FOUND',offer_ref:offerRef,minuba_offer_id:minubaOfferId(offer)||null,message:`Tilbud ${offerRef} blev fundet, men Lead Manager kunne ikke finde en verificeret original PDF endnu.`});
+      return json({ok:true,ready:true,offer_ref:offerRef,minuba_offer_id:resolvedPdf.minubaOfferId||minubaOfferId(offer)||null,attachment:{filename:resolvedPdf.filename,source:resolvedPdf.source},verified:true});
     }
-    if(!attachmentB64)return json({error:`Den originale ${pdfName} blev ikke fundet. Mailen er ikke sendt uden tilbuddet vedhæftet.`,code:'OFFER_PDF_NOT_FOUND',offer_ref:offerRef,expected_filename:pdfName},412);
-    if(!attachmentB64.startsWith('JVBERi0'))return json({error:`Filen ${pdfName} blev fundet, men den er ikke en gyldig PDF. Mailen er ikke sendt.`,code:'OFFER_PDF_INVALID'},412);
+    if(!resolvedPdf)return json({error:`Tilbud ${offerRef} blev fundet, men den originale PDF kunne ikke hentes sikkert fra Minuba eller den forbundne mailkonto. Mailen er ikke sendt.`,code:'OFFER_PDF_NOT_FOUND',offer_ref:offerRef,minuba_offer_id:minubaOfferId(offer)||null,expected_filename:expectedPdfName},412);
+    const attachmentB64=resolvedPdf.b64,sourceMessageId=resolvedPdf.messageId||'',pdfName=resolvedPdf.filename||expectedPdfName;
+    if(!pdfB64Valid(attachmentB64))return json({error:`PDF-kilden for tilbud ${offerRef} blev fundet, men indholdet er ikke en gyldig PDF. Mailen er ikke sendt.`,code:'OFFER_PDF_INVALID'},412);
 
     const [{data:contactRows,error:contactFindError},{data:companyRow,error:companyFindError}]=await Promise.all([
       admin.from('crm_contacts').select('id,email,verified').eq('client_id',clientId).eq('company_id',companyId),
@@ -265,7 +408,7 @@ Deno.serve(async(req:Request)=>{
         customer_name:offer.customer_name||null,include_signature:true,signature_key:'client_default',
         approved_by:user.email,approval_method:'explicit_send_button',follow_up_date:followUpDate,
         follow_up_at:followUpAt,sender_name:fromName,send_id:requestId,
-        attachment:{filename:pdfName,source:'minuba_original_mail',source_message_id:sourceMessageId}
+        attachment:{filename:pdfName,source:resolvedPdf.source,source_message_id:sourceMessageId}
       };
       const {data:createdApproval,error:approvalError}=await admin.from('crm_approvals').insert({
         client_id:clientId,lead_id:effectiveLeadId,action_type:'send_email',status:'approved',
@@ -285,7 +428,7 @@ Deno.serve(async(req:Request)=>{
       to_email:to,subject,body_text:mailBody,follow_up_date:followUpDate,follow_up_at:followUpAt,
       from_email:from,sender_name:fromName,ai_generated:false,ai_model:null,
       signature_appended:!!(sigText||sigHtml),message_rfc822_id:messageRfc822Id,status:'sending',attempt_count:1,
-      attachment_filename:pdfName,attachment_source:'minuba_original_mail',source_message_id:sourceMessageId
+      attachment_filename:pdfName,attachment_source:resolvedPdf.source,source_message_id:sourceMessageId
     }).select('*').single();
     if(jobError){
       if(String(jobError.code||'')==='23505'){
@@ -337,7 +480,7 @@ Deno.serve(async(req:Request)=>{
       ok:true,sent:true,status:'sent_pending_postprocess',send_id:requestId,job_id:job.id,
       id:String(sent.id),thread_id:String(sent.threadId||sent.id),from,from_name:fromName,to,subject,
       follow_up_date:followUpDate,offer_id:offer.id,lead_id:effectiveLeadId,client_name:client.name,
-      provider:'gmail',attachment:{filename:pdfName,source:'minuba_original_mail'}
+      provider:'gmail',attachment:{filename:pdfName,source:resolvedPdf.source}
     });
   }catch(err){
     console.error(err);

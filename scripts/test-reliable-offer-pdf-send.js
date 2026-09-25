@@ -5,6 +5,7 @@ const ui=fs.readFileSync('offer-mail-pdf-v1.js','utf8');
 const send=fs.readFileSync('supabase/functions/gmail-offer-send/index.ts','utf8');
 const worker=fs.readFileSync('supabase/functions/gmail-send-postprocess/index.ts','utf8');
 const migration=fs.readFileSync('supabase/migrations/20260923062500_reliable_offer_pdf_send.sql','utf8');
+const identityMigration=fs.readFileSync('supabase/migrations/20260925094500_offer_pdf_identity_cache.sql','utf8');
 
 for(const marker of [
   'currentPdfSendId',
@@ -13,7 +14,11 @@ for(const marker of [
   'pollOfferSendStatus',
   'status===546',
   'Kontroller status',
-  'genbruger samme send-id'
+  'genbruger samme send-id',
+  'checkPdfStatus',
+  "action:'pdf_status'",
+  'PDF klar',
+  'verificeret PDF'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 for(const marker of [
@@ -26,8 +31,20 @@ for(const marker of [
   'rfc822msgid:',
   'attachment_filename:pdfName',
   "contains('payload',{send_id:requestId})",
-  'send_id:requestId'
+  'send_id:requestId',
+  'resolveOfferPdf',
+  'gmailPdfCandidate',
+  'minubaPdfCandidate',
+  'minubaOfferId',
+  'pdfB64Valid',
+  'pdf_source_message_id',
+  'pdf_source_attachment_id',
+  'pdf_source_filename',
+  "action==='pdf_status'",
+  'OFFER_PDF_NOT_FOUND'
 ]) must(send.includes(marker),'offer PDF backend reliability marker missing: '+marker);
+
+must(!send.includes('function findAttachmentPart('),'offer PDF resolver regressed to exact-filename-only matching');
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
@@ -47,4 +64,14 @@ for(const marker of [
   'crm_mail_send_jobs_approval_idx'
 ]) must(migration.includes(marker),'offer PDF migration marker missing: '+marker);
 
-console.log('PASS: offer PDF mail send is idempotent, recoverable and post-processed off the send path');
+for(const marker of [
+  'add column if not exists minuba_offer_id',
+  'add column if not exists pdf_source_message_id',
+  'add column if not exists pdf_source_attachment_id',
+  'add column if not exists pdf_source_filename',
+  'add column if not exists pdf_source_kind',
+  'add column if not exists pdf_verified_at',
+  "minuba_raw->>'id'"
+]) must(identityMigration.includes(marker),'offer PDF identity migration marker missing: '+marker);
+
+console.log('PASS: offer PDF send uses stable identity, validated PDF resolution, preflight status and idempotent post-processing');
