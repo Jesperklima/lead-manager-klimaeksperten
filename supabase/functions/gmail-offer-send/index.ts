@@ -379,7 +379,7 @@ Deno.serve(async(req:Request)=>{
     if(action==='send'&&!requestId)requestId=crypto.randomUUID();
     if(!clientId)return json({error:'Mangler klient-id',code:'CLIENT_ID_MISSING'},400);
     if(['send','status'].includes(action)&&(!requestId||!uuidOk(requestId)))return json({error:'Mangler gyldigt send-id',code:'SEND_ID_INVALID'},400);
-    if(!['send','status','pdf_status'].includes(action))return json({error:'Ukendt handling',code:'ACTION_INVALID'},400);
+    if(!['send','status','pdf_status','preflight'].includes(action))return json({error:'Ukendt handling',code:'ACTION_INVALID'},400);
 
     const {data:membership,error:memberError}=await admin.from('crm_users')
       .select('email,client_id,role,auth_user_id')
@@ -388,7 +388,7 @@ Deno.serve(async(req:Request)=>{
     if(!membership)return json({error:'Ingen adgang til denne klient'},403);
 
     let existing:any=null;
-    if(action!=='pdf_status'){
+    if(['send','status'].includes(action)){
       const existingR=await admin.from('crm_mail_send_jobs').select('*').eq('client_id',clientId).eq('send_id',requestId).maybeSingle();
       if(existingR.error)throw existingR.error;existing=existingR.data;
     }
@@ -465,7 +465,7 @@ Deno.serve(async(req:Request)=>{
     const effectiveLeadId=String(leadId||offer.lead_id||'')||null;
     const offerRef=trim(offer.offer_ref,160);if(!offerRef)return json({error:'Tilbudsnummer mangler, så den rigtige PDF kan ikke findes',code:'OFFER_REF_MISSING'},412);
 
-    if(action==='send'){
+    if(action==='send'||action==='preflight'){
       const {data:suppressions,error:suppressionError}=await admin.from('crm_followup_suppressions')
         .select('email,offer_ref,company_name_pattern,reason')
         .eq('client_id',clientId).eq('active',true);
@@ -480,6 +480,13 @@ Deno.serve(async(req:Request)=>{
       });
       if(suppression){
         const reason=trim(suppression.reason,1200)||'Kunden eller modtageren er markeret som “ingen opfølgning”.';
+        if(action==='preflight')return json({
+          ok:true,
+          blocked:true,
+          code:'FOLLOWUP_SUPPRESSED',
+          reason,
+          message:'MAIL BLOKERET – INGEN OPFØLGNING'
+        });
         return json({
           error:'Opfølgning er blokeret: '+reason,
           code:'FOLLOWUP_SUPPRESSED',
@@ -487,6 +494,7 @@ Deno.serve(async(req:Request)=>{
           reason
         },409);
       }
+      if(action==='preflight')return json({ok:true,blocked:false});
     }
 
     if(action==='send'&&limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
