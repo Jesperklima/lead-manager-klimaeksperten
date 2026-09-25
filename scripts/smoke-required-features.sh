@@ -102,6 +102,9 @@ node --check saas-mail-sender-name-v1.js
 node --check mail-templates-v1.js
 node --check offer-mail-v1.js
 node --check offer-mail-pdf-v1.js
+node --check tenant-isolation-v1.js
+node --check offer-date-save-v1.js
+node scripts/test-offer-followup-persistence.js
 node --check saas-admin-client-switcher-v1.js
 node --check saas-crm-integrations-v1.js
 node --check saas-website-intake-v1.js
