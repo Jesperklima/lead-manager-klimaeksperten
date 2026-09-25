@@ -19,10 +19,10 @@
   function message(text,bad=false){const input=byId('oFollow');if(!input)return;let el=byId('offerDateSaveMessage');if(!el){el=document.createElement('div');el.id='offerDateSaveMessage';el.className='sub';el.style.marginTop='5px';input.insertAdjacentElement('afterend',el)}el.textContent=text||'';el.style.color=bad?'#b33232':''}
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
-  async function readSavedDate(offerId){
+  async function readSavedDate(offerId,clientId){
     let lastError=null;
     for(let attempt=0;attempt<3;attempt++){
-      const r=await supabase.from('crm_offers').select('id,follow_up_date').eq('id',offerId).limit(1);
+      const r=await supabase.from('crm_offers').select('id,client_id,follow_up_date').eq('id',offerId).eq('client_id',clientId).limit(1);
       if(!r.error){
         const row=Array.isArray(r.data)?r.data[0]:r.data;
         return normalizeDate(row?.follow_up_date||null);
@@ -37,6 +37,7 @@
   async function save(){
     if(saving)return;
     const o=current();if(!o)return;
+    const clientId=state?.client?.id;if(!clientId){message('Kunde/workspace kunne ikke bekræftes. Genindlæs siden og prøv igen.',true);return}
     const btn=byId('saveOffer'),old=btn?.textContent||'Gem tilbud';
     const status=byId('oStatus')?.value||o.status;
     const rawDate=(dateAtClick!==null?dateAtClick:String(byId('oFollow')?.value||'').trim())||null;
@@ -45,10 +46,11 @@
     const now=new Date().toISOString();
     saving=true;if(btn){btn.disabled=true;btn.textContent='Gemmer…'};message('Gemmer '+formatDate(date)+'…');
     try{
-      const r=await supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id);
+      const r=await supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id).eq('client_id',clientId).select('id,client_id,status,follow_up_date,current_comment').single();
       if(r.error)throw new Error(r.error.message||'Tilbuddet kunne ikke gemmes');
+      if(String(r.data?.client_id||'')!==String(clientId))throw new Error('Tilbuddet blev ikke bekræftet i det aktive workspace.');
 
-      const savedDate=await readSavedDate(o.id);
+      const savedDate=normalizeDate(r.data?.follow_up_date||null);
       if(savedDate!==date)throw new Error(`Den valgte dato blev ikke gemt i CRM. Forventet ${formatDate(date)}, fik ${formatDate(savedDate)}.`);
 
       const task=(state.tasks||[]).find(t=>t.offer_id===o.id&&t.task_type==='offer_followup');
@@ -68,7 +70,7 @@
       const check=(state.offers||[]).find(x=>x.id===o.id);
       const reloadedDate=normalizeDate(check?.follow_up_date||null);
       if(reloadedDate!==date){
-        const directDate=await readSavedDate(o.id);
+        const directDate=await readSavedDate(o.id,clientId);
         if(directDate!==date)throw new Error(`Datoen blev ikke bekræftet efter genindlæsning. Forventet ${formatDate(date)}, fik ${formatDate(directDate)}.`);
       }
       byId('offerModal')?.classList.remove('open');currentOffer=null;if(typeof toast==='function')toast('Tilbud opdateret · opfølgning '+formatDate(date));
