@@ -73,6 +73,11 @@ for(const marker of [
   'gmailSendMime',
   'upload/gmail/v1/users/me/messages/send?uploadType=media',
   "'Content-Type':'message/rfc822'",
+  'new AbortController()',
+  'setTimeout(()=>controller.abort(),35000)',
+  'uncertain:true',
+  "code:'SEND_IN_PROGRESS'",
+  "reason:sendAborted?'gmail_upload_timeout':'gmail_upload_uncertain'",
   'File/Download?',
   "admin.from('crm_followup_suppressions')",
   "code:'FOLLOWUP_SUPPRESSED'",
@@ -90,6 +95,7 @@ must(!send.includes("for(const path of ['File?id='"),'offer PDF resolver still t
 must(!send.includes("err instanceof Error?err.message:'Ukendt fejl'"),'offer mail backend can still erase structured database errors as Ukendt fejl');
 must(!send.includes("JSON.stringify({raw:b64url(mime)})"),'offer PDF send still double-base64 encodes the entire MIME payload');
 must(!send.includes("wrap76(attachmentB64)"),'offer PDF send still expands a large attachment into one in-memory MIME string');
+must(!send.includes("await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{\n    method:'POST',\n    headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},\n    body:stream\n  });"),'Gmail upload regressed to an unbounded network wait');
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
