@@ -29,10 +29,77 @@
   }
   function greeting(o){const name=String(o?.contact_person||'').trim();return name?`Hej ${name.split(/\s+/)[0]}`:'Hej'}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
+  function rawAddressCandidates(raw){
+    const out=[],seen=new Set();
+    const push=(address,source,baseScore=0)=>{
+      if(!address||typeof address!=='object')return;
+      const key=String(address.id||'')+'|'+String(address.email||'')+'|'+String(address.att||address.contactName||'')+'|'+source;
+      if(seen.has(key))return;seen.add(key);
+      const name=String(address.att||address.contactName||address.referencePerson||address.theirref||address.theirRef||'').trim();
+      const email=firstEmail(address.email||address.mail||address.emailAddress||'');
+      const phone=String(address.cellPhone||address.mobile||address.phone||'').trim();
+      const score=baseScore+(name?55:0)+(email?65:0)+(phone?5:0);
+      if(name||email||phone)out.push({name,email,phone,source,score,address_id:String(address.id||''),address_type:String(address.addressType||'')});
+    };
+    push(raw?.deliveryAddress,'offer_delivery_address',120);
+    push(raw?.contactAddress,'offer_contact_address',85);
+    push(raw?.billingAddress,'offer_billing_address',55);
+    for(const a of (Array.isArray(raw?.addresses)?raw.addresses:[])){
+      const type=String(a?.addressType||'').toUpperCase();
+      push(a,'offer_address',type==='DELIVERY'?100:type==='CONTACT'?75:type==='BILLING'?45:30);
+    }
+    for(const a of (Array.isArray(raw?.client?.addresses)?raw.client.addresses:[])){
+      const type=String(a?.addressType||'').toUpperCase();
+      push(a,'client_address',type==='DELIVERY'?70:type==='CONTACT'?60:type==='BILLING'?35:20);
+    }
+    return out.sort((a,b)=>b.score-a.score);
+  }
+  function bestRawContact(raw){
+    const options=rawAddressCandidates(raw);
+    return options.find(x=>x.name&&x.email)||options.find(x=>x.email)||options.find(x=>x.name)||null;
+  }
   function alternateEmails(o){
     const raw=o?.minuba_raw||{};
-    const values=[raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email].filter(Boolean).join(', ');
+    const values=[
+      raw?.deliveryAddress?.email,raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email,
+      ...rawAddressCandidates(raw).map(x=>x.email)
+    ].filter(Boolean).join(', ');
     return [...new Set((values.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map(x=>x.trim()))];
+  }
+  function applyRawMinubaContact(o,raw,sourceLabel='Gemt Minuba-tilbud'){
+    if(!o||!raw||typeof raw!=='object')return null;
+    const best=bestRawContact(raw);if(!best)return null;
+    minubaContactOptions=rawAddressCandidates(raw);
+    const name=String(best.name||'').trim(),email=String(best.email||'').trim(),phone=String(best.phone||'').trim();
+    if(name)o.contact_person=name;
+    if(email)o.contact_details=[email,phone].filter(Boolean).join(' · ');
+    o.minuba_raw=raw;
+    updateComposerFromOffer(o,name&&email?`${sourceLabel}: ${name} · ${email}`:email?`${sourceLabel}: ${email}`:name?`${sourceLabel}: ${name}`:`${sourceLabel}: kontakt fundet`);
+    refreshGreeting(o);
+    return {name,email,phone,source:best.source};
+  }
+  async function loadStoredMinubaContact(o){
+    if(!o?.id||typeof supabase==='undefined'||!state?.client?.id)return null;
+    if(o.minuba_raw&&typeof o.minuba_raw==='object'){
+      const local=applyRawMinubaContact(o,o.minuba_raw,'Kontakt fundet i tilbuddet fra Minuba');
+      if(local?.name||local?.email)return local;
+    }
+    try{
+      const {data,error}=await supabase.from('crm_offers')
+        .select('id,contact_person,contact_details,minuba_raw,minuba_record_type,minuba_order_number,minuba_status,minuba_last_checked_at')
+        .eq('client_id',state.client.id).eq('id',o.id).limit(1);
+      if(error)throw error;
+      const row=Array.isArray(data)?data[0]:data;if(!row)return null;
+      for(const key of ['minuba_raw','minuba_record_type','minuba_order_number','minuba_status','minuba_last_checked_at'])if(row[key]!=null)o[key]=row[key];
+      if(!o.contact_person&&row.contact_person)o.contact_person=row.contact_person;
+      if(!o.contact_details&&row.contact_details)o.contact_details=row.contact_details;
+      const local=applyRawMinubaContact(o,row.minuba_raw,'Kontakt fundet i tilbuddet fra Minuba');
+      if(!local)updateComposerFromOffer(o);
+      return local;
+    }catch(error){
+      console.warn('[Offer mail] Kunne ikke læse gemte Minuba-kontaktdata',error);
+      return null;
+    }
   }
   function stripKnownBounced(details,o){
     const email=firstEmail(details);if(!email||!bouncedContact(email,o))return String(details||'').trim();
@@ -159,15 +226,19 @@
 
   async function enrichFromMinuba(o){
     const ref=String(o?.offer_ref||'').trim();
-    if(!ref||typeof callProtectedEdge!=='function'||!state?.client?.id)return;
-    if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=`Henter navn og mail fra Minuba på tilbud ${ref}…`;
+    if(!ref||!state?.client?.id)return;
+    await loadStoredMinubaContact(o);
+    if(typeof callProtectedEdge!=='function')return;
+    if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=`Kontrollerer de aktuelle kontaktoplysninger i Minuba på tilbud ${ref}…`;
     try{
       const response=await callProtectedEdge('minuba-offer-lookup',{client_id:state.client.id,offer_ref:ref});
       if(response?.error)throw new Error(response.error.message||String(response.error));
       const data=response?.data??response;
       if(!data?.found){if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:`Ingen kontaktinformation fundet i Minuba på tilbud ${ref}.`;return}
-      minubaContactOptions=Array.isArray(data.contact_options)?data.contact_options:[];
-      const person=String(data.contact_person||'').trim(),email=String(data.contact_email||'').trim(),phone=String(data.contact_phone||'').trim();
+      const rawContact=applyRawMinubaContact(o,data.raw||o.minuba_raw||{},'Kontakt fundet direkte på Minuba-tilbuddet');
+      const apiOptions=Array.isArray(data.contact_options)?data.contact_options:[];
+      minubaContactOptions=[...rawAddressCandidates(data.raw||o.minuba_raw||{}),...apiOptions].filter((x,i,a)=>x?.email&&a.findIndex(y=>lower(y?.email)===lower(x?.email)&&lower(y?.name)===lower(x?.name))===i);
+      const person=String(data.contact_person||rawContact?.name||'').trim(),email=String(data.contact_email||rawContact?.email||'').trim(),phone=String(data.contact_phone||rawContact?.phone||'').trim();
       if(person)o.contact_person=person;
       o.minuba_raw=data.raw||o.minuba_raw||{};o.minuba_record_type=data.record_type||o.minuba_record_type||null;o.minuba_order_number=data.order_number||o.minuba_order_number||null;o.minuba_status=data.status_raw||o.minuba_status||null;o.minuba_last_checked_at=new Date().toISOString();
       const incomingDetails=String(data.contact_details||[email,phone].filter(Boolean).join(' · ')).trim(),cleanDetails=stripKnownBounced(incomingDetails,o);if(cleanDetails)o.contact_details=cleanDetails;
