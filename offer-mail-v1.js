@@ -110,8 +110,10 @@
   function openOfferMailModal(){const modal=byId('offerMailModal');if(!modal)return;modal.classList.add('open');emitOfferMailLifecycle('lm:offer-mail-opened')}
   function closeOfferMailModal(){const modal=byId('offerMailModal');if(!modal)return;modal.classList.remove('open');emitOfferMailLifecycle('lm:offer-mail-closed')}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
-  const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing']);
-  function isSentResult(data){return !!data?.sent||sentStatuses.has(String(data?.status||''))}
+  const finalizedStatuses=new Set(['sent']);
+  const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing']);
+  function isSentResult(data){return finalizedStatuses.has(String(data?.status||''))}
+  function isPostprocessPending(data){return postprocessStatuses.has(String(data?.status||''))}
   function mailErrorFrom(result){const e=new Error(result?.error?.message||'Mailafsendelsen fejlede');Object.assign(e,result?.error||{});return e}
   function friendlyMailError(error){
     const status=Number(error?.status||0),code=String(error?.code||''),message=String(error?.message||'');
@@ -130,13 +132,42 @@
     }
     return {state:'pending'};
   }
-  async function finishSuccessfulSend(o,name,to){
+  function normalizeFollowDate(value){
+    const v=String(value||'').trim();
+    if(!v)return null;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+    const m=v.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
+    if(m)return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+    return v;
+  }
+  async function verifyOfferFollowUp(o,expectedDate){
+    const expected=normalizeFollowDate(expectedDate);
+    if(!expected||!o?.id||!state?.client?.id||typeof supabase==='undefined')return true;
+    const local=(state.offers||[]).find(x=>x.id===o.id);
+    if(normalizeFollowDate(local?.follow_up_date)===expected){o.follow_up_date=expected;return true}
+    const {data,error}=await supabase.from('crm_offers').select('id,client_id,follow_up_date').eq('id',o.id).eq('client_id',state.client.id).limit(1);
+    if(error)throw new Error(error.message||'Kunne ikke bekræfte opfølgningsdatoen');
+    const row=Array.isArray(data)?data[0]:data;
+    if(normalizeFollowDate(row?.follow_up_date)!==expected)throw new Error(`Opfølgningsdatoen er endnu ikke gemt som ${expected}`);
+    if(local)local.follow_up_date=expected;
+    o.follow_up_date=expected;
+    return true;
+  }
+  async function finishSuccessfulSend(o,name,to,follow){
+    try{
+      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
+      else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
+      await verifyOfferFollowUp(o,follow);
+    }catch(error){
+      sendState='uncertain';
+      alert('Mailen er sendt, men Lead Manager kunne ikke bekræfte den nye opfølgningsdato endnu. Send ikke mailen igen. Brug “Kontroller status”, så den samme afsendelse genbruges.\n\n'+String(error?.message||''));
+      return false;
+    }
     closeOfferMailModal();
     currentSendId=null;sendState='idle';
-    if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');
-    else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});
     if(typeof openOffer==='function')openOffer(o.id);
-    if(typeof toast==='function')toast(`Mail sendt til ${name||to}`);
+    if(typeof toast==='function')toast(`Mail sendt til ${name||to} · opfølgning gemt`);
+    return true;
   }
 
   function ensureModal(){
@@ -284,21 +315,24 @@
         follow_up_date:follow||null,ai_generated:false,ai_model:null,request_id:requestId
       });
       if(result?.error)throw mailErrorFrom(result);
-      if(isSentResult(result?.data)){await finishSuccessfulSend(o,name,to);return}
-      if(result?.data?.status==='sending'||result?.data?.code==='SEND_IN_PROGRESS'){
+      if(isSentResult(result?.data)){await finishSuccessfulSend(o,name,to,follow);return}
+      if(isPostprocessPending(result?.data))button.textContent='Gemmer opfølgning…';
+      if(result?.data?.status==='sending'||isPostprocessPending(result?.data)||result?.data?.code==='SEND_IN_PROGRESS'){
         const checked=await pollSendStatus(requestId,5);
-        if(checked.state==='sent'){await finishSuccessfulSend(o,name,to);return}
+        if(checked.state==='sent'){await finishSuccessfulSend(o,name,to,follow);return}
         if(checked.state==='failed')throw Object.assign(new Error(checked.error?.message||'Afsendelsen fejlede'),checked.error||{});
         sendState='uncertain';
         alert('Afsendelsen er stadig ved at blive kontrolleret. Lead Manager genbruger samme send-id, så et nyt klik kan ikke sende mailen dobbelt.');
         return;
       }
-      throw new Error('Gmail returnerede ingen sikker afsendelsesstatus.');
+      sendState='uncertain';
+      alert('Lead Manager har endnu ikke fået en endelig bekræftelse på afsendelsen og opfølgningsdatoen. Brug “Kontroller status”; samme send-id genbruges, så mailen ikke sendes dobbelt.');
+      return;
     }catch(error){
       const status=Number(error?.status||0),raw=String(error?.message||'');
       if(status===546||/^546(?:\s|$)/.test(raw)){
         const checked=await pollSendStatus(requestId,5);
-        if(checked.state==='sent'){await finishSuccessfulSend(o,name,to);return}
+        if(checked.state==='sent'){await finishSuccessfulSend(o,name,to,follow);return}
         if(checked.state==='pending'){
           sendState='uncertain';
           alert('Mailtjenesten blev afbrudt, men Lead Manager har låst dette sendeforsøg og kontrollerer status. Brug “Kontroller status” i stedet for at oprette en ny afsendelse.');

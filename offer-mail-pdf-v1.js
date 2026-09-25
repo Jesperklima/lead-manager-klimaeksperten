@@ -19,8 +19,10 @@
   function bounced(email,o){const e=lower(email);return contacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function pdfName(o){const ref=String(o?.offer_ref||'').trim();return ref?`Tilbud ${ref}.pdf`:''}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
-  const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing']);
-  function isSentResult(data){return !!data?.sent||sentStatuses.has(String(data?.status||''))}
+  const finalizedStatuses=new Set(['sent']);
+  const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing']);
+  function isSentResult(data){return finalizedStatuses.has(String(data?.status||''))}
+  function isPostprocessPending(data){return postprocessStatuses.has(String(data?.status||''))}
   function mailErrorFrom(result){const e=new Error(result?.error?.message||'Mailafsendelsen fejlede');Object.assign(e,result?.error||{});return e}
   function friendlyMailError(error){
     const status=Number(error?.status||0),code=String(error?.code||''),message=String(error?.message||'');
@@ -46,14 +48,43 @@
     }
     return {state:'pending'};
   }
-  async function finishPdfSend(o,to,data,name){
+  function normalizeFollowDate(value){
+    const v=String(value||'').trim();
+    if(!v)return null;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+    const m=v.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
+    if(m)return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+    return v;
+  }
+  async function verifyOfferFollowUp(o,expectedDate){
+    const expected=normalizeFollowDate(expectedDate);
+    if(!expected||!o?.id||!state?.client?.id||typeof supabase==='undefined')return true;
+    const local=(state.offers||[]).find(x=>x.id===o.id);
+    if(normalizeFollowDate(local?.follow_up_date)===expected){o.follow_up_date=expected;return true}
+    const {data,error}=await supabase.from('crm_offers').select('id,client_id,follow_up_date').eq('id',o.id).eq('client_id',state.client.id).limit(1);
+    if(error)throw new Error(error.message||'Kunne ikke bekræfte opfølgningsdatoen');
+    const row=Array.isArray(data)?data[0]:data;
+    if(normalizeFollowDate(row?.follow_up_date)!==expected)throw new Error(`Opfølgningsdatoen er endnu ikke gemt som ${expected}`);
+    if(local)local.follow_up_date=expected;
+    o.follow_up_date=expected;
+    return true;
+  }
+  async function finishPdfSend(o,to,data,name,follow){
+    try{
+      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
+      else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
+      await verifyOfferFollowUp(o,follow);
+    }catch(error){
+      pdfSendState='uncertain';
+      alert('Mailen er sendt, men Lead Manager kunne ikke bekræfte den nye opfølgningsdato endnu. Send ikke mailen igen. Brug “Kontroller status”, så den samme afsendelse genbruges.\n\n'+String(error?.message||''));
+      return false;
+    }
     byId('offerMailModal')?.classList.remove('open');
     window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
     currentPdfSendId=null;pdfSendState='idle';
-    if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','mail','activities');
-    else if(typeof loadAll==='function')await loadAll({keys:['offers','mail','activities'],force:true});
     if(typeof openOffer==='function')openOffer(o.id);
-    if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name}`);
+    if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name} · opfølgning gemt`);
+    return true;
   }
 
   function ensureAttachmentRow(){
@@ -186,22 +217,25 @@
       });
       if(result?.error)throw mailErrorFrom(result);
       const data=result?.data??result;
-      if(isSentResult(data)){await finishPdfSend(o,to,data,name);return}
-      if(data?.status==='sending'||data?.status==='prepared'||data?.code==='SEND_IN_PROGRESS'){
+      if(isSentResult(data)){await finishPdfSend(o,to,data,name,follow);return}
+      if(isPostprocessPending(data)&&button)button.textContent='Gemmer opfølgning…';
+      if(data?.status==='sending'||data?.status==='prepared'||isPostprocessPending(data)||data?.code==='SEND_IN_PROGRESS'){
         const checked=await pollOfferSendStatus(requestId,5);
-        if(checked.state==='sent'){await finishPdfSend(o,to,checked.data,name);return}
+        if(checked.state==='sent'){await finishPdfSend(o,to,checked.data,name,follow);return}
         if(checked.state==='failed')throw Object.assign(new Error(checked.error?.message||'Afsendelsen fejlede'),checked.error||{});
         pdfSendState='uncertain';
         alert('Afsendelsen er stadig ved at blive kontrolleret. Lead Manager genbruger samme send-id, så et nyt klik ikke kan sende mailen dobbelt.');
         return;
       }
       if(!data?.ok)throw new Error(data?.error||'Mailen kunne ikke sendes.');
-      await finishPdfSend(o,to,data,name);
+      pdfSendState='uncertain';
+      alert('Lead Manager har endnu ikke fået en endelig bekræftelse på afsendelsen og opfølgningsdatoen. Brug “Kontroller status”; samme send-id genbruges, så mailen ikke sendes dobbelt.');
+      return;
     }catch(error){
       const status=Number(error?.status||0),raw=String(error?.message||'');
       if(status===546||/^546(?:\s|$)/.test(raw)){
         const checked=await pollOfferSendStatus(requestId,5);
-        if(checked.state==='sent'){await finishPdfSend(o,to,checked.data,name);return}
+        if(checked.state==='sent'){await finishPdfSend(o,to,checked.data,name,follow);return}
         if(checked.state==='pending'){
           pdfSendState='uncertain';
           alert('Mailtjenesten blev afbrudt, men Lead Manager har låst dette sendeforsøg og kontrollerer status. Brug “Kontroller status” i stedet for at starte en ny afsendelse.');

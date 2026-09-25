@@ -27,8 +27,16 @@ for(const marker of [
   'MAIL BLOKERET – INGEN OPFØLGNING',
   'Blokeret – ingen opfølgning',
   'Denne mail må ikke sendes til den valgte modtager.',
-  'Mailen er ikke sendt.'
+  'Mailen er ikke sendt.',
+  "const finalizedStatuses=new Set(['sent'])",
+  "const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing'])",
+  'isPostprocessPending',
+  "refreshKeys('offers','tasks','mail','activities')",
+  "select('id,client_id,follow_up_date')",
+  'opfølgning gemt'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
+
+must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must wait for finalized CRM post-processing before closing');
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
 

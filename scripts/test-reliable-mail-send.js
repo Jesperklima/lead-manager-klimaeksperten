@@ -2,6 +2,7 @@ const fs=require('fs');
 function must(v,m){if(!v)throw new Error(m)}
 
 const ui=fs.readFileSync('offer-mail-v1.js','utf8');
+const pdfUi=fs.readFileSync('offer-mail-pdf-v1.js','utf8');
 const send=fs.readFileSync('supabase/functions/gmail-direct-send/index.ts','utf8');
 const worker=fs.readFileSync('supabase/functions/gmail-send-postprocess/index.ts','utf8');
 const migration=fs.readFileSync('supabase/migrations/20260923061000_reliable_mail_send_pipeline.sql','utf8');
@@ -13,8 +14,25 @@ for(const marker of [
   "SEND_IN_PROGRESS",
   "status===546",
   "Kontroller status",
-  "genbruger samme send-id"
+  "genbruger samme send-id",
+  "const finalizedStatuses=new Set(['sent'])",
+  "const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing'])",
+  "isPostprocessPending",
+  "refreshKeys('offers','tasks','mail','activities')",
+  "select('id,client_id,follow_up_date')",
+  "opfølgning gemt"
 ]) must(ui.includes(marker),'UI reliability marker missing: '+marker);
+
+must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'direct offer mail must not treat post-processing as finalized');
+for(const marker of [
+  "const finalizedStatuses=new Set(['sent'])",
+  "const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing'])",
+  "isPostprocessPending",
+  "refreshKeys('offers','tasks','mail','activities')",
+  "select('id,client_id,follow_up_date')",
+  "Mailen er sendt, men Lead Manager kunne ikke bekræfte den nye opfølgningsdato endnu"
+]) must(pdfUi.includes(marker),'PDF offer follow-up finalization marker missing: '+marker);
+must(!pdfUi.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'PDF offer mail must not treat post-processing as finalized');
 
 for(const marker of [
   "crm_mail_send_jobs",
