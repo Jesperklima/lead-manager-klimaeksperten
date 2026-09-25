@@ -11,13 +11,11 @@ create index if not exists crm_offers_pdf_source_message_idx
   on public.crm_offers (client_id, pdf_source_message_id)
   where pdf_source_message_id is not null;
 
-update public.crm_offers
-set minuba_offer_id = nullif(minuba_raw->>'id','')
-where minuba_offer_id is null
-  and minuba_raw ? 'id'
-  and nullif(minuba_raw->>'id','') is not null;
+-- Existing rows are intentionally not backfilled here. crm_offers has write guards
+-- that must not be triggered by a schema migration. The resolver derives the stable
+-- Minuba id from minuba_raw.id at runtime and persists it only during a verified PDF lookup.
 
-comment on column public.crm_offers.minuba_offer_id is 'Stable Minuba Order/offer UUID copied from minuba_raw.id when available.';
+comment on column public.crm_offers.minuba_offer_id is 'Stable Minuba Order/offer UUID persisted during verified PDF resolution; legacy rows fall back to minuba_raw.id at runtime.';
 comment on column public.crm_offers.pdf_source_message_id is 'Verified Gmail source message for the original offer PDF.';
 comment on column public.crm_offers.pdf_source_attachment_id is 'Verified Gmail attachment id for the original offer PDF.';
 comment on column public.crm_offers.pdf_source_filename is 'Actual verified PDF filename; display name only, not identity.';
