@@ -18,7 +18,7 @@ must(!ui.includes("Afsendelsen er stadig ved at blive kontrolleret. Lead Manager
 
 must(edge.includes("['send','status','resume','pdf_status','preflight']"), 'edge function must expose resume action');
 must(edge.includes(".in('status',['sending','sent_pending_postprocess','postprocessing'])"), 'resume must find active send jobs');
-must(edge.includes("Date.now()-30*60*1000"), 'active send recovery window must be bounded');
+must(!edge.includes("Date.now()-30*60*1000"), 'active interrupted sends must remain recoverable even after a long delay');
 must(edge.includes("Date.now()-5*60*1000"), 'recent sent jobs must be recovered after refresh without blocking later legitimate resends');
 must(edge.includes("pending:true"), 'in-progress response must be explicit for the UI');
 
