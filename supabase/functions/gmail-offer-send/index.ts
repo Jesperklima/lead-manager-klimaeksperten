@@ -391,11 +391,10 @@ Deno.serve(async(req:Request)=>{
     if(action==='resume'){
       const resumeOfferId=trim(body.offer_id,80),resumeTo=trim(body.to,320).toLowerCase();
       if(!resumeOfferId)return json({error:'Mangler gyldigt tilbud',code:'OFFER_ID_MISSING'},400);
-      const activeSince=new Date(Date.now()-30*60*1000).toISOString();
       let activeQ=admin.from('crm_mail_send_jobs').select('*')
         .eq('client_id',clientId).eq('offer_id',resumeOfferId)
         .in('status',['sending','sent_pending_postprocess','postprocessing'])
-        .gte('created_at',activeSince).order('created_at',{ascending:false}).limit(1);
+        .order('created_at',{ascending:false}).limit(1);
       if(resumeTo&&emailOk(resumeTo))activeQ=activeQ.eq('to_email',resumeTo);
       const activeR=await activeQ;
       if(activeR.error)throw activeR.error;
