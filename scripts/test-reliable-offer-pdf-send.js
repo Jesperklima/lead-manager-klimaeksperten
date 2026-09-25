@@ -70,8 +70,9 @@ for(const marker of [
   'add column if not exists pdf_source_attachment_id',
   'add column if not exists pdf_source_filename',
   'add column if not exists pdf_source_kind',
-  'add column if not exists pdf_verified_at',
-  "minuba_raw->>'id'"
+  'add column if not exists pdf_verified_at'
 ]) must(identityMigration.includes(marker),'offer PDF identity migration marker missing: '+marker);
+
+must(!/update\s+public\.crm_offers/i.test(identityMigration),'offer PDF identity migration must not backfill crm_offers because offer write guards can reject bulk updates');
 
 console.log('PASS: offer PDF send uses stable identity, validated PDF resolution, preflight status and idempotent post-processing');
