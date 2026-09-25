@@ -6,6 +6,8 @@
   const lower=v=>String(v||'').trim().toLowerCase();
   let currentPdfSendId=null;
   let pdfSendState='idle';
+  let pdfStatusSeq=0;
+  const pdfStatusCache=new Map();
 
   function offer(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
@@ -22,6 +24,8 @@
     if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen. Du kan prøve at sende igen.';
     if(code==='DUPLICATE_BLOCKED')return message||'En anden afsendelse af den samme mail er allerede aktiv eller registreret som sendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
+    if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke finde en verificeret original PDF. Mailen blev ikke sendt.';
+    if(code==='OFFER_PDF_INVALID')return message||'PDF-kilden blev fundet, men filen kunne ikke valideres som en rigtig PDF. Mailen blev ikke sendt.';
     return message||'Mailen kunne ikke sendes.';
   }
   async function pollOfferSendStatus(requestId,tries=5){
@@ -53,7 +57,40 @@
       body.closest('.field')?.insertAdjacentElement('afterend',field);box=byId('offerMailAttachment');
     }
     const o=offer(),name=pdfName(o);
-    if(box)box.innerHTML=name?`📎 <strong>${name}</strong><div class="sub" style="margin-top:4px">Den originale tilbuds-PDF fra Minuba hentes automatisk. Mailen kan ikke sendes, hvis den rigtige PDF ikke findes.</div>`:'📎 Tilbudsnummer mangler – PDF kan ikke vælges sikkert.';
+    if(box)box.innerHTML=name?`📎 <strong>${name}</strong><div class="sub" style="margin-top:4px">Kontrollerer den originale PDF fra Minuba/mailkilden. Mailen kan ikke sendes uden en verificeret PDF.</div>`:'📎 Tilbudsnummer mangler – PDF kan ikke vælges sikkert.';
+  }
+
+  function renderPdfStatus(status){
+    const box=byId('offerMailAttachment');if(!box)return;
+    const o=offer(),expected=pdfName(o);
+    if(status?.loading){box.innerHTML=`⏳ Kontrollerer original PDF for <strong>${expected||'tilbuddet'}</strong>…`;return}
+    if(status?.ready){
+      const actual=String(status?.attachment?.filename||expected||'Tilbuds-PDF');
+      box.innerHTML=`✅ <strong>PDF klar · ${actual}</strong><div class="sub" style="margin-top:4px">Kilden er verificeret. Ved afsendelse kontrolleres PDF'en igen, så der ikke kan vedhæftes en forkert fil.</div>`;
+      return;
+    }
+    if(status?.error){
+      box.innerHTML=`⚠️ <strong>PDF kunne ikke kontrolleres</strong><div class="sub" style="margin-top:4px">${String(status.error)}</div>`;return;
+    }
+    box.innerHTML=`⚠️ <strong>Original PDF er ikke fundet endnu</strong><div class="sub" style="margin-top:4px">Tilbuddet findes i Minuba, men Lead Manager har endnu ikke en verificeret PDF-kilde. Systemet prøver igen ved afsendelse og sender aldrig uden en valideret PDF.</div>`;
+  }
+
+  async function checkPdfStatus(force=false){
+    const o=offer();if(!o?.id||typeof callProtectedEdge!=='function'||!state?.client?.id)return;
+    const cached=pdfStatusCache.get(o.id);
+    if(!force&&cached&&Date.now()-cached.at<60000){renderPdfStatus(cached.value);return cached.value}
+    const seq=++pdfStatusSeq;renderPdfStatus({loading:true});
+    try{
+      const result=await callProtectedEdge('gmail-offer-send',{action:'pdf_status',client_id:state.client.id,offer_id:o.id});
+      if(seq!==pdfStatusSeq||offer()?.id!==o.id)return;
+      if(result?.error)throw mailErrorFrom(result);
+      const value=result?.data??result;
+      pdfStatusCache.set(o.id,{at:Date.now(),value});renderPdfStatus(value);return value;
+    }catch(error){
+      if(seq!==pdfStatusSeq||offer()?.id!==o.id)return;
+      const value={ready:false,error:friendlyMailError(error)};
+      pdfStatusCache.set(o.id,{at:Date.now(),value});renderPdfStatus(value);return value;
+    }
   }
 
   async function sendWithPdf(){
@@ -111,13 +148,14 @@
   function wire(){
     const button=byId('sendOfferMail');if(!button)return;
     ensureAttachmentRow();
+    void checkPdfStatus(false);
     if(button.dataset.pdfOfferSend==='1')return;
     button.onclick=sendWithPdf;button.dataset.pdfOfferSend='1';
   }
 
   const schedule=()=>setTimeout(wire,0);
   window.addEventListener('lm:offer-mail-ready',schedule);
-  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=makeSendId();pdfSendState='idle';schedule()});
+  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=makeSendId();pdfSendState='idle';const o=offer();if(o?.id)pdfStatusCache.delete(o.id);schedule();setTimeout(()=>void checkPdfStatus(true),0)});
   window.addEventListener('lm:data-refreshed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
   setTimeout(wire,100);
