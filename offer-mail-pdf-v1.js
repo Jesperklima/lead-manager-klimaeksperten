@@ -24,7 +24,7 @@
     if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen. Du kan prøve at sende igen.';
     if(code==='DUPLICATE_BLOCKED')return message||'En anden afsendelse af den samme mail er allerede aktiv eller registreret som sendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
-    if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke finde en verificeret original PDF. Mailen blev ikke sendt.';
+    if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke hente eller generere en verificeret tilbuds-PDF. Mailen blev ikke sendt.';
     if(code==='OFFER_PDF_INVALID')return message||'PDF-kilden blev fundet, men filen kunne ikke valideres som en rigtig PDF. Mailen blev ikke sendt.';
     return message||'Mailen kunne ikke sendes.';
   }
@@ -57,22 +57,26 @@
       body.closest('.field')?.insertAdjacentElement('afterend',field);box=byId('offerMailAttachment');
     }
     const o=offer(),name=pdfName(o);
-    if(box)box.innerHTML=name?`📎 <strong>${name}</strong><div class="sub" style="margin-top:4px">Kontrollerer den originale PDF fra Minuba/mailkilden. Mailen kan ikke sendes uden en verificeret PDF.</div>`:'📎 Tilbudsnummer mangler – PDF kan ikke vælges sikkert.';
+    if(box)box.innerHTML=name?`📎 <strong>${name}</strong><div class="sub" style="margin-top:4px">Lead Manager henter en eksisterende PDF eller genererer den fra tilbudsdata i Minuba. Mailen kan ikke sendes uden en verificeret PDF.</div>`:'📎 Tilbudsnummer mangler – PDF kan ikke vælges sikkert.';
   }
 
   function renderPdfStatus(status){
     const box=byId('offerMailAttachment');if(!box)return;
     const o=offer(),expected=pdfName(o);
-    if(status?.loading){box.innerHTML=`⏳ Kontrollerer original PDF for <strong>${expected||'tilbuddet'}</strong>…`;return}
+    if(status?.loading){box.innerHTML=`⏳ Forbereder verificeret PDF for <strong>${expected||'tilbuddet'}</strong>…`;return}
     if(status?.ready){
       const actual=String(status?.attachment?.filename||expected||'Tilbuds-PDF');
-      box.innerHTML=`✅ <strong>PDF klar · ${actual}</strong><div class="sub" style="margin-top:4px">Kilden er verificeret. Ved afsendelse kontrolleres PDF'en igen, så der ikke kan vedhæftes en forkert fil.</div>`;
+      const generated=status?.generated===true||String(status?.attachment?.source||'')==='minuba_live_render';
+      const detail=generated
+        ?'Den oprindelige fil var ikke tilgængelig via Minuba API/mailkilden, så Lead Manager har dannet PDF’en direkte af de aktuelle tilbudsdata i Minuba. Den valideres igen ved afsendelse.'
+        :'Kilden er verificeret. Ved afsendelse kontrolleres PDF’en igen, så der ikke kan vedhæftes en forkert fil.';
+      box.innerHTML=`✅ <strong>PDF klar · ${actual}</strong><div class="sub" style="margin-top:4px">${detail}</div>`;
       return;
     }
     if(status?.error){
       box.innerHTML=`⚠️ <strong>PDF kunne ikke kontrolleres</strong><div class="sub" style="margin-top:4px">${String(status.error)}</div>`;return;
     }
-    box.innerHTML=`⚠️ <strong>Original PDF er ikke fundet endnu</strong><div class="sub" style="margin-top:4px">Tilbuddet findes i Minuba, men Lead Manager har endnu ikke en verificeret PDF-kilde. Systemet prøver igen ved afsendelse og sender aldrig uden en valideret PDF.</div>`;
+    box.innerHTML=`⚠️ <strong>Tilbuds-PDF er ikke klar endnu</strong><div class="sub" style="margin-top:4px">Tilbuddet findes i Minuba. Lead Manager prøver både eksisterende PDF-kilder og en sikker PDF-generering fra Minuba-data. Der sendes aldrig uden en valideret PDF.</div>`;
   }
 
   async function checkPdfStatus(force=false){
@@ -103,9 +107,9 @@
     if(pdfSendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${to} med ${name} vedhæftet?`))return;
     if(!currentPdfSendId)currentPdfSendId=makeSendId();
     const requestId=currentPdfSendId,button=byId('sendOfferMail'),old='Send mail';
-    if(button){button.disabled=true;button.textContent=pdfSendState==='uncertain'?'Kontrollerer status…':'Henter PDF og sender…'}
+    if(button){button.disabled=true;button.textContent=pdfSendState==='uncertain'?'Kontrollerer status…':'Forbereder PDF og sender…'}
     const attachment=byId('offerMailAttachment');
-    if(attachment&&pdfSendState!=='uncertain')attachment.innerHTML=`⏳ Henter <strong>${name}</strong> fra den oprindelige Minuba-mail…`;
+    if(attachment&&pdfSendState!=='uncertain')attachment.innerHTML=`⏳ Henter eller genererer <strong>${name}</strong> fra Minuba…`;
     try{
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const result=await callProtectedEdge('gmail-offer-send',{
