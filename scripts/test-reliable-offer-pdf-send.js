@@ -21,7 +21,9 @@ for(const marker of [
   'verificeret PDF',
   'minuba_live_render',
   'genererer den fra tilbudsdata i Minuba',
-  'Forbereder PDF og sender'
+  'Forbereder PDF og sender',
+  'FOLLOWUP_SUPPRESSED',
+  'Mailen er blokeret af “ingen opfølgning”'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
@@ -52,12 +54,16 @@ for(const marker of [
   'renderOfferPdf',
   'minubaLiveRenderCandidate',
   'minuba_live_render',
-  'File/Download?'
+  'File/Download?',
+  "admin.from('crm_followup_suppressions')",
+  "code:'FOLLOWUP_SUPPRESSED'",
+  "err?.message||err?.error_description||err?.details||err?.hint"
 ]) must(send.includes(marker),'offer PDF backend reliability marker missing: '+marker);
 
 must(!send.includes('function findAttachmentPart('),'offer PDF resolver regressed to exact-filename-only matching');
 must(!send.includes("'File/'+encodeURIComponent(fileId)"),'offer PDF resolver still uses the invalid Minuba File/<id> download path');
 must(!send.includes("for(const path of ['File?id='"),'offer PDF resolver still treats Minuba File metadata endpoint as a download endpoint');
+must(!send.includes("err instanceof Error?err.message:'Ukendt fejl'"),'offer mail backend can still erase structured database errors as Ukendt fejl');
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
