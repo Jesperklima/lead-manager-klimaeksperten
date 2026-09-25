@@ -13,8 +13,9 @@ for(const marker of [
   "action:'status'",
   'pollOfferSendStatus',
   'status===546',
-  'Kontroller status',
-  'genbruger samme send-id',
+  'Kontrollerer automatisk',
+  'lm_offer_send_pending:',
+  "action:'resume'",
   'checkPdfStatus',
   "action:'pdf_status'",
   'PDF klar',
@@ -37,6 +38,7 @@ for(const marker of [
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must wait for finalized CRM post-processing before closing');
+must(!ui.includes('Brug “Kontroller status”'), 'offer PDF UI returned to manual status recovery wording');
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
 
@@ -70,6 +72,8 @@ for(const marker of [
   "admin.from('crm_followup_suppressions')",
   "code:'FOLLOWUP_SUPPRESSED'",
   "'preflight'",
+  "'resume'",
+  "pending:true",
   "blocked:true",
   "message:'MAIL BLOKERET – INGEN OPFØLGNING'",
   "err?.message||err?.error_description||err?.details||err?.hint"
