@@ -378,13 +378,24 @@ function createMimeUploadStream(parts:{
 }
 async function gmailSendMime(accessToken:string,parts:any){
   const stream=createMimeUploadStream(parts);
-  const r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{
-    method:'POST',
-    headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},
-    body:stream
-  });
-  const data=await r.json().catch(()=>({}));
-  return{response:r,data};
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),35000);
+  try{
+    const r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{
+      method:'POST',
+      headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},
+      body:stream,
+      signal:controller.signal
+    });
+    const data=await r.json().catch(()=>({}));
+    return{response:r,data,uncertain:false};
+  }catch(error:any){
+    const aborted=controller.signal.aborted||String(error?.name||'')==='AbortError';
+    console.warn('[gmail-offer-send] Gmail upload ended without a definitive response',{aborted,error:error instanceof Error?error.message:String(error)});
+    return{response:null,data:{},uncertain:true,aborted,error:error instanceof Error?error.message:String(error)};
+  }finally{
+    clearTimeout(timer);
+  }
 }
 
 async function refreshAccessToken(mat:any){
@@ -710,9 +721,17 @@ Deno.serve(async(req:Request)=>{
     const plain=mailBody+(sigText?'\n\n'+sigText:'');
     const htmlBody='<div style="font-family:Arial,sans-serif;font-size:10.5pt;line-height:1.5">'+escHtml(mailBody).replaceAll('\n','<br>')+'</div>'+(sigHtml?sigHtml:'');
     const mixed='lm_mix_'+crypto.randomUUID().replaceAll('-',''),alt='lm_alt_'+crypto.randomUUID().replaceAll('-',''),fromHeader=fromName?`${b64header(fromName)} <${from}>`:from;
-    const {response:sendResp,data:sent}=await gmailSendMime(accessToken,{
+    const {response:sendResp,data:sent,uncertain:sendUncertain,aborted:sendAborted}=await gmailSendMime(accessToken,{
       messageRfc822Id,fromHeader,to,subject,plain,htmlBody,pdfName,attachmentB64,mixed,alt
     });
+    if(sendUncertain||!sendResp){
+      console.warn('[gmail-offer-send] Gmail send result is uncertain; keeping send job recoverable',{job_id:job.id,send_id:requestId,aborted:!!sendAborted});
+      return json({
+        ok:false,sent:false,pending:true,status:'sending',send_id:requestId,job_id:job.id,
+        code:'SEND_IN_PROGRESS',reason:sendAborted?'gmail_upload_timeout':'gmail_upload_uncertain',
+        attachment:{filename:pdfName,source:resolvedPdf.source}
+      },202);
+    }
     if(!sendResp.ok||!sent.id){
       const msg=String(sent?.error?.message||`Gmail send fejlede (${sendResp.status})`);
       const failedAt=new Date().toISOString();
