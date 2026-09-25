@@ -21,11 +21,26 @@ function appendNote(oldValue:any,note:string){const old=clean(oldValue,12000);if
 function addressText(a:any){return [a?.streetAddress||a?.street,a?.streetAddress2,a?.postCode||a?.postalCode,a?.city].filter(Boolean).join(', ')}
 const emailList=(v:any)=>[...new Set((clean(v,3000).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim()))];
 const firstEmail=(v:any)=>emailList(v)[0]||'';
+const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+function looksLikePersonName(value:any){
+  const name=clean(value,100).replace(/\s+/g,' ');
+  if(!name||/[@\d]/.test(name)||/[,&/+]/.test(name)||name===name.toUpperCase())return '';
+  if(/\b(?:aps|a\/s|i\/s|ivs|p\/s|amba|holding|kommune|region|service|services|vvs|køl|klima|byg|entreprise|ejendom|ejendomme|hotel|restaurant|skole|center|fonden|forening|group|consult|consulting|solution|solutions|system|systems|bank|forsikring|transport|teknik|auto)\b/i.test(name))return '';
+  const parts=name.split(/\s+/).filter(Boolean);
+  if(parts.length<2||parts.length>5)return '';
+  if(parts.some((part:string)=>!/^[A-Za-zÆØÅæøåÀ-ÖØ-öø-ÿ'’.-]+$/u.test(part)))return '';
+  return name;
+}
+function isPersonalMailbox(value:any){
+  const email=firstEmail(value).toLowerCase(),at=email.lastIndexOf('@');
+  return at>0&&personalMailDomains.has(email.slice(at+1));
+}
 const phoneFrom=(v:any)=>{const s=clean(v,500);const m=s.match(/(?:\+45\s*)?(\d{2}[\s.-]?\d{2}[\s.-]?\d{2}[\s.-]?\d{2})/);return m?m[1].replace(/[.-]/g,' ').replace(/\s+/g,' ').trim():''};
 function addressContact(a:any,source:string,score=0){
   if(!a||typeof a!=='object')return null;
-  const name=clean(a?.att||a?.contactName||a?.referencePerson||a?.theirref||a?.theirRef,300);
   const email=firstEmail(a?.email||a?.mail||a?.emailAddress);
+  const explicitName=clean(a?.att||a?.contactName||a?.referencePerson||a?.theirref||a?.theirRef,300);
+  const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(a?.name):'');
   const phone=clean(a?.cellPhone||a?.mobile||a?.phone,120);
   if(!name&&!email&&!phone)return null;
   return {name,email,phone,source,score:score+(name?40:0)+(email?60:0)+(phone?5:0),address_id:clean(a?.id,200)};
@@ -93,7 +108,7 @@ function bestContact(record:any,o:any,offers:any[],clientRows:any[],contacts:any
   const crm=crmConsensus(o,contacts);if(crm?.email||crm?.name)return crm;
   return null;
 }
-function proposalInfo(p:any){const ca=p?.contactAddress||{},da=p?.deliveryAddress||ca,cl=p?.client||{},best=recordContact(p),email=clean(best?.email||ca?.email||cl?.email,300),phone=clean(best?.phone||ca?.cellPhone||ca?.phone,120),u=clean(p?.updated||p?.created,80);return{ref:clean(p?.orderNumber||p?.number,160),customer:clean(cl?.name||ca?.name,300),cvr:clean(cl?.cvr||p?.cvr,40),contact:clean(best?.name||p?.theirref||ca?.att,300),details:clean([email,phone].filter(Boolean).join(' · '),700),address:clean(addressText(da),700),sent:/^\d{4}-\d{2}-\d{2}/.test(u)?u.slice(0,10):new Date().toISOString().slice(0,10)}}
+function proposalInfo(p:any){const ca=p?.contactAddress||{},da=p?.deliveryAddress||ca,cl=p?.client||{},best=recordContact(p),email=clean(best?.email||ca?.email||cl?.email,300),phone=clean(best?.phone||ca?.cellPhone||ca?.phone,120),customer=clean(cl?.name||ca?.name,300),u=clean(p?.updated||p?.created,80);return{ref:clean(p?.orderNumber||p?.number,160),customer,cvr:clean(cl?.cvr||p?.cvr,40),contact:clean(best?.name||p?.theirref||ca?.att||(isPersonalMailbox(email)?looksLikePersonName(customer):''),300),details:clean([email,phone].filter(Boolean).join(' · '),700),address:clean(addressText(da),700),sent:/^\d{4}-\d{2}-\d{2}/.test(u)?u.slice(0,10):new Date().toISOString().slice(0,10)}}
 async function closeTasks(admin:any,o:any,now:string){await admin.from('crm_tasks').update({status:'done',updated_at:now}).eq('client_id',o.client_id).eq('offer_id',o.id).eq('task_type','offer_followup').eq('status','open')}
 async function ensureTask(admin:any,o:any,date:string,now:string){const {data}=await admin.from('crm_tasks').select('id').eq('client_id',o.client_id).eq('offer_id',o.id).eq('task_type','offer_followup').eq('status','open').limit(1);const patch={scheduled_at:date+'T09:00:00+02:00',status:'open',assigned_to:o.follow_up_owner||null,updated_at:now,title:`Følg op på tilbud ${o.offer_ref||''} – ${o.customer_name||''}`,planning_type:'flexible',priority:'A'};if(data?.[0])await admin.from('crm_tasks').update(patch).eq('id',data[0].id);else await admin.from('crm_tasks').insert({client_id:o.client_id,company_id:o.company_id,lead_id:o.lead_id||null,offer_id:o.id,...patch,task_type:'offer_followup',calendar_sync_status:'none'})}
 async function log(admin:any,o:any,summary:string,metadata:any){await admin.from('crm_activities').insert({client_id:o.client_id,company_id:o.company_id,lead_id:o.lead_id||null,offer_id:o.id,type:'Minuba→tilbud',actor_type:'agent',actor_name:'Minuba status sync',summary,metadata:{automatic:true,...metadata}})}
