@@ -23,7 +23,11 @@ for(const marker of [
   'genererer den fra tilbudsdata i Minuba',
   'Forbereder PDF og sender',
   'FOLLOWUP_SUPPRESSED',
-  'Mailen er blokeret af “ingen opfølgning”'
+  "action:'preflight'",
+  'MAIL BLOKERET – INGEN OPFØLGNING',
+  'Blokeret – ingen opfølgning',
+  'Denne mail må ikke sendes til den valgte modtager.',
+  'Mailen er ikke sendt.'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
@@ -57,6 +61,9 @@ for(const marker of [
   'File/Download?',
   "admin.from('crm_followup_suppressions')",
   "code:'FOLLOWUP_SUPPRESSED'",
+  "'preflight'",
+  "blocked:true",
+  "message:'MAIL BLOKERET – INGEN OPFØLGNING'",
   "err?.message||err?.error_description||err?.details||err?.hint"
 ]) must(send.includes(marker),'offer PDF backend reliability marker missing: '+marker);
 
