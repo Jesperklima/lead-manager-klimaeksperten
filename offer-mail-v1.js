@@ -10,6 +10,45 @@
   const plusDays=days=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+days);return ymd(d)};
   const firstEmail=value=>(String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
   const lower=v=>String(v||'').trim().toLowerCase();
+  const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+  function looksLikePersonName(value){
+    const name=String(value||'').trim().replace(/\s+/g,' ');
+    if(!name||name.length>100||/[@\d]/.test(name)||/[,&/+]/.test(name))return '';
+    if(name===name.toUpperCase())return '';
+    if(/\b(?:aps|a\/s|i\/s|ivs|p\/s|amba|holding|kommune|region|service|services|vvs|køl|klima|byg|entreprise|ejendom|ejendomme|hotel|restaurant|skole|center|fonden|forening|group|consult|consulting|solution|solutions|system|systems|bank|forsikring|transport|teknik|auto)\b/i.test(name))return '';
+    const parts=name.split(/\s+/).filter(Boolean);
+    if(parts.length<2||parts.length>5)return '';
+    if(parts.some(part=>!/^[A-Za-zÆØÅæøåÀ-ÖØ-öø-ÿ'’.-]+$/u.test(part)))return '';
+    return name;
+  }
+  function isPersonalMailbox(value){
+    const email=firstEmail(value).toLowerCase(),at=email.lastIndexOf('@');
+    return at>0&&personalMailDomains.has(email.slice(at+1));
+  }
+  function fallbackContactName(o){
+    const direct=String(o?.contact_person||'').trim();if(direct)return direct;
+    const raw=o?.minuba_raw||{};
+    const explicit=[
+      raw?.deliveryAddress?.att,raw?.deliveryAddress?.contactName,raw?.deliveryAddress?.referencePerson,raw?.deliveryAddress?.theirref,raw?.deliveryAddress?.theirRef,
+      raw?.contactAddress?.att,raw?.contactAddress?.contactName,raw?.contactAddress?.referencePerson,raw?.contactAddress?.theirref,raw?.contactAddress?.theirRef,
+      raw?.billingAddress?.att,raw?.billingAddress?.contactName,raw?.billingAddress?.referencePerson,raw?.billingAddress?.theirref,raw?.billingAddress?.theirRef
+    ].map(v=>String(v||'').trim()).find(Boolean);
+    if(explicit)return explicit;
+    const emails=[
+      o?.contact_details,raw?.deliveryAddress?.email,raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email
+    ].map(firstEmail).filter(Boolean);
+    if(!emails.some(isPersonalMailbox))return '';
+    for(const candidate of [raw?.deliveryAddress?.name,raw?.contactAddress?.name,raw?.billingAddress?.name,raw?.client?.name,o?.customer_name]){
+      const name=looksLikePersonName(candidate);if(name)return name;
+    }
+    return '';
+  }
+  function ensureContactName(o){
+    if(!o)return '';
+    const name=fallbackContactName(o);
+    if(name&&!String(o.contact_person||'').trim())o.contact_person=name;
+    return String(o.contact_person||name||'').trim();
+  }
   let minubaContactOptions=[];
   let currentSendId=null;
   let sendState='idle';
@@ -27,16 +66,17 @@
       return String(best?.email||'').trim();
     }catch{return ''}
   }
-  function greeting(o){const name=String(o?.contact_person||'').trim();return name?`Hej ${name.split(/\s+/)[0]}`:'Hej'}
+  function greeting(o){const name=ensureContactName(o);return name?`Hej ${name.split(/\s+/)[0]}`:'Hej'}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
   function rawAddressCandidates(raw){
     const out=[],seen=new Set();
     const push=(address,source,baseScore=0)=>{
       if(!address||typeof address!=='object')return;
-      const key=String(address.id||'')+'|'+String(address.email||'')+'|'+String(address.att||address.contactName||'')+'|'+source;
+      const key=String(address.id||'')+'|'+String(address.email||'')+'|'+String(address.att||address.contactName||address.name||'')+'|'+source;
       if(seen.has(key))return;seen.add(key);
-      const name=String(address.att||address.contactName||address.referencePerson||address.theirref||address.theirRef||'').trim();
       const email=firstEmail(address.email||address.mail||address.emailAddress||'');
+      const explicitName=String(address.att||address.contactName||address.referencePerson||address.theirref||address.theirRef||'').trim();
+      const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(address.name):'');
       const phone=String(address.cellPhone||address.mobile||address.phone||'').trim();
       const score=baseScore+(name?55:0)+(email?65:0)+(phone?5:0);
       if(name||email||phone)out.push({name,email,phone,source,score,address_id:String(address.id||''),address_type:String(address.addressType||'')});
@@ -240,6 +280,7 @@
   }
 
   function updateComposerFromOffer(o,contactSource=''){
+    ensureContactName(o);
     const direct=firstEmail(o?.contact_details),blocked=direct?bouncedContact(direct,o):null,to=recipientFor(o);
     setNodeValue('offerMailTo',to);
     setNodeValue('offerMailContactName',String(o?.contact_person||'').trim());
@@ -271,14 +312,15 @@
       minubaContactOptions=[...rawAddressCandidates(data.raw||o.minuba_raw||{}),...apiOptions].filter((x,i,a)=>x?.email&&a.findIndex(y=>lower(y?.email)===lower(x?.email)&&lower(y?.name)===lower(x?.name))===i);
       const person=String(data.contact_person||rawContact?.name||'').trim(),email=String(data.contact_email||rawContact?.email||'').trim(),phone=String(data.contact_phone||rawContact?.phone||'').trim();
       if(person)o.contact_person=person;
-      o.minuba_raw=data.raw||o.minuba_raw||{};o.minuba_record_type=data.record_type||o.minuba_record_type||null;o.minuba_order_number=data.order_number||o.minuba_order_number||null;o.minuba_status=data.status_raw||o.minuba_status||null;o.minuba_last_checked_at=new Date().toISOString();
+      o.minuba_raw=data.raw||o.minuba_raw||{};
+      const effectivePerson=ensureContactName(o);o.minuba_record_type=data.record_type||o.minuba_record_type||null;o.minuba_order_number=data.order_number||o.minuba_order_number||null;o.minuba_status=data.status_raw||o.minuba_status||null;o.minuba_last_checked_at=new Date().toISOString();
       const incomingDetails=String(data.contact_details||[email,phone].filter(Boolean).join(' · ')).trim(),cleanDetails=stripKnownBounced(incomingDetails,o);if(cleanDetails)o.contact_details=cleanDetails;
       const patch={contact_person:o.contact_person||null,contact_details:o.contact_details||null,minuba_raw:o.minuba_raw,minuba_record_type:o.minuba_record_type,minuba_order_number:o.minuba_order_number,minuba_status:o.minuba_status,minuba_last_checked_at:o.minuba_last_checked_at,updated_at:new Date().toISOString()};
       if(typeof supabase!=='undefined'){const {error}=await supabase.from('crm_offers').update(patch).eq('id',o.id);if(error)console.warn('Kunne ikke gemme Minuba-kontakt på tilbud',error)}
       let source='Minuba fandt tilbuddet';
-      if(person&&email)source=`Navn og mail hentet fra Minuba: ${person} · ${email}`;
+      if(effectivePerson&&email)source=`Navn og mail hentet fra Minuba: ${effectivePerson} · ${email}`;
       else if(email)source=`Mail hentet fra Minuba: ${email}. Der er ikke angivet et navn på kontakten.`;
-      else if(person)source=`Kontaktperson hentet fra Minuba: ${person}. Der er ikke angivet en mailadresse.`;
+      else if(effectivePerson)source=`Kontaktperson hentet fra Minuba: ${effectivePerson}. Der er ikke angivet en mailadresse.`;
       else source='Minuba fandt tilbuddet, men ingen navngiven kontakt var angivet.';
       updateComposerFromOffer(o,source);
       refreshGreeting(o);
@@ -288,6 +330,7 @@
   function openMail(){
     ensureModal();const o=offer();if(!o){if(typeof toast==='function')toast('Åbn et tilbud først');return}if(!composerReady()){if(typeof toast==='function')toast('Mailvinduet kunne ikke indlæses. Genindlæs siden.');return}
     minubaContactOptions=[];currentSendId=makeSendId();sendState='idle';
+    ensureContactName(o);
     const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
     setNodeText('offerMailMeta',[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · '));
     setNodeValue('offerMailTo',to);setNodeValue('offerMailContactName',String(o.contact_person||''));setNodeValue('offerMailSubject',`Opfølgning på tilbud ${ref}`);setNodeValue('offerMailBody',`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`);setNodeValue('offerMailFollow',byId('oFollow')?.value||o.follow_up_date||plusDays(7));setNodeText('offerMailSender',`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`);

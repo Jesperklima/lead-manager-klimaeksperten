@@ -17,14 +17,35 @@
     return arr.find(x=>x?.email)||arr[0]||null;
   }
   function firstName(value){return String(value||'').trim().split(/\s+/)[0]||''}
+  function firstEmail(value){return (String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||''}
+  const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+  function looksLikePersonName(value){
+    const name=String(value||'').trim().replace(/\s+/g,' ');
+    if(!name||name.length>100||/[@\d]/.test(name)||/[,&/+]/.test(name))return '';
+    if(name===name.toUpperCase())return '';
+    if(/\b(?:aps|a\/s|i\/s|ivs|p\/s|amba|holding|kommune|region|service|services|vvs|køl|klima|byg|entreprise|ejendom|ejendomme|hotel|restaurant|skole|center|fonden|forening|group|consult|consulting|solution|solutions|system|systems|bank|forsikring|transport|teknik|auto)\b/i.test(name))return '';
+    const parts=name.split(/\s+/).filter(Boolean);
+    if(parts.length<2||parts.length>5)return '';
+    if(parts.some(part=>!/^[A-Za-zÆØÅæøåÀ-ÖØ-öø-ÿ'’.-]+$/u.test(part)))return '';
+    return name;
+  }
+  function isPersonalMailbox(value){
+    const email=firstEmail(value).toLowerCase(),at=email.lastIndexOf('@');
+    return at>0&&personalMailDomains.has(email.slice(at+1));
+  }
+  function offerContactName(offer,c){
+    const direct=String(offer?.contact_person||c?.full_name||'').trim();if(direct)return direct;
+    const email=firstEmail(offer?.contact_details)||String(c?.email||'').trim();
+    return isPersonalMailbox(email)?looksLikePersonName(offer?.customer_name):'';
+  }
   function companyName(companyId){try{return company(companyId)?.name||''}catch{return''}}
 
   function context(scope){
     const lead=currentLeadValue(),offer=currentOfferValue();
     if(scope==='offer'&&offer){
-      const c=bestContact(offer.company_id),contactName=String(offer.contact_person||c?.full_name||'').trim();
+      const c=bestContact(offer.company_id),contactName=offerContactName(offer,c);
       return {
-        contact:{first_name:firstName(contactName),full_name:contactName,email:String(c?.email||'')},
+        contact:{first_name:firstName(contactName),full_name:contactName,email:firstEmail(offer.contact_details)||String(c?.email||'')},
         company:{name:String(offer.customer_name||companyName(offer.company_id)||'')},
         offer:{number:String(offer.offer_ref||'')},
         order:{number:String(offer.offer_ref||'')},

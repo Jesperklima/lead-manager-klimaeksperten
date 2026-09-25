@@ -23,7 +23,7 @@ must(html.includes('#mailModal #mSignatureText{max-height:none!important'),'sign
 must(signature.includes('/functions/v1/mail-signature-discover'),'dedicated signature discovery endpoint missing');
 must(!signature.includes("fetch(`${API}/functions/v1/mail-provider-auth`"),'signature discovery still calls mail-provider-auth');
 
-must(app.includes('/mail-templates-v1.js?v=20260921-2'),'mail templates module is not always loaded');
+must(/\/mail-templates-v1\.js\?v=[0-9A-Za-z_-]+/.test(app),'mail templates module is not always loaded');
 must(templates.includes("document.createElement('dialog')"),'template manager is not a native dialog');
 must(templates.includes("modal.showModal()"),'template manager does not open with showModal');
 must(templates.includes('id="mailTemplateManagerCloseForm"'),'template manager native close form missing');

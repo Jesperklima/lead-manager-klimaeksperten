@@ -10,6 +10,20 @@ const dateOnly=(v:any)=>{const s=clean(v,80);if(!s)return null;const m=s.match(/
 const addressText=(a:any)=>[a?.name,a?.streetAddress,a?.street,a?.streetAddress2,a?.postCode,a?.postalCode,a?.city,a?.country].filter(Boolean).join(', ');
 const emailList=(v:any)=>[...new Set((clean(v,3000).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim()))];
 const firstEmail=(v:any)=>emailList(v)[0]||'';
+const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+function looksLikePersonName(value:any){
+  const name=clean(value,100).replace(/\s+/g,' ');
+  if(!name||/[@\d]/.test(name)||/[,&/+]/.test(name)||name===name.toUpperCase())return '';
+  if(/\b(?:aps|a\/s|i\/s|ivs|p\/s|amba|holding|kommune|region|service|services|vvs|køl|klima|byg|entreprise|ejendom|ejendomme|hotel|restaurant|skole|center|fonden|forening|group|consult|consulting|solution|solutions|system|systems|bank|forsikring|transport|teknik|auto)\b/i.test(name))return '';
+  const parts=name.split(/\s+/).filter(Boolean);
+  if(parts.length<2||parts.length>5)return '';
+  if(parts.some((part:string)=>!/^[A-Za-zÆØÅæøåÀ-ÖØ-öø-ÿ'’.-]+$/u.test(part)))return '';
+  return name;
+}
+function isPersonalMailbox(value:any){
+  const email=firstEmail(value).toLowerCase(),at=email.lastIndexOf('@');
+  return at>0&&personalMailDomains.has(email.slice(at+1));
+}
 const TOKEN_URL='https://auth.minuba.dk/oauth2/token',API_BASE='https://app.minuba.dk/api/1/';
 
 function explicitOfferRefs(x:any){
@@ -51,9 +65,12 @@ function installationAddressFor(record:any){
 }
 function optionsFromAddress(a:any,source='address'){
   if(!a||typeof a!=='object')return [];
-  const name=clean(a?.att||a?.contactName||a?.referencePerson||a?.theirref,300);
   const phone=clean(a?.cellPhone||a?.phone,120);
-  return emailList(a?.email).map(email=>({name,email,phone,source,address_id:clean(a?.id,200),address_type:clean(a?.addressType,80)}));
+  return emailList(a?.email).map(email=>{
+    const explicitName=clean(a?.att||a?.contactName||a?.referencePerson||a?.theirref||a?.theirRef,300);
+    const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(a?.name):'');
+    return {name,email,phone,source,address_id:clean(a?.id,200),address_type:clean(a?.addressType,80)};
+  });
 }
 function dedupeOptions(items:any[]){
   const seen=new Set<string>(),out:any[]=[];
@@ -93,7 +110,8 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     contactOptions[0]||null;
   const contactEmails=[...new Set([...directEmails,...contactOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean)])];
   const selectedEmail=clean(primary?.email||contactEmails[0],320);
-  const selectedPerson=clean(primary?.name||directPerson||contactAddress?.att||installationAddress?.att,300);
+  const customerName=clean(client?.name||record?.clientName||record?.customerName||contactAddress?.name,300);
+  const selectedPerson=clean(primary?.name||directPerson||contactAddress?.att||installationAddress?.att||(isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''),300);
   const contactPhone=clean(primary?.phone||directPhone||installationAddress?.cellPhone||installationAddress?.phone||contactAddress?.cellPhone||contactAddress?.phone,120);
   return{
     found:true,
@@ -102,7 +120,7 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     status_raw:status,
     crm_status:crmStatus(recordType,status),
     order_number:recordType==='order'?clean(record?.orderNumber||record?.number,160):'',
-    customer_name:clean(client?.name||record?.clientName||record?.customerName||contactAddress?.name,300),
+    customer_name:customerName,
     cvr:clean(client?.cvr||record?.cvr,40),
     installation_address:clean(addressText(installationAddress),700),
     sent_date:dateOnly(record?.sentDate||record?.offerDate||record?.date||record?.created||record?.updated),
