@@ -465,6 +465,30 @@ Deno.serve(async(req:Request)=>{
     const effectiveLeadId=String(leadId||offer.lead_id||'')||null;
     const offerRef=trim(offer.offer_ref,160);if(!offerRef)return json({error:'Tilbudsnummer mangler, så den rigtige PDF kan ikke findes',code:'OFFER_REF_MISSING'},412);
 
+    if(action==='send'){
+      const {data:suppressions,error:suppressionError}=await admin.from('crm_followup_suppressions')
+        .select('email,offer_ref,company_name_pattern,reason')
+        .eq('client_id',clientId).eq('active',true);
+      if(suppressionError)throw suppressionError;
+      const customerName=trim(offer.customer_name,500);
+      const normalizedTo=to.toLowerCase();
+      const suppression=(suppressions||[]).find((s:any)=>{
+        const email=trim(s?.email,320).toLowerCase(),ref=trim(s?.offer_ref,160).toLowerCase(),pattern=trim(s?.company_name_pattern,500).toLowerCase();
+        return (email&&email===normalizedTo)
+          ||(ref&&ref===offerRef.toLowerCase())
+          ||(pattern&&customerName.toLowerCase().includes(pattern));
+      });
+      if(suppression){
+        const reason=trim(suppression.reason,1200)||'Kunden eller modtageren er markeret som “ingen opfølgning”.';
+        return json({
+          error:'Opfølgning er blokeret: '+reason,
+          code:'FOLLOWUP_SUPPRESSED',
+          status:'blocked',
+          reason
+        },409);
+      }
+    }
+
     if(action==='send'&&limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
     const dailyLimit=Number(limits?.daily_mail_send_limit||100),sentToday=Number(usage?.mail_sends_today||0);
     if(action==='send'&&sentToday>=dailyLimit)return json({error:'Dagens fair-use grænse for mails er nået',code:'MAIL_DAILY_LIMIT',limit:dailyLimit},429);
@@ -609,8 +633,13 @@ Deno.serve(async(req:Request)=>{
       follow_up_date:followUpDate,offer_id:offer.id,lead_id:effectiveLeadId,client_name:client.name,
       provider:'gmail',attachment:{filename:pdfName,source:resolvedPdf.source}
     });
-  }catch(err){
+  }catch(err:any){
     console.error(err);
-    return json({error:err instanceof Error?err.message:'Ukendt fejl',code:'OFFER_MAIL_SEND_INTERNAL_ERROR'},500);
+    const message=trim(
+      err instanceof Error?err.message:(err?.message||err?.error_description||err?.details||err?.hint||String(err||'')),
+      2000
+    )||'Ukendt fejl';
+    const code=trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR';
+    return json({error:message,code},500);
   }
 });
