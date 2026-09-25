@@ -244,6 +244,36 @@ async function gmailAttachmentB64(accessToken:string,messageId:string,part:any){
   const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(aid)}`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
   if(!r.ok)return'';const d=await r.json().catch(()=>({}));return d?.data?fromB64Url(d.data):'';
 }
+async function gmailCachedPdfCandidate(offer:any,offerRef:string,accessToken:string){
+  const mid=trim(offer?.pdf_source_message_id,1000);
+  if(!mid)return null;
+  const expected=trim(offer?.pdf_source_filename,1000)||`Tilbud ${offerRef}.pdf`,target=refNorm(offerRef);
+  const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mid)}?format=full`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
+  if(!r.ok)return null;
+  const msg=await r.json().catch(()=>({}));
+  const parts=collectPdfParts(msg?.payload)
+    .map(({part,filename})=>{
+      const nf=refNorm(filename);let score=0;
+      if(nf===refNorm(expected))score+=160;
+      else if(target&&nf.includes(target))score+=120;
+      if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=20;
+      return{part,filename,score};
+    })
+    .filter(x=>x.score>=120)
+    .sort((a,b)=>b.score-a.score);
+  for(const {part,filename} of parts.slice(0,3)){
+    const b64=await gmailAttachmentB64(accessToken,mid,part);
+    if(!pdfB64Valid(b64))continue;
+    return{
+      b64,filename,
+      source:'gmail_cache',
+      messageId:mid,
+      attachmentId:trim(part?.body?.attachmentId,1000),
+      cached:true
+    };
+  }
+  return null;
+}
 async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:string,accessToken:string){
   const expected=`Tilbud ${offerRef}.pdf`,target=refNorm(offerRef),ids:string[]=[];
   const add=(id:any)=>{const v=trim(id,1000);if(v&&!ids.includes(v))ids.push(v)};
@@ -279,8 +309,15 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
   return candidates[0]||null;
 }
 async function resolveOfferPdf(admin:any,clientId:string,offer:any,offerRef:string,gmailToken:string){
-  const stableId=minubaOfferId(offer);
-  let found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
+  const stableId=minubaOfferId(offer),cachedKind=trim(offer?.pdf_source_kind,120);
+  let found:any=null;
+  if(cachedKind.startsWith('gmail')&&offer?.pdf_source_message_id){
+    found=await gmailCachedPdfCandidate(offer,offerRef,gmailToken);
+  }
+  if(!found&&cachedKind.startsWith('minuba')){
+    found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
+  }
+  if(!found)found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
   if(!found)found=await gmailPdfCandidate(admin,clientId,offer,offerRef,gmailToken);
   if(!found)found=await minubaLiveRenderCandidate(admin,clientId,offer,offerRef);
   if(found){
@@ -301,6 +338,53 @@ async function resolveOfferPdf(admin:any,clientId:string,offer:any,offerRef:stri
   await admin.from('crm_offers').update({minuba_offer_id:stableId||null,pdf_last_error:diagnostic,updated_at:new Date().toISOString()}).eq('id',offer.id).eq('client_id',clientId);
   console.error('[gmail-offer-send] OFFER_PDF_NOT_FOUND',{client_id:clientId,offer_id:offer.id,offer_ref:offerRef,minuba_offer_id:stableId||null});
   return null;
+}
+
+function createMimeUploadStream(parts:{
+  messageRfc822Id:string,fromHeader:string,to:string,subject:string,
+  plain:string,htmlBody:string,pdfName:string,attachmentB64:string,mixed:string,alt:string
+}){
+  const enc=new TextEncoder();
+  const prefix=[
+    `Message-ID: ${parts.messageRfc822Id}`,`From: ${parts.fromHeader}`,`To: ${parts.to}`,`Subject: ${b64header(parts.subject)}`,
+    'MIME-Version: 1.0',`Content-Type: multipart/mixed; boundary="${parts.mixed}"`,'',
+    `--${parts.mixed}`,`Content-Type: multipart/alternative; boundary="${parts.alt}"`,'',
+    `--${parts.alt}`,'Content-Type: text/plain; charset="UTF-8"','Content-Transfer-Encoding: 8bit','',parts.plain,'',
+    `--${parts.alt}`,'Content-Type: text/html; charset="UTF-8"','Content-Transfer-Encoding: 8bit','',parts.htmlBody,'',`--${parts.alt}--`,'',
+    `--${parts.mixed}`,`Content-Type: application/pdf; name="${parts.pdfName}"`,'Content-Transfer-Encoding: base64',`Content-Disposition: attachment; filename="${parts.pdfName}"`,''
+  ].join('\r\n')+'\r\n';
+  const suffix=`\r\n--${parts.mixed}--\r\n`;
+  const b64=String(parts.attachmentB64||'').replace(/\s+/g,'');
+  const lineWidth=76,linesPerChunk=512,chunkChars=lineWidth*linesPerChunk;
+  let phase=0,pos=0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller){
+      if(phase===0){
+        controller.enqueue(enc.encode(prefix));phase=1;return;
+      }
+      if(phase===1){
+        if(pos>=b64.length){phase=2;return;}
+        const end=Math.min(b64.length,pos+chunkChars),slice=b64.slice(pos,end);
+        let out='';
+        for(let i=0;i<slice.length;i+=lineWidth)out+=slice.slice(i,i+lineWidth)+'\r\n';
+        pos=end;controller.enqueue(enc.encode(out));return;
+      }
+      if(phase===2){
+        controller.enqueue(enc.encode(suffix));phase=3;return;
+      }
+      controller.close();
+    }
+  });
+}
+async function gmailSendMime(accessToken:string,parts:any){
+  const stream=createMimeUploadStream(parts);
+  const r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{
+    method:'POST',
+    headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},
+    body:stream
+  });
+  const data=await r.json().catch(()=>({}));
+  return{response:r,data};
 }
 
 async function refreshAccessToken(mat:any){
@@ -626,20 +710,9 @@ Deno.serve(async(req:Request)=>{
     const plain=mailBody+(sigText?'\n\n'+sigText:'');
     const htmlBody='<div style="font-family:Arial,sans-serif;font-size:10.5pt;line-height:1.5">'+escHtml(mailBody).replaceAll('\n','<br>')+'</div>'+(sigHtml?sigHtml:'');
     const mixed='lm_mix_'+crypto.randomUUID().replaceAll('-',''),alt='lm_alt_'+crypto.randomUUID().replaceAll('-',''),fromHeader=fromName?`${b64header(fromName)} <${from}>`:from;
-    const mime=[
-      `Message-ID: ${messageRfc822Id}`,`From: ${fromHeader}`,`To: ${to}`,`Subject: ${b64header(subject)}`,
-      'MIME-Version: 1.0',`Content-Type: multipart/mixed; boundary="${mixed}"`,'',
-      `--${mixed}`,`Content-Type: multipart/alternative; boundary="${alt}"`,'',
-      `--${alt}`,'Content-Type: text/plain; charset="UTF-8"','Content-Transfer-Encoding: 8bit','',plain,'',
-      `--${alt}`,'Content-Type: text/html; charset="UTF-8"','Content-Transfer-Encoding: 8bit','',htmlBody,'',`--${alt}--`,'',
-      `--${mixed}`,`Content-Type: application/pdf; name="${pdfName}"`,'Content-Transfer-Encoding: base64',`Content-Disposition: attachment; filename="${pdfName}"`,'',wrap76(attachmentB64),'',`--${mixed}--`,''
-    ].join('\r\n');
-
-    const sendResp=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
-      method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},
-      body:JSON.stringify({raw:b64url(mime)})
+    const {response:sendResp,data:sent}=await gmailSendMime(accessToken,{
+      messageRfc822Id,fromHeader,to,subject,plain,htmlBody,pdfName,attachmentB64,mixed,alt
     });
-    const sent=await sendResp.json().catch(()=>({}));
     if(!sendResp.ok||!sent.id){
       const msg=String(sent?.error?.message||`Gmail send fejlede (${sendResp.status})`);
       const failedAt=new Date().toISOString();

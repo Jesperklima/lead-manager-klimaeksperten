@@ -68,6 +68,11 @@ for(const marker of [
   'renderOfferPdf',
   'minubaLiveRenderCandidate',
   'minuba_live_render',
+  'gmailCachedPdfCandidate',
+  'createMimeUploadStream',
+  'gmailSendMime',
+  'upload/gmail/v1/users/me/messages/send?uploadType=media',
+  "'Content-Type':'message/rfc822'",
   'File/Download?',
   "admin.from('crm_followup_suppressions')",
   "code:'FOLLOWUP_SUPPRESSED'",
@@ -83,6 +88,8 @@ must(!send.includes('function findAttachmentPart('),'offer PDF resolver regresse
 must(!send.includes("'File/'+encodeURIComponent(fileId)"),'offer PDF resolver still uses the invalid Minuba File/<id> download path');
 must(!send.includes("for(const path of ['File?id='"),'offer PDF resolver still treats Minuba File metadata endpoint as a download endpoint');
 must(!send.includes("err instanceof Error?err.message:'Ukendt fejl'"),'offer mail backend can still erase structured database errors as Ukendt fejl');
+must(!send.includes("JSON.stringify({raw:b64url(mime)})"),'offer PDF send still double-base64 encodes the entire MIME payload');
+must(!send.includes("wrap76(attachmentB64)"),'offer PDF send still expands a large attachment into one in-memory MIME string');
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
