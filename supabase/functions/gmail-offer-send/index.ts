@@ -379,7 +379,7 @@ Deno.serve(async(req:Request)=>{
     if(action==='send'&&!requestId)requestId=crypto.randomUUID();
     if(!clientId)return json({error:'Mangler klient-id',code:'CLIENT_ID_MISSING'},400);
     if(['send','status'].includes(action)&&(!requestId||!uuidOk(requestId)))return json({error:'Mangler gyldigt send-id',code:'SEND_ID_INVALID'},400);
-    if(!['send','status','pdf_status','preflight'].includes(action))return json({error:'Ukendt handling',code:'ACTION_INVALID'},400);
+    if(!['send','status','resume','pdf_status','preflight'].includes(action))return json({error:'Ukendt handling',code:'ACTION_INVALID'},400);
 
     const {data:membership,error:memberError}=await admin.from('crm_users')
       .select('email,client_id,role,auth_user_id')
@@ -388,7 +388,32 @@ Deno.serve(async(req:Request)=>{
     if(!membership)return json({error:'Ingen adgang til denne klient'},403);
 
     let existing:any=null;
-    if(['send','status'].includes(action)){
+    if(action==='resume'){
+      const resumeOfferId=trim(body.offer_id,80),resumeTo=trim(body.to,320).toLowerCase();
+      if(!resumeOfferId)return json({error:'Mangler gyldigt tilbud',code:'OFFER_ID_MISSING'},400);
+      const activeSince=new Date(Date.now()-30*60*1000).toISOString();
+      let activeQ=admin.from('crm_mail_send_jobs').select('*')
+        .eq('client_id',clientId).eq('offer_id',resumeOfferId)
+        .in('status',['sending','sent_pending_postprocess','postprocessing'])
+        .gte('created_at',activeSince).order('created_at',{ascending:false}).limit(1);
+      if(resumeTo&&emailOk(resumeTo))activeQ=activeQ.eq('to_email',resumeTo);
+      const activeR=await activeQ;
+      if(activeR.error)throw activeR.error;
+      existing=activeR.data?.[0]||null;
+
+      if(!existing){
+        const recentSentSince=new Date(Date.now()-5*60*1000).toISOString();
+        let sentQ=admin.from('crm_mail_send_jobs').select('*')
+          .eq('client_id',clientId).eq('offer_id',resumeOfferId).eq('status','sent')
+          .gte('created_at',recentSentSince).order('created_at',{ascending:false}).limit(1);
+        if(resumeTo&&emailOk(resumeTo))sentQ=sentQ.eq('to_email',resumeTo);
+        const sentR=await sentQ;
+        if(sentR.error)throw sentR.error;
+        existing=sentR.data?.[0]||null;
+      }
+      if(!existing)return json({ok:true,pending:false,status:'none'});
+      requestId=String(existing.send_id||'');
+    }else if(['send','status'].includes(action)){
       const existingR=await admin.from('crm_mail_send_jobs').select('*').eq('client_id',clientId).eq('send_id',requestId).maybeSingle();
       if(existingR.error)throw existingR.error;existing=existingR.data;
     }
@@ -433,10 +458,11 @@ Deno.serve(async(req:Request)=>{
           return json({error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen. Du kan prøve igen.',code:'SEND_INTERRUPTED_NOT_FOUND',status:'failed',send_id:requestId},409);
         }
       }
-      return json({ok:false,sent:false,status:existing.status||'sending',send_id:requestId,job_id:existing.id,code:'SEND_IN_PROGRESS'},202);
+      return json({ok:false,sent:false,pending:true,status:existing.status||'sending',send_id:requestId,job_id:existing.id,code:'SEND_IN_PROGRESS'},202);
     }
 
     if(action==='status')return json({error:'Sendeforsøget blev ikke fundet',code:'SEND_JOB_NOT_FOUND'},404);
+    if(action==='resume')return json({ok:true,pending:false,status:'none'});
 
     const offerId=trim(body.offer_id,80),leadId=trim(body.lead_id,80),to=trim(body.to,320).toLowerCase(),subject=trim(body.subject,700),mailBody=trim(body.body,12000);
     let followUpDate=trim(body.follow_up_date,10),followUpAt=trim(body.follow_up_at,60);
