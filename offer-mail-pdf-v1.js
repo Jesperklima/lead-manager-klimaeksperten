@@ -23,6 +23,7 @@
     if(status===546||/^546(?:\s|$)/.test(message))return 'Mailtjenesten blev afbrudt under afsendelsen. Lead Manager kontrollerer automatisk, om Gmail nåede at sende mailen.';
     if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen. Du kan prøve at sende igen.';
     if(code==='DUPLICATE_BLOCKED')return message||'En anden afsendelse af den samme mail er allerede aktiv eller registreret som sendt.';
+    if(code==='FOLLOWUP_SUPPRESSED')return message||'Opfølgning er blokeret for denne modtager eller kunde. Mailen er ikke sendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
     if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke hente eller generere en verificeret tilbuds-PDF. Mailen blev ikke sendt.';
     if(code==='OFFER_PDF_INVALID')return message||'PDF-kilden blev fundet, men filen kunne ikke valideres som en rigtig PDF. Mailen blev ikke sendt.';
@@ -142,6 +143,10 @@
         error=Object.assign(new Error(checked.error?.message||raw),checked.error||{});
       }
       ensureAttachmentRow();
+      if(String(error?.code||'')==='FOLLOWUP_SUPPRESSED'){
+        const attachment=byId('offerMailAttachment');
+        if(attachment)attachment.innerHTML=`⛔ <strong>Mailen er blokeret af “ingen opfølgning”</strong><div class="sub" style="margin-top:4px">${friendlyMailError(error)}</div>`;
+      }
       pdfSendState='idle';currentPdfSendId=makeSendId();
       alert('Mailen blev ikke sendt: '+friendlyMailError(error));
     }finally{
