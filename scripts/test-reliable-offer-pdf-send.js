@@ -34,10 +34,13 @@ for(const marker of [
   'isPostprocessPending',
   "refreshKeys('offers','tasks','mail','activities')",
   "select('id,client_id,follow_up_date')",
-  'opfølgning gemt'
+  'Gmail har bekræftet afsendelsen',
+  'synkroniseres i baggrunden',
+  'Mailen afsendes i baggrunden · du kan arbejde videre'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
-must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must wait for finalized CRM post-processing before closing');
+must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
+must(ui.includes("finalizedStatuses.has(status)||postprocessStatuses.has(status)"),'offer PDF UI must treat Gmail-acknowledged post-processing states as delivery-confirmed without waiting on CRM refresh');
 must(!ui.includes('Brug “Kontroller status”'), 'offer PDF UI returned to manual status recovery wording');
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
@@ -74,7 +77,7 @@ for(const marker of [
   'upload/gmail/v1/users/me/messages/send?uploadType=media',
   "'Content-Type':'message/rfc822'",
   'new AbortController()',
-  'setTimeout(()=>controller.abort(),35000)',
+  'setTimeout(()=>controller.abort(),8000)',
   'uncertain:true',
   "code:'SEND_IN_PROGRESS'",
   "reason:sendAborted?'gmail_upload_timeout':'gmail_upload_uncertain'",
