@@ -9,7 +9,7 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const DEFAULT_APP_URL='https://lead-manager-klimaeksperten.vercel.app/';
 const REDIRECT_URI='https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/microsoft-oauth-callback';
 const BASE_SCOPE='openid profile email offline_access User.Read Mail.Send';
-const READ_SCOPE='Mail.Read';
+const READ_SCOPE='Mail.ReadWrite';
 const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const safeAppUrl=(v:unknown)=>{try{const u=new URL(String(v||DEFAULT_APP_URL));return u.protocol==='https:'?u.href:DEFAULT_APP_URL}catch{return DEFAULT_APP_URL}};
 const safeReturnUrl=(v:unknown,fallback:string)=>{try{const base=new URL(fallback),u=new URL(String(v||fallback));return u.protocol==='https:'&&u.origin===base.origin?u.href:fallback}catch{return fallback}};
@@ -81,7 +81,7 @@ Deno.serve(async(req:Request)=>{
       const {data,error}=await admin.rpc('crm_get_microsoft_status',{p_client_id:clientId});if(error)throw error;
       const storedScope=String(data?.scope||'');
       const requiredRead=!!limits?.allow_mail_monitor;
-      const hasRead=!requiredRead||storedScope.includes('Mail.Read');
+      const hasRead=!requiredRead||storedScope.split(/\s+/).includes(READ_SCOPE);
       return json({...((data||{}) as object),ready:!!data?.ready&&hasRead,required_scope:scope,read_scope_required:requiredRead,read_scope_ok:hasRead,client_name:client.name,plan_code:plan,microsoft_account:String(client.settings?.microsoft_mail||data?.account||'')});
     }
 
