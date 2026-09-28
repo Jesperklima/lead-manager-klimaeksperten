@@ -9,6 +9,7 @@
   const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   const plusDays=days=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+days);return ymd(d)};
   const firstEmail=value=>(String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
+  const emailList=value=>[...new Set((String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map(x=>x.trim()))];
   const lower=v=>String(v||'').trim().toLowerCase();
   const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
   function looksLikePersonName(value){
@@ -29,22 +30,26 @@
     const direct=String(o?.contact_person||'').trim();if(direct)return direct;
     const raw=o?.minuba_raw||{};
     const explicit=[
-      raw?.deliveryAddress?.att,raw?.deliveryAddress?.contactName,raw?.deliveryAddress?.referencePerson,raw?.deliveryAddress?.theirref,raw?.deliveryAddress?.theirRef,
       raw?.contactAddress?.att,raw?.contactAddress?.contactName,raw?.contactAddress?.referencePerson,raw?.contactAddress?.theirref,raw?.contactAddress?.theirRef,
       raw?.billingAddress?.att,raw?.billingAddress?.contactName,raw?.billingAddress?.referencePerson,raw?.billingAddress?.theirref,raw?.billingAddress?.theirRef
     ].map(v=>String(v||'').trim()).find(Boolean);
     if(explicit)return explicit;
     const emails=[
-      o?.contact_details,raw?.deliveryAddress?.email,raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email
-    ].map(firstEmail).filter(Boolean);
+      o?.contact_details,raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email
+    ].flatMap(emailList).filter(Boolean);
     if(!emails.some(isPersonalMailbox))return '';
-    for(const candidate of [raw?.deliveryAddress?.name,raw?.contactAddress?.name,raw?.billingAddress?.name,raw?.client?.name,o?.customer_name]){
+    for(const candidate of [raw?.contactAddress?.name,raw?.billingAddress?.name,raw?.client?.name,o?.customer_name]){
       const name=looksLikePersonName(candidate);if(name)return name;
     }
     return '';
   }
   function ensureContactName(o){
     if(!o)return '';
+    const raw=o?.minuba_raw||{};
+    const current=firstEmail(o?.contact_details);
+    if(current&&unsafeDeliveryEmails(raw).some(x=>lower(x)===lower(current))){
+      o.contact_person='';o.contact_details='';
+    }
     const name=fallbackContactName(o);
     if(name&&!String(o.contact_person||'').trim())o.contact_person=name;
     return String(o.contact_person||name||'').trim();
@@ -58,7 +63,18 @@
   function bouncedContact(email,o){const e=lower(email);return companyContacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function usableContacts(o){return companyContacts(o).filter(x=>x?.email&&!String(x?.source_type||'').startsWith('smtp_bounced'))}
   function recipientFor(o){
+    const safe=rawAddressCandidates(o?.minuba_raw||{}).filter(x=>x?.email&&!bouncedContact(x.email,o));
+    const allowed=new Set(safe.map(x=>lower(x.email)));
     const direct=firstEmail(o?.contact_details);
+    if(safe.length){
+      if(direct&&allowed.has(lower(direct))&&!bouncedContact(direct,o))return direct;
+      try{
+        const matching=usableContacts(o).filter(x=>allowed.has(lower(x?.email)));
+        if(matching.length===1)return String(matching[0].email||'').trim();
+      }catch{}
+      if(safe.length===1)return String(safe[0].email||'').trim();
+      return '';
+    }
     if(direct&&!bouncedContact(direct,o))return direct;
     try{
       const contacts=usableContacts(o);
@@ -72,57 +88,79 @@
     const out=[],seen=new Set();
     const push=(address,source,baseScore=0)=>{
       if(!address||typeof address!=='object')return;
-      const key=String(address.id||'')+'|'+String(address.email||'')+'|'+String(address.att||address.contactName||address.name||'')+'|'+source;
-      if(seen.has(key))return;seen.add(key);
-      const email=firstEmail(address.email||address.mail||address.emailAddress||'');
+      const emails=emailList(address.email||address.mail||address.emailAddress||'');
       const explicitName=String(address.att||address.contactName||address.referencePerson||address.theirref||address.theirRef||'').trim();
-      const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(address.name):'');
       const phone=String(address.cellPhone||address.mobile||address.phone||'').trim();
-      const score=baseScore+(name?55:0)+(email?65:0)+(phone?5:0);
-      if(name||email||phone)out.push({name,email,phone,source,score,address_id:String(address.id||''),address_type:String(address.addressType||'')});
+      for(const email of emails){
+        const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(address.name):'');
+        const key=lower(email)+'|'+lower(name);
+        if(seen.has(key))continue;seen.add(key);
+        const score=baseScore+(name?55:0)+(email?65:0)+(phone?5:0);
+        out.push({name,email,phone,source,score,address_id:String(address.id||''),address_type:String(address.addressType||''),safe_for_offer:true,recipient_scope:'direct_customer'});
+      }
     };
-    push(raw?.deliveryAddress,'offer_delivery_address',120);
-    push(raw?.contactAddress,'offer_contact_address',85);
-    push(raw?.billingAddress,'offer_billing_address',55);
+    // Offers/prices belong to our direct customer. CONTACT/BILLING are commercial
+    // customer addresses; DELIVERY is an installation/end-customer address and is
+    // deliberately excluded from offer-recipient candidates.
+    push(raw?.contactAddress,'offer_contact_address',180);
+    push(raw?.billingAddress,'offer_billing_address',160);
+    if(raw?.client?.email)push({email:raw.client.email,name:raw.client.name},'client_direct',150);
     for(const a of (Array.isArray(raw?.addresses)?raw.addresses:[])){
       const type=String(a?.addressType||'').toUpperCase();
-      push(a,'offer_address',type==='DELIVERY'?100:type==='CONTACT'?75:type==='BILLING'?45:30);
+      if(type==='CONTACT')push(a,'offer_contact_address',145);
+      else if(type==='BILLING')push(a,'offer_billing_address',135);
     }
     for(const a of (Array.isArray(raw?.client?.addresses)?raw.client.addresses:[])){
       const type=String(a?.addressType||'').toUpperCase();
-      push(a,'client_address',type==='DELIVERY'?70:type==='CONTACT'?60:type==='BILLING'?35:20);
+      if(type==='CONTACT')push(a,'client_contact_address',130);
+      else if(type==='BILLING')push(a,'client_billing_address',120);
     }
     return out.sort((a,b)=>b.score-a.score);
   }
-  function bestRawContact(raw){
+  function unsafeDeliveryEmails(raw){
+    const addresses=[
+      raw?.deliveryAddress,
+      ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[]),
+      ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[])
+    ].filter(Boolean);
+    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower))];
+  }
+  function bestRawContact(raw,o=null){
     const options=rawAddressCandidates(raw);
-    return options.find(x=>x.name&&x.email)||options.find(x=>x.email)||options.find(x=>x.name)||null;
+    if(!options.length)return null;
+    const current=lower(firstEmail(o?.contact_details));
+    if(current){
+      const matched=options.find(x=>lower(x.email)===current);
+      if(matched)return matched;
+    }
+    return options.length===1?options[0]:null;
   }
   function alternateEmails(o){
-    const raw=o?.minuba_raw||{};
-    const values=[
-      raw?.deliveryAddress?.email,raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email,
-      ...rawAddressCandidates(raw).map(x=>x.email)
-    ].filter(Boolean).join(', ');
-    return [...new Set((values.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map(x=>x.trim()))];
+    return rawAddressCandidates(o?.minuba_raw||{}).map(x=>x.email).filter(Boolean);
   }
   function applyRawMinubaContact(o,raw,sourceLabel='Gemt Minuba-tilbud'){
     if(!o||!raw||typeof raw!=='object')return null;
-    const best=bestRawContact(raw);if(!best)return null;
     minubaContactOptions=rawAddressCandidates(raw);
-    const name=String(best.name||'').trim(),email=String(best.email||'').trim(),phone=String(best.phone||'').trim();
+    const current=firstEmail(o?.contact_details);
+    const unsafeCurrent=current&&unsafeDeliveryEmails(raw).some(x=>x===lower(current));
+    if(unsafeCurrent){o.contact_person='';o.contact_details=''}
+    const best=bestRawContact(raw,o);
+    const name=String(best?.name||'').trim(),email=String(best?.email||'').trim(),phone=String(best?.phone||'').trim();
     if(name)o.contact_person=name;
     if(email)o.contact_details=[email,phone].filter(Boolean).join(' · ');
     o.minuba_raw=raw;
-    updateComposerFromOffer(o,name&&email?`${sourceLabel}: ${name} · ${email}`:email?`${sourceLabel}: ${email}`:name?`${sourceLabel}: ${name}`:`${sourceLabel}: kontakt fundet`);
+    const selectionRequired=!best&&minubaContactOptions.length>1;
+    updateComposerFromOffer(o,selectionRequired
+      ?`${sourceLabel}: vælg en kontakt hos den direkte kunde – leveringsadressen bruges aldrig til tilbud/priser.`
+      :name&&email?`${sourceLabel}: ${name} · ${email}`:email?`${sourceLabel}: ${email}`:name?`${sourceLabel}: ${name}`:`${sourceLabel}: ingen sikker direkte kundemail fundet`);
     refreshGreeting(o);
-    return {name,email,phone,source:best.source};
+    return best?{name,email,phone,source:best.source}:null;
   }
   async function loadStoredMinubaContact(o){
     if(!o?.id||typeof supabase==='undefined'||!state?.client?.id)return null;
     if(o.minuba_raw&&typeof o.minuba_raw==='object'){
-      const local=applyRawMinubaContact(o,o.minuba_raw,'Kontakt fundet i tilbuddet fra Minuba');
-      if(local?.name||local?.email)return local;
+      const local=applyRawMinubaContact(o,o.minuba_raw,'Kontakt hos direkte kunde fundet i Minuba');
+      if(local?.name||local?.email||minubaContactOptions.length)return local;
     }
     try{
       const {data,error}=await supabase.from('crm_offers')
@@ -133,7 +171,7 @@
       for(const key of ['minuba_raw','minuba_record_type','minuba_order_number','minuba_status','minuba_last_checked_at'])if(row[key]!=null)o[key]=row[key];
       if(!o.contact_person&&row.contact_person)o.contact_person=row.contact_person;
       if(!o.contact_details&&row.contact_details)o.contact_details=row.contact_details;
-      const local=applyRawMinubaContact(o,row.minuba_raw,'Kontakt fundet i tilbuddet fra Minuba');
+      const local=applyRawMinubaContact(o,row.minuba_raw,'Kontakt hos direkte kunde fundet i Minuba');
       if(!local)updateComposerFromOffer(o);
       return local;
     }catch(error){
@@ -218,7 +256,7 @@
       <h2 style="margin-top:0">Send mail om tilbud</h2>
       <div id="offerMailMeta" class="sub"></div>
       <div id="offerMailContactSource" class="sub" style="margin-top:6px"></div>
-      <div class="field hidden" id="offerMailContactChoiceField"><label>Kontakt fra Minuba</label><select id="offerMailContactChoice"></select><div class="sub" style="margin-top:5px">Navn og mail hentes fra tilbuddet/kundekortet i Minuba. Vælg den rette kontakt hvis Minuba har flere.</div></div>
+      <div class="field hidden" id="offerMailContactChoiceField"><label>Kontakt hos direkte kunde</label><select id="offerMailContactChoice"></select><div class="sub" style="margin-top:5px">Kun kontakt-/faktureringsadresser hos den direkte kunde kan vælges. Kontakt på leverings-/arbejdsstedet bruges aldrig til tilbud eller priser.</div></div>
       <div class="field"><label>Kontaktperson</label><input id="offerMailContactName" placeholder="Navn på kontaktperson" autocomplete="name"><div class="sub" id="offerMailContactNameNote" style="margin-top:5px"></div></div>
       <div class="field"><label>Til</label><input id="offerMailTo" type="email" placeholder="kunde@firma.dk" autocomplete="email"><div class="sub" id="offerMailRecipientNote" style="margin-top:5px"></div></div>
       <div class="field"><label>Emne</label><input id="offerMailSubject"></div>
@@ -258,7 +296,7 @@
   }
   function renderContactChoices(o){
     const field=byId('offerMailContactChoiceField'),select=byId('offerMailContactChoice');if(!field||!select)return;
-    const options=(minubaContactOptions||[]).filter(x=>x?.email&&!bouncedContact(x.email,o));
+    const options=(minubaContactOptions||[]).filter(x=>x?.email&&x?.safe_for_offer!==false&&!bouncedContact(x.email,o));
     if(options.length<2){field.classList.add('hidden');select.innerHTML='';return}
     select.innerHTML='<option value="">Vælg kontakt…</option>'+options.map((x,i)=>`<option value="${i}">${esc([x.name,x.email,x.phone].filter(Boolean).join(' · '))}</option>`).join('');
     const currentEmail=lower(byId('offerMailTo')?.value),currentName=lower(byId('offerMailContactName')?.value);
@@ -268,13 +306,13 @@
   }
   function applySelectedMinubaContact(){
     const o=offer(),select=byId('offerMailContactChoice');if(!o||!select||select.value==='')return;
-    const options=(minubaContactOptions||[]).filter(x=>x?.email&&!bouncedContact(x.email,o));
+    const options=(minubaContactOptions||[]).filter(x=>x?.email&&x?.safe_for_offer!==false&&!bouncedContact(x.email,o));
     const selected=options[Number(select.value)];if(!selected)return;
     const name=String(selected.name||'').trim(),email=String(selected.email||'').trim(),phone=String(selected.phone||'').trim();
     o.contact_person=name;o.contact_details=[email,phone].filter(Boolean).join(' · ');
     setNodeValue('offerMailContactName',name);setNodeValue('offerMailTo',email);
     setNodeText('offerMailContactNameNote',name?'Navnet er hentet fra Minuba.':'Minuba har mailadressen, men ikke et navn på denne kontakt.');
-    setNodeText('offerMailRecipientNote','Mailadressen er hentet fra Minuba.');
+    setNodeText('offerMailRecipientNote','Modtageren er bekræftet som kontakt hos den direkte kunde i Minuba.');
     refreshGreeting(o);
     const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
   }
@@ -289,8 +327,9 @@
       if(blocked)byId('offerMailContactSource').textContent=`${direct} er markeret ugyldig efter mailserveren svarede "Account disabled".${alternatives.length?' Andre adresser i Minuba: '+alternatives.join(', '):''}`;
       else byId('offerMailContactSource').textContent=contactSource||(o.contact_person?`Kontaktperson: ${o.contact_person}`:'Kontaktperson mangler i Lead Manager. Minuba kontrolleres automatisk.');
     }
-    setNodeText('offerMailContactNameNote',o.contact_person?'Kontaktperson hentet fra tilbuddet/kunden.':'Navnet udfyldes automatisk, hvis det findes på tilbuddet eller kundekortet i Minuba.');
-    setNodeText('offerMailRecipientNote',to?'Modtageren er hentet fra kundens/tilbuddets kontaktoplysninger.':'Ingen sikker modtager er valgt automatisk. Vælg eller skriv en anden mailadresse.');
+    setNodeText('offerMailContactNameNote',o.contact_person?'Kontaktperson hentet hos den direkte kunde.':'Navnet udfyldes automatisk, hvis det findes på den direkte kundes kontakt-/faktureringsadresse i Minuba.');
+    const directCustomer=String(o?.customer_name||o?.minuba_raw?.client?.name||'kunden').trim();
+    setNodeText('offerMailRecipientNote',to?`Modtageren er fundet hos den direkte kunde: ${directCustomer}.`:`Vælg en mailadresse hos den direkte kunde: ${directCustomer}. Leverings-/arbejdsstedets kontakt må ikke bruges til tilbud eller priser.`);
     renderContactChoices(o);
     document.dispatchEvent(new CustomEvent('lm:offer-contact-updated',{detail:{offer_id:o.id,contact_person:o.contact_person||'',contact_details:o.contact_details||''}}));
     const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
@@ -308,13 +347,16 @@
       const data=response?.data??response;
       if(!data?.found){if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:`Ingen kontaktinformation fundet i Minuba på tilbud ${ref}.`;return}
       const rawContact=applyRawMinubaContact(o,data.raw||o.minuba_raw||{},'Kontakt fundet direkte på Minuba-tilbuddet');
-      const apiOptions=Array.isArray(data.contact_options)?data.contact_options:[];
+      const apiOptions=(Array.isArray(data.contact_options)?data.contact_options:[]).filter(x=>x?.safe_for_offer===true||(!String(x?.source||'').includes('delivery')&&x?.recipient_scope==='direct_customer'));
       minubaContactOptions=[...rawAddressCandidates(data.raw||o.minuba_raw||{}),...apiOptions].filter((x,i,a)=>x?.email&&a.findIndex(y=>lower(y?.email)===lower(x?.email)&&lower(y?.name)===lower(x?.name))===i);
-      const person=String(data.contact_person||rawContact?.name||'').trim(),email=String(data.contact_email||rawContact?.email||'').trim(),phone=String(data.contact_phone||rawContact?.phone||'').trim();
+      const safeApiEmail=String(data.contact_email||'').trim();
+      const email=minubaContactOptions.some(x=>lower(x.email)===lower(safeApiEmail))?safeApiEmail:String(rawContact?.email||'').trim();
+      const selectedOption=minubaContactOptions.find(x=>lower(x.email)===lower(email));
+      const person=String(selectedOption?.name||data.contact_person||rawContact?.name||'').trim(),phone=String(selectedOption?.phone||data.contact_phone||rawContact?.phone||'').trim();
       if(person)o.contact_person=person;
       o.minuba_raw=data.raw||o.minuba_raw||{};
       const effectivePerson=ensureContactName(o);o.minuba_record_type=data.record_type||o.minuba_record_type||null;o.minuba_order_number=data.order_number||o.minuba_order_number||null;o.minuba_status=data.status_raw||o.minuba_status||null;o.minuba_last_checked_at=new Date().toISOString();
-      const incomingDetails=String(data.contact_details||[email,phone].filter(Boolean).join(' · ')).trim(),cleanDetails=stripKnownBounced(incomingDetails,o);if(cleanDetails)o.contact_details=cleanDetails;
+      const incomingDetails=String([email,phone].filter(Boolean).join(' · ')).trim(),cleanDetails=stripKnownBounced(incomingDetails,o);if(cleanDetails)o.contact_details=cleanDetails;else if(minubaContactOptions.length)o.contact_details='';
       const patch={contact_person:o.contact_person||null,contact_details:o.contact_details||null,minuba_raw:o.minuba_raw,minuba_record_type:o.minuba_record_type,minuba_order_number:o.minuba_order_number,minuba_status:o.minuba_status,minuba_last_checked_at:o.minuba_last_checked_at,updated_at:new Date().toISOString()};
       if(typeof supabase!=='undefined'){const {error}=await supabase.from('crm_offers').update(patch).eq('id',o.id);if(error)console.warn('Kunne ikke gemme Minuba-kontakt på tilbud',error)}
       let source='Minuba fandt tilbuddet';
@@ -344,6 +386,15 @@
     if(!to||!subject||!body){if(typeof toast==='function')toast('Udfyld modtager, emne og mailtekst');return}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){if(typeof toast==='function')toast('Mailadressen er ikke gyldig');return}
     if(bouncedContact(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl (Account disabled). Vælg en anden adresse.`);return}
+    const safeRecipients=rawAddressCandidates(o?.minuba_raw||{}).map(x=>lower(x.email));
+    if(safeRecipients.length&&!safeRecipients.includes(lower(to))){
+      alert(`TILBUD BLOKERET – FORKERT MODTAGER\n\nTilbud og priser må kun sendes til den direkte kunde: ${o.customer_name||'kunden'}.\n\n${to} er ikke bekræftet som en mailadresse hos den direkte kunde. Mailen er ikke sendt.`);
+      return;
+    }
+    if(unsafeDeliveryEmails(o?.minuba_raw||{}).includes(lower(to))){
+      alert('TILBUD BLOKERET – FORKERT MODTAGER\n\nDen valgte mailadresse tilhører leverings-/arbejdsstedet og må ikke modtage tilbud eller priser. Mailen er ikke sendt.');
+      return;
+    }
     o.contact_person=name;o.contact_details=to;
     if(typeof supabase!=='undefined')await supabase.from('crm_offers').update({contact_person:name||null,contact_details:to,updated_at:new Date().toISOString()}).eq('id',o.id);
     if(sendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${name?name+' · ':''}${to}?`))return;
