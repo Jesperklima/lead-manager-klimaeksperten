@@ -48,8 +48,6 @@ function directCustomerRecipientPolicy(offer:any,to:string,companyEmail:string,c
   addAddress(direct,raw?.contactAddress);
   addAddress(direct,raw?.billingAddress);
   add(direct,raw?.client?.email);
-  add(direct,raw?.contactEmail);
-  add(direct,raw?.contactPerson?.email||raw?.contact?.email);
   for(const a of (Array.isArray(raw?.addresses)?raw.addresses:[])){
     const type=trim(a?.addressType,80).toUpperCase();
     if(type==='CONTACT'||type==='BILLING')addAddress(direct,a);
