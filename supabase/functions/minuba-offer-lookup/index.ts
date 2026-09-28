@@ -90,11 +90,10 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
   const client=record?.client||record?.customer||{};
   const installationAddress=installationAddressFor(record);
   const contactAddress=contactAddressFor(record);
-  const contact=record?.contactPerson||record?.contact||{};
   const status=rawStatus(record);
-  const directEmails=emailList(contact?.email||record?.contactEmail||client?.email);
-  const directPerson=clean(contact?.name||record?.contactName||record?.theirref||record?.theirRef,300);
-  const directPhone=clean(contact?.cellPhone||contact?.phone,120);
+  const directEmails=emailList(client?.email);
+  const directPerson='';
+  const directPhone='';
   const addresses=Array.isArray(record?.addresses)?record.addresses:[];
   const directAddressOptions=dedupeOptions([
     ...optionsFromAddress(record?.contactAddress,'offer_contact_address',true),
@@ -118,8 +117,8 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
   const deliveryEmails=[...new Set(deliveryOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
   const selectedEmail=clean(primary?.email||'',320);
   const customerName=clean(client?.name||record?.clientName||record?.customerName||contactAddress?.name,300);
-  const selectedPerson=clean(primary?.name||directPerson||contactAddress?.att||(isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''),300);
-  const contactPhone=clean(primary?.phone||directPhone||contactAddress?.cellPhone||contactAddress?.phone,120);
+  const selectedPerson=clean(primary?.name||contactAddress?.att||(isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''),300);
+  const contactPhone=clean(primary?.phone||contactAddress?.cellPhone||contactAddress?.phone,120);
   return{
     found:true,
     record_type:recordType,
