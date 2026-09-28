@@ -20,7 +20,7 @@
   function bounced(email,o){const e=lower(email);return contacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function pdfName(o){const ref=String(o?.offer_ref||'').trim();return ref?`Tilbud ${ref}.pdf`:''}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
-  const finalizedStatuses=new Set(['sent']);
+  const finalizedStatuses=new Set(['sent','sent_pending_postprocess','postprocessing']);
   const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing']);
   function isSentResult(data){return finalizedStatuses.has(String(data?.status||''))}
   function isPostprocessPending(data){return postprocessStatuses.has(String(data?.status||''))}
@@ -132,22 +132,26 @@
     return true;
   }
   async function finishPdfSend(o,to,data,name,follow){
-    try{
-      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
-      else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
-      await verifyOfferFollowUp(o,follow);
-    }catch(error){
-      pdfSendState='uncertain';
-      renderSendStatus('checking','Mailen er sendt – gemmer opfølgningen','Lead Manager kontrollerer automatisk opfølgningsdatoen. Du skal ikke sende mailen igen.');
-      return false;
-    }
-    clearPendingSend(o,currentPdfSendId);
-    renderSendStatus('success','Mail sendt','Afsendelsen er bekræftet, og opfølgningsdatoen er gemt.');
+    const completedSendId=currentPdfSendId;
+    clearPendingSend(o,completedSendId);
+    renderSendStatus('success','Mail sendt','Gmail har bekræftet afsendelsen. Opfølgningen synkroniseres i baggrunden.');
     byId('offerMailModal')?.classList.remove('open');
     window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
     currentPdfSendId=null;pdfSendState='idle';
-    if(typeof openOffer==='function')openOffer(o.id);
-    if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name} · opfølgning gemt`);
+    if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name}`);
+
+    setTimeout(()=>void (async()=>{
+      try{
+        await sleep(500);
+        if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
+        else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
+        await verifyOfferFollowUp(o,follow);
+        if(typeof openOffer==='function'&&offer()?.id===o.id)openOffer(o.id);
+      }catch(error){
+        console.warn('[Offer mail] Mailen er sendt; efterbehandlingen fortsætter i baggrunden',error);
+        if(typeof toast==='function')toast('Mailen er sendt · opfølgningen synkroniseres fortsat');
+      }
+    })(),0);
     return true;
   }
 
@@ -204,6 +208,7 @@
       currentPdfSendId=makeSendId();
       const message=friendlyMailError(checked.error||{});
       renderSendStatus('error','Mailen blev ikke sendt',message+' Du kan rette eventuelle fejl og prøve igen.');
+      if(typeof toast==='function')toast('Mailen blev ikke sendt · åbn tilbuddet og prøv igen');
       if(button){button.disabled=false;button.textContent='Prøv igen'}
       return true;
     }
@@ -325,7 +330,7 @@
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){if(typeof toast==='function')toast('Mailadressen er ikke gyldig');return}
     if(bounced(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl. Vælg en anden adresse.`);return}
     if(!name){alert('Tilbudsnummeret mangler. Mailen sendes ikke, fordi den rigtige PDF ikke kan identificeres sikkert.');return}
-    const suppression=await checkSuppressionStatus(true);
+    const suppression=await checkSuppressionStatus(false);
     if(suppression?.blocked){
       alert('MAIL BLOKERET – INGEN OPFØLGNING\n\n'+(suppression.reason||'Denne kunde/modtager må ikke følges op.')+'\n\nMailen er ikke sendt.');
       return;
@@ -350,7 +355,11 @@
       if(isPostprocessPending(data)&&button)button.textContent='Gemmer opfølgning…';
       if(data?.status==='sending'||data?.status==='prepared'||isPostprocessPending(data)||data?.code==='SEND_IN_PROGRESS'){
         pdfSendState='uncertain';
-        await resumePendingOfferSend(loadPendingSend(o));
+        renderSendStatus('checking','Afsendelsen fortsætter i baggrunden','Lead Manager følger det samme send-id og beskytter mod dobbelt afsendelse. Du kan arbejde videre.');
+        byId('offerMailModal')?.classList.remove('open');
+        window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
+        if(typeof toast==='function')toast('Mailen afsendes i baggrunden · du kan arbejde videre');
+        setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),0);
         return;
       }
       if(!data?.ok)throw new Error(data?.error||'Mailen kunne ikke sendes.');
@@ -361,8 +370,11 @@
       const status=Number(error?.status||0),raw=String(error?.message||'');
       if(status===546||/^546(?:\s|$)/.test(raw)){
         pdfSendState='uncertain';
-        renderSendStatus('checking','Forbindelsen blev afbrudt','Lead Manager kontrollerer nu automatisk, om Gmail nåede at sende mailen. Du skal ikke gøre noget.');
-        await resumePendingOfferSend(loadPendingSend(o));
+        renderSendStatus('checking','Afsendelsen kontrolleres i baggrunden','Lead Manager følger det samme send-id og beskytter mod dobbelt afsendelse. Du kan arbejde videre.');
+        byId('offerMailModal')?.classList.remove('open');
+        window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
+        if(typeof toast==='function')toast('Gmail svarede langsomt · Lead Manager kontrollerer afsendelsen i baggrunden');
+        setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),0);
         return;
       }
       ensureAttachmentRow();
@@ -403,7 +415,7 @@
 
   const schedule=()=>setTimeout(wire,0);
   window.addEventListener('lm:offer-mail-ready',schedule);
-  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(o.id);for(const key of suppressionCache.keys())if(key.startsWith(o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{void checkPdfStatus(true);void checkSuppressionStatus(true);const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
+  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(o.id);for(const key of suppressionCache.keys())if(key.startsWith(o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
   window.addEventListener('lm:data-refreshed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
   setTimeout(wire,100);
