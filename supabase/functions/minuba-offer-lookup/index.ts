@@ -10,6 +10,7 @@ const dateOnly=(v:any)=>{const s=clean(v,80);if(!s)return null;const m=s.match(/
 const addressText=(a:any)=>[a?.name,a?.streetAddress,a?.street,a?.streetAddress2,a?.postCode,a?.postalCode,a?.city,a?.country].filter(Boolean).join(', ');
 const emailList=(v:any)=>[...new Set((clean(v,3000).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim()))];
 const firstEmail=(v:any)=>emailList(v)[0]||'';
+const emailDomain=(v:any)=>{const e=firstEmail(v).toLowerCase(),at=e.lastIndexOf('@');return at>0?e.slice(at+1):''};
 const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
 function looksLikePersonName(value:any){
   const name=clean(value,100).replace(/\s+/g,' ');
@@ -57,7 +58,11 @@ function crmStatus(recordType:string,status:string){
 }
 function contactAddressFor(record:any){
   const addresses=Array.isArray(record?.addresses)?record.addresses:[];
-  return record?.contactAddress||addresses.find((a:any)=>String(a?.addressType||'').toUpperCase()==='CONTACT')||record?.billingAddress||record?.deliveryAddress||addresses[0]||{};
+  return record?.contactAddress
+    ||addresses.find((a:any)=>String(a?.addressType||'').toUpperCase()==='CONTACT')
+    ||record?.billingAddress
+    ||addresses.find((a:any)=>String(a?.addressType||'').toUpperCase()==='BILLING')
+    ||{};
 }
 function installationAddressFor(record:any){
   const addresses=Array.isArray(record?.addresses)?record.addresses:[];
@@ -104,17 +109,23 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     ...optionsFromAddress(record?.deliveryAddress,'offer_delivery_address',false),
     ...addresses.filter((a:any)=>String(a?.addressType||'').toUpperCase()==='DELIVERY').flatMap((a:any)=>optionsFromAddress(a,'offer_delivery_address',false))
   ]);
-  const contactOptions=dedupeOptions([
-    ...directEmails.map(email=>({name:directPerson,email,phone:directPhone,source:'offer_direct',safe_for_offer:true,recipient_scope:'direct_customer'})),
+  const baseOptions=dedupeOptions([
+    ...directEmails.map(email=>({name:directPerson,email,phone:directPhone,source:'client_direct',safe_for_offer:true,recipient_scope:'direct_customer'})),
     ...directAddressOptions
   ]);
+  const directDomains=new Set(baseOptions.map((x:any)=>emailDomain(x.email)).filter(Boolean));
+  const verifiedDeliveryOptions=deliveryOptions
+    .filter((x:any)=>directDomains.has(emailDomain(x.email)))
+    .map((x:any)=>({...x,source:'verified_customer_delivery_address',safe_for_offer:true,recipient_scope:'direct_customer'}));
+  const unsafeDeliveryOptions=deliveryOptions.filter((x:any)=>!directDomains.has(emailDomain(x.email)));
+  const contactOptions=dedupeOptions([...baseOptions,...verifiedDeliveryOptions]);
   const primary=
     contactOptions.find((x:any)=>x.source==='offer_contact_address'&&x.name&&x.email)||
     contactOptions.find((x:any)=>x.source==='offer_contact_address'&&x.email)||
     contactOptions.find((x:any)=>x.source==='offer_billing_address'&&x.email)||
     (contactOptions.length===1?contactOptions[0]:null);
   const contactEmails=[...new Set(contactOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
-  const deliveryEmails=[...new Set(deliveryOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
+  const deliveryEmails=[...new Set(unsafeDeliveryOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
   const selectedEmail=clean(primary?.email||'',320);
   const customerName=clean(client?.name||record?.clientName||record?.customerName||contactAddress?.name,300);
   const selectedPerson=clean(primary?.name||contactAddress?.att||(isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''),300);
@@ -138,7 +149,7 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     contact_phone:contactPhone,
     contact_details:clean([selectedEmail,contactPhone].filter(Boolean).join(' · '),700),
     contact_options:contactOptions,
-    delivery_contact_options:deliveryOptions,
+    delivery_contact_options:unsafeDeliveryOptions,
     minuba_id:clean(record?.id,200),
     raw:record
   };
