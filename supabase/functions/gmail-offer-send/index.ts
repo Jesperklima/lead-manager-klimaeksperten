@@ -515,6 +515,7 @@ Deno.serve(async(req:Request)=>{
         return json({
           ok:true,sent:true,status:existing.status,send_id:requestId,job_id:existing.id,
           id:existing.gmail_message_id,thread_id:existing.gmail_thread_id,reused:true,
+          follow_up_date:existing.follow_up_date,follow_up_at:existing.follow_up_at,
           attachment:existing.attachment_filename?{filename:existing.attachment_filename,source:existing.attachment_source}:null
         });
       }
@@ -530,6 +531,7 @@ Deno.serve(async(req:Request)=>{
           return json({
             ok:true,sent:true,status:'sent_pending_postprocess',send_id:requestId,job_id:existing.id,
             id:recovered.job?.gmail_message_id,thread_id:recovered.job?.gmail_thread_id,recovered:true,
+            follow_up_date:existing.follow_up_date,follow_up_at:existing.follow_up_at,
             attachment:existing.attachment_filename?{filename:existing.attachment_filename,source:existing.attachment_source}:null
           });
         }
@@ -549,7 +551,7 @@ Deno.serve(async(req:Request)=>{
           return json({error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen. Du kan prøve igen.',code:'SEND_INTERRUPTED_NOT_FOUND',status:'failed',send_id:requestId},409);
         }
       }
-      return json({ok:false,sent:false,pending:true,status:existing.status||'sending',send_id:requestId,job_id:existing.id,code:'SEND_IN_PROGRESS'},202);
+      return json({ok:false,sent:false,pending:true,status:existing.status||'sending',send_id:requestId,job_id:existing.id,code:'SEND_IN_PROGRESS',follow_up_date:existing.follow_up_date,follow_up_at:existing.follow_up_at},202);
     }
 
     if(action==='status')return json({error:'Sendeforsøget blev ikke fundet',code:'SEND_JOB_NOT_FOUND'},404);
@@ -726,6 +728,7 @@ Deno.serve(async(req:Request)=>{
       return json({
         ok:false,sent:false,pending:true,status:'sending',send_id:requestId,job_id:job.id,
         code:'SEND_IN_PROGRESS',reason:sendAborted?'gmail_upload_timeout':'gmail_upload_uncertain',
+        follow_up_date:followUpDate,follow_up_at:followUpAt,
         attachment:{filename:pdfName,source:resolvedPdf.source}
       },202);
     }
@@ -752,7 +755,7 @@ Deno.serve(async(req:Request)=>{
     return json({
       ok:true,sent:true,status:'sent_pending_postprocess',send_id:requestId,job_id:job.id,
       id:String(sent.id),thread_id:String(sent.threadId||sent.id),from,from_name:fromName,to,subject,
-      follow_up_date:followUpDate,offer_id:offer.id,lead_id:effectiveLeadId,client_name:client.name,
+      follow_up_date:followUpDate,follow_up_at:followUpAt,offer_id:offer.id,lead_id:effectiveLeadId,client_name:client.name,
       provider:'gmail',attachment:{filename:pdfName,source:resolvedPdf.source}
     });
   }catch(err:any){
