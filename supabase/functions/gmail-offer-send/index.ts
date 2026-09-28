@@ -59,6 +59,11 @@ function directCustomerRecipientPolicy(offer:any,to:string,companyEmail:string,c
     else if(type==='DELIVERY')addAddress(delivery,a);
   }
   addAddress(delivery,raw?.deliveryAddress);
+  const domain=(email:string)=>{const at=email.lastIndexOf('@');return at>0?email.slice(at+1):''};
+  const directDomains=new Set([...direct].map(domain).filter(Boolean));
+  for(const email of [...delivery]){
+    if(directDomains.has(domain(email))){direct.add(email);delivery.delete(email)}
+  }
   const recipient=trim(to,320).toLowerCase();
   const customerName=trim(offer?.customer_name||raw?.client?.name,500)||'den direkte kunde';
   const fallback=new Set<string>();add(fallback,companyEmail);for(const c of contacts||[])add(fallback,c?.email);
