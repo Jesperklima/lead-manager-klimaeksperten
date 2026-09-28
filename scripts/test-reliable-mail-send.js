@@ -31,7 +31,9 @@ for(const marker of [
   "refreshKeys('offers','tasks','mail','activities')",
   "select('id,client_id,follow_up_date')",
   "Mailen er sendt – gemmer opfølgningen",
-  "Lead Manager kontrollerer automatisk opfølgningsdatoen"
+  "Lead Manager kontrollerer automatisk opfølgningsdatoen",
+  "Gmail har bekræftet afsendelsen",
+  "synkroniseres i baggrunden"
 ]) must(pdfUi.includes(marker),'PDF offer follow-up finalization marker missing: '+marker);
 must(!pdfUi.includes('Brug “Kontroller status”'), 'PDF offer mail returned to manual status recovery wording');
 must(!pdfUi.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'PDF offer mail must not treat post-processing as finalized');
