@@ -10,6 +10,7 @@
   let suppressionSeq=0;
   let suppressionBlocked=false;
   let suppressionReason='';
+  let suppressionCode='';
   let sendWatchSeq=0;
   const pdfStatusCache=new Map();
   const suppressionCache=new Map();
@@ -34,6 +35,7 @@
       const reason=message.replace(/^Opfølgning er blokeret:\s*/i,'').trim();
       return reason?`Denne kunde/modtager er markeret “ingen opfølgning”. Årsag: ${reason}`:'Denne kunde/modtager er markeret “ingen opfølgning”. Mailen er ikke sendt.';
     }
+    if(code==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER')return message||'Tilbud og priser må kun sendes til den direkte kunde. Den valgte modtager er ikke godkendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
     if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke hente eller generere en verificeret tilbuds-PDF. Mailen blev ikke sendt.';
     if(code==='OFFER_PDF_INVALID')return message||'PDF-kilden blev fundet, men filen kunne ikke valideres som en rigtig PDF. Mailen blev ikke sendt.';
@@ -279,24 +281,33 @@
     return byId('offerMailSuppression');
   }
 
+  function blockedButtonText(){
+    return suppressionCode==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER'?'Blokeret – vælg direkte kunde':'Blokeret – ingen opfølgning';
+  }
   function renderSuppressionStatus(status){
     const box=ensureSuppressionBanner(),field=byId('offerMailSuppressionField'),button=byId('sendOfferMail');
     suppressionBlocked=!!status?.blocked;
     suppressionReason=String(status?.reason||'').trim();
+    suppressionCode=String(status?.code||'').trim();
     if(!box||!field)return;
     if(status?.loading){
       field.hidden=false;
-      box.innerHTML='<div style="border:2px solid rgba(148,163,184,.45);border-radius:12px;padding:14px 16px;background:rgba(15,23,42,.72);color:#cbd5e1;font-weight:700">Kontrollerer om kunden må følges op…</div>';
+      box.innerHTML='<div style="border:2px solid rgba(148,163,184,.45);border-radius:12px;padding:14px 16px;background:rgba(15,23,42,.72);color:#cbd5e1;font-weight:700">Kontrollerer modtager og opfølgningsregler…</div>';
       return;
     }
     if(suppressionBlocked){
-      const reason=suppressionReason||'Kunden eller modtageren er markeret som “ingen opfølgning”.';
+      const wrongRecipient=suppressionCode==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
+      const reason=suppressionReason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Kunden eller modtageren er markeret som “ingen opfølgning”.');
+      const title=wrongRecipient?'⛔ TILBUD BLOKERET – FORKERT MODTAGER':'⛔ MAIL BLOKERET – INGEN OPFØLGNING';
+      const lead=wrongRecipient?'Den valgte modtager er ikke bekræftet som kontakt hos den direkte kunde.':'Denne mail må ikke sendes til den valgte modtager.';
+      box.dataset.guardCode=suppressionCode;
       field.hidden=false;
-      box.innerHTML=`<div style="border:2px solid #ef4444;border-radius:12px;padding:16px 18px;background:rgba(127,29,29,.32);color:#fee2e2;box-shadow:0 0 0 1px rgba(239,68,68,.18) inset"><div style="font-size:17px;font-weight:900;letter-spacing:.02em">⛔ MAIL BLOKERET – INGEN OPFØLGNING</div><div style="margin-top:8px;font-weight:700">Denne mail må ikke sendes til den valgte modtager.</div><div style="margin-top:8px;line-height:1.45"><strong>Årsag:</strong> ${reason}</div><div style="margin-top:10px;font-weight:800">Mailen er ikke sendt.</div></div>`;
-      if(button&&pdfSendState==='idle'){button.disabled=true;button.textContent='Blokeret – ingen opfølgning'}
+      box.innerHTML=`<div style="border:2px solid #ef4444;border-radius:12px;padding:16px 18px;background:rgba(127,29,29,.32);color:#fee2e2;box-shadow:0 0 0 1px rgba(239,68,68,.18) inset"><div style="font-size:17px;font-weight:900;letter-spacing:.02em">${title}</div><div style="margin-top:8px;font-weight:700">${lead}</div><div style="margin-top:8px;line-height:1.45"><strong>Årsag:</strong> ${reason}</div><div style="margin-top:10px;font-weight:800">Mailen er ikke sendt.</div></div>`;
+      if(button&&pdfSendState==='idle'){button.disabled=true;button.textContent=blockedButtonText()}
       return;
     }
-    field.hidden=true;box.innerHTML='';
+    field.hidden=true;box.innerHTML='';box.dataset.guardCode='';
+    suppressionCode='';
     if(button&&pdfSendState==='idle'){button.disabled=false;button.textContent='Send mail'}
   }
 
@@ -395,7 +406,8 @@
     if(!name){alert('Tilbudsnummeret mangler. Mailen sendes ikke, fordi den rigtige PDF ikke kan identificeres sikkert.');return}
     const suppression=await checkSuppressionStatus(false);
     if(suppression?.blocked){
-      alert('MAIL BLOKERET – INGEN OPFØLGNING\n\n'+(suppression.reason||'Denne kunde/modtager må ikke følges op.')+'\n\nMailen er ikke sendt.');
+      const wrongRecipient=String(suppression.code||'')==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
+      alert((wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(suppression.reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
       return;
     }
     if(pdfSendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${to} med ${name} vedhæftet?`))return;
@@ -456,10 +468,11 @@
         return;
       }
       ensureAttachmentRow();
-      if(String(error?.code||'')==='FOLLOWUP_SUPPRESSED'){
-        const reason=String(error?.message||'').replace(/^Opfølgning er blokeret:\s*/i,'').trim();
-        renderSuppressionStatus({blocked:true,reason});
-        alert('MAIL BLOKERET – INGEN OPFØLGNING\n\n'+(reason||'Denne kunde/modtager må ikke følges op.')+'\n\nMailen er ikke sendt.');
+      if(['FOLLOWUP_SUPPRESSED','OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER'].includes(String(error?.code||''))){
+        const code=String(error?.code||''),wrongRecipient=code==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
+        const reason=wrongRecipient?String(error?.message||'').trim():String(error?.message||'').replace(/^Opfølgning er blokeret:\s*/i,'').trim();
+        renderSuppressionStatus({blocked:true,code,reason});
+        alert((wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
       }else{
         renderSendStatus('error','Mailen blev ikke sendt',friendlyMailError(error));
         if(typeof toast==='function')toast('Mailen blev ikke sendt');
@@ -470,7 +483,7 @@
       if(button){
         const waiting=pdfSendState!=='idle';
         button.disabled=waiting||suppressionBlocked;
-        button.textContent=waiting?'Kontrollerer automatisk…':(suppressionBlocked?'Blokeret – ingen opfølgning':old);
+        button.textContent=waiting?'Kontrollerer automatisk…':(suppressionBlocked?blockedButtonText():old);
       }
     }
   }
@@ -493,7 +506,7 @@
 
   const schedule=()=>setTimeout(wire,0);
   window.addEventListener('lm:offer-mail-ready',schedule);
-  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(o.id);for(const key of suppressionCache.keys())if(key.startsWith(o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
+  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';suppressionCode='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(o.id);for(const key of suppressionCache.keys())if(key.startsWith(o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
   window.addEventListener('lm:data-refreshed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
   setTimeout(wire,100);
