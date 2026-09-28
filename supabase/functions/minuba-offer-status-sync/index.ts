@@ -68,6 +68,24 @@ function storedContact(o:any){
   if(!name&&!email&&!phone)return null;
   return {name,email,phone,source:'stored_offer',score:100};
 }
+function unsafeStoredDeliveryContact(record:any,o:any){
+  const stored=firstEmail(o?.contact_details).toLowerCase();if(!stored||!record)return false;
+  const addresses=Array.isArray(record?.addresses)?record.addresses:[];
+  const deliveryEmails=[
+    ...emailList(record?.deliveryAddress?.email),
+    ...addresses.filter((a:any)=>String(a?.addressType||'').toUpperCase()==='DELIVERY').flatMap((a:any)=>emailList(a?.email))
+  ].map((x:string)=>x.toLowerCase());
+  if(!deliveryEmails.includes(stored))return false;
+  const directEmails=[
+    ...emailList(record?.contactAddress?.email),
+    ...emailList(record?.billingAddress?.email),
+    ...emailList(record?.client?.email),
+    ...addresses.filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).flatMap((a:any)=>emailList(a?.email))
+  ].map((x:string)=>x.toLowerCase());
+  if(directEmails.includes(stored))return false;
+  const directDomains=new Set(directEmails.map(emailDomain).filter((d:string)=>d&&!personalMailDomains.has(d)));
+  return !directDomains.has(emailDomain(stored));
+}
 function siblingConsensus(o:any,offers:any[]){
   const byEmail=new Map<string,any>(),byName=new Map<string,any>();
   for(const x of offers){
@@ -148,17 +166,23 @@ async function clientRunner(admin:any,clientId:string){
   let contactBackfilled=0,contactUnresolved=0;
   const allRecords=[...states.flatMap((s:string)=>buckets[s]||[])];
   for(const o of offerRows){
-    const missingName=!clean(o.contact_person,300),missingDetails=!firstEmail(o.contact_details);
-    if(!missingName&&!missingDetails)continue;
     const target=norm(o.offer_ref),record=allRecords.find((x:any)=>matchesRef(x,target))||o.minuba_raw||null;
+    const unsafeStored=unsafeStoredDeliveryContact(record,o);
+    const missingName=!clean(o.contact_person,300)||unsafeStored,missingDetails=!firstEmail(o.contact_details)||unsafeStored;
+    if(!missingName&&!missingDetails)continue;
     let candidate=bestContact(record,o,offerRows,clientRows,contacts||[]);
     if(!candidate){
       const embeddedEmail=firstEmail(o.contact_person),embeddedPhone=phoneFrom(o.contact_person);
       if(embeddedEmail||embeddedPhone)candidate={name:'',email:embeddedEmail,phone:embeddedPhone,source:'contact_person_embedded'};
     }
     const patch:any={};
-    if(missingName&&candidate?.name)patch.contact_person=clean(candidate.name,300);
-    if(missingDetails&&candidate?.email)patch.contact_details=clean([candidate.email,candidate.phone].filter(Boolean).join(' · '),700);
+    if(unsafeStored){
+      patch.contact_person=candidate?.name?clean(candidate.name,300):null;
+      patch.contact_details=candidate?.email?clean([candidate.email,candidate.phone].filter(Boolean).join(' · '),700):null;
+    }else{
+      if(missingName&&candidate?.name)patch.contact_person=clean(candidate.name,300);
+      if(missingDetails&&candidate?.email)patch.contact_details=clean([candidate.email,candidate.phone].filter(Boolean).join(' · '),700);
+    }
     if(Object.keys(patch).length){patch.updated_at=new Date().toISOString();const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;Object.assign(o,patch);contactBackfilled++}
     if(!clean(o.contact_person,300)&&!firstEmail(o.contact_details))contactUnresolved++;
   }
@@ -170,9 +194,15 @@ async function clientRunner(admin:any,clientId:string){
     if(proposal){
       const prev=o.status,wasClosed=prev==='LUKKET',status=rawStatus(proposal)||'proposal';
       const resolvedContact=bestContact(proposal,o,offerRows,clientRows,contacts||[]);
+      const unsafeStored=unsafeStoredDeliveryContact(proposal,o);
       const patch:any={minuba_status:status,minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:'active',minuba_raw:proposal,updated_at:now};
-      if(!clean(o.contact_person,300)&&resolvedContact?.name)patch.contact_person=clean(resolvedContact.name,300);
-      if(!firstEmail(o.contact_details)&&resolvedContact?.email)patch.contact_details=clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700);
+      if(unsafeStored){
+        patch.contact_person=resolvedContact?.name?clean(resolvedContact.name,300):null;
+        patch.contact_details=resolvedContact?.email?clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700):null;
+      }else{
+        if(!clean(o.contact_person,300)&&resolvedContact?.name)patch.contact_person=clean(resolvedContact.name,300);
+        if(!firstEmail(o.contact_details)&&resolvedContact?.email)patch.contact_details=clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700);
+      }
       if(!o.manual_lock&&wasClosed){patch.status='I GANG';patch.status_source='minuba';patch.status_reason='Tilbuddet er aktivt igen i Minuba.';patch.status_updated_at=now;patch.follow_up_date=plusDaysIso(7);patch.current_comment=appendNote(o.current_comment,`${dkDate()}: Genåbnet automatisk, fordi tilbuddet igen er aktivt i Minuba.`)}
       const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;active++;
       if(wasClosed&&!o.manual_lock){await ensureTask(admin,o,patch.follow_up_date,now);await log(admin,o,`Tilbud ${o.offer_ref} genåbnet: aktivt igen i Minuba.`,{previous_status:prev,status:'I GANG',minuba_status:status});reopened++}else if(o.manual_lock)manual++;
@@ -181,9 +211,15 @@ async function clientRunner(admin:any,clientId:string){
     if(order){
       const orderNo=clean(order?.orderNumber||order?.number,160),status=rawStatus(order)||orderState,prev=o.status;
       const resolvedContact=bestContact(order,o,offerRows,clientRows,contacts||[]);
+      const unsafeStored=unsafeStoredDeliveryContact(order,o);
       const patch:any={minuba_status:status,minuba_record_type:'order',minuba_order_number:orderNo||null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:'converted_to_order',minuba_raw:order,updated_at:now};
-      if(!clean(o.contact_person,300)&&resolvedContact?.name)patch.contact_person=clean(resolvedContact.name,300);
-      if(!firstEmail(o.contact_details)&&resolvedContact?.email)patch.contact_details=clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700);
+      if(unsafeStored){
+        patch.contact_person=resolvedContact?.name?clean(resolvedContact.name,300):null;
+        patch.contact_details=resolvedContact?.email?clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700):null;
+      }else{
+        if(!clean(o.contact_person,300)&&resolvedContact?.name)patch.contact_person=clean(resolvedContact.name,300);
+        if(!firstEmail(o.contact_details)&&resolvedContact?.email)patch.contact_details=clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700);
+      }
       if(!o.manual_lock&&prev!=='VUNDET'){patch.status='VUNDET';patch.follow_up_date=null;patch.status_source='minuba';patch.status_updated_at=now;patch.status_reason=`Tilbuddet er blevet til ordre i Minuba${orderNo?' (ordre '+orderNo+')':''}.`;patch.current_comment=appendNote(o.current_comment,`${dkDate()}: Vundet automatisk – tilbuddet er blevet til ordre i Minuba${orderNo?' (ordre '+orderNo+')':''}.`)}
       const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;won++;
       if(!o.manual_lock&&prev!=='VUNDET'){await closeTasks(admin,o,now);await log(admin,o,`Tilbud ${o.offer_ref} markeret VUNDET, fordi det er blevet til ordre i Minuba.`,{previous_status:prev,status:'VUNDET',order_number:orderNo,minuba_status:status})}else if(o.manual_lock)manual++;
