@@ -56,7 +56,7 @@ function recordContact(record:any){
     addressContact(record?.billingAddress,'offer_billing_address',430),
     ...typedAddresses.map((a:any)=>addressContact(a,'offer_customer_address',350))
   ].filter(Boolean);
-  const directDomains=new Set(options.map(x=>emailDomain(x?.email)).filter(Boolean));
+  const directDomains=new Set(options.map(x=>emailDomain(x?.email)).filter((d:string)=>d&&!personalMailDomains.has(d)));
   const delivery=addressContact(record?.deliveryAddress,'verified_customer_delivery_address',300);
   if(delivery?.email&&directDomains.has(emailDomain(delivery.email)))options.push(delivery);
   options.sort((a,b)=>b.score-a.score);
