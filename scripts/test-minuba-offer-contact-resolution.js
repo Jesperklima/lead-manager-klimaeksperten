@@ -13,7 +13,9 @@ for(const marker of [
   "function unsafeDeliveryEmails(raw)",
   "safe_for_offer:true",
   "recipient_scope:'direct_customer'",
-  "Leverings-/arbejdsstedets kontakt må ikke bruges til tilbud eller priser.",
+  "Leverings-/arbejdsstedets kontakt bruges kun, når maildomænet er bekræftet som den direkte kundes.",
+  "verified_customer_delivery_address",
+  "directDomains.has(emailDomain(email))",
   "TILBUD BLOKERET – FORKERT MODTAGER"
 ]) assert(ui.includes(marker),'UI mangler direkte-kunde guard: '+marker);
 assert(!ui.includes("push(raw?.deliveryAddress,'offer_delivery_address',120)"),'UI må ikke prioritere leveringsadressen som tilbudsmodtager');
@@ -24,6 +26,8 @@ for(const marker of [
   "safe_for_offer:safeForOffer",
   "recipient_scope:safeForOffer?'direct_customer':'delivery_or_end_customer'",
   "delivery_contact_emails:deliveryEmails",
+  "verified_customer_delivery_address",
+  "directDomains.has(emailDomain(x.email))",
   "direct_customer_emails:contactEmails"
 ]) assert(edge.includes(marker),'Minuba lookup mangler direkte-kunde guard: '+marker);
 assert(!edge.includes("contactOptions.find(x=>x.source==='offer_delivery_address'&&x.name&&x.email)"),'Minuba lookup må ikke vælge DELIVERY som primær tilbudsmodtager');
@@ -41,7 +45,8 @@ for(const marker of [
   "record?.client?.lastUsedContactAddressId",
   "record?.client?.lastUsedBillingAddressId"
 ]) assert(sync.includes(marker),'Minuba status-sync mangler direkte-kunde guard: '+marker);
-assert(!sync.includes("addressContact(record?.deliveryAddress,'offer_delivery_address',500)"),'Status-sync må ikke backfille DELIVERY som tilbudskontakt');
+assert(!sync.includes("addressContact(record?.deliveryAddress,'offer_delivery_address',500)"),'Status-sync må ikke stole blindt på DELIVERY som tilbudskontakt');
+assert(sync.includes("addressContact(record?.deliveryAddress,'verified_customer_delivery_address',300)"),'Status-sync skal kun bruge DELIVERY efter domæneverifikation');
 assert(!sync.includes('record?.client?.lastUsedDeliveryAddressId'),'Status-sync må ikke bruge seneste DELIVERY-adresse til tilbudskontakt');
 
 assert(dashboard.includes("/offer-mail-v1.js?v=20260928-6-direct-customer"),'Offer mail cache-version er ikke opdateret');
