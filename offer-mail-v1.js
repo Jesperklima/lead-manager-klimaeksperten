@@ -48,7 +48,7 @@
     if(!o)return '';
     const raw=o?.minuba_raw||{};
     const current=firstEmail(o?.contact_details);
-    if(current&&unsafeDeliveryEmails(raw).some(x=>lower(x)===lower(current))){
+    if(current&&unsafeDeliveryEmails(raw,o).some(x=>lower(x)===lower(current))){
       o.contact_person='';o.contact_details='';
     }
     const name=fallbackContactName(o);
@@ -60,11 +60,25 @@
   let sendState='idle';
 
   function offer(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
+  function linkedCompany(o){try{return (state?.companies||[]).find(x=>x?.id===o?.company_id)||null}catch{return null}}
+  function companyDomains(o){
+    const c=linkedCompany(o),out=new Set();
+    const add=d=>{d=lower(d).replace(/^https?:\/\//,'').split('/')[0].replace(/^www\./,'');if(d&&!personalMailDomains.has(d))out.add(d)};
+    if(c?.domain)add(c.domain);
+    if(c?.email)add(emailDomain(c.email));
+    if(c?.website_url)add(c.website_url);
+    return out;
+  }
+  function domainMatchesTrusted(email,domains){
+    const d=emailDomain(email);if(!d||personalMailDomains.has(d))return false;
+    for(const trusted of domains||[])if(d===trusted||d.endsWith('.'+trusted)||trusted.endsWith('.'+d))return true;
+    return false;
+  }
   function companyContacts(o){try{return typeof contactsFor==='function'?contactsFor(o.company_id):((state?.contacts||[]).filter(x=>x.company_id===o.company_id))}catch{return[]}}
   function bouncedContact(email,o){const e=lower(email);return companyContacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function usableContacts(o){return companyContacts(o).filter(x=>x?.email&&!String(x?.source_type||'').startsWith('smtp_bounced'))}
   function recipientFor(o){
-    const safe=rawAddressCandidates(o?.minuba_raw||{}).filter(x=>x?.email&&!bouncedContact(x.email,o));
+    const safe=rawAddressCandidates(o?.minuba_raw||{},o).filter(x=>x?.email&&!bouncedContact(x.email,o));
     const allowed=new Set(safe.map(x=>lower(x.email)));
     const direct=firstEmail(o?.contact_details);
     if(safe.length){
@@ -85,7 +99,7 @@
   }
   function greeting(o){const name=ensureContactName(o);return name?`Hej ${name.split(/\s+/)[0]}`:'Hej'}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
-  function rawAddressCandidates(raw){
+  function rawAddressCandidates(raw,o=null){
     const out=[],seen=new Set();
     const push=(address,source,baseScore=0)=>{
       if(!address||typeof address!=='object')return;
@@ -116,11 +130,11 @@
       if(type==='CONTACT')push(a,'client_contact_address',130);
       else if(type==='BILLING')push(a,'client_billing_address',120);
     }
-    const directDomains=new Set(out.map(x=>emailDomain(x.email)).filter(d=>d&&!personalMailDomains.has(d)));
+    const directDomains=new Set([...out.map(x=>emailDomain(x.email)).filter(d=>d&&!personalMailDomains.has(d)),...companyDomains(o)]);
     const pushVerifiedDelivery=(a,source,score)=>{
       if(!a||typeof a!=='object')return;
       for(const email of emailList(a.email||a.mail||a.emailAddress||'')){
-        if(directDomains.has(emailDomain(email)))push({...a,email},source,score);
+        if(domainMatchesTrusted(email,directDomains))push({...a,email},source,score);
       }
     };
     pushVerifiedDelivery(raw?.deliveryAddress,'verified_customer_delivery_address',110);
@@ -128,22 +142,22 @@
     for(const a of (Array.isArray(raw?.client?.addresses)?raw.client.addresses:[]))if(String(a?.addressType||'').toUpperCase()==='DELIVERY')pushVerifiedDelivery(a,'verified_customer_delivery_address',100);
     return out.sort((a,b)=>b.score-a.score);
   }
-  function unsafeDeliveryEmails(raw){
+  function unsafeDeliveryEmails(raw,o=null){
     const directValues=[
       raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email,
       ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).map(a=>a?.email):[]),
       ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).map(a=>a?.email):[])
     ];
-    const directDomains=new Set(directValues.flatMap(emailList).map(emailDomain).filter(d=>d&&!personalMailDomains.has(d)));
+    const directDomains=new Set([...directValues.flatMap(emailList).map(emailDomain).filter(d=>d&&!personalMailDomains.has(d)),...companyDomains(o)]);
     const addresses=[
       raw?.deliveryAddress,
       ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[]),
       ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[])
     ].filter(Boolean);
-    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower).filter(email=>!directDomains.has(emailDomain(email))))];
+    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower).filter(email=>!domainMatchesTrusted(email,directDomains)))];
   }
   function bestRawContact(raw,o=null){
-    const options=rawAddressCandidates(raw);
+    const options=rawAddressCandidates(raw,o);
     if(!options.length)return null;
     const current=lower(firstEmail(o?.contact_details));
     if(current){
@@ -153,13 +167,13 @@
     return options.length===1?options[0]:null;
   }
   function alternateEmails(o){
-    return rawAddressCandidates(o?.minuba_raw||{}).map(x=>x.email).filter(Boolean);
+    return rawAddressCandidates(o?.minuba_raw||{},o).map(x=>x.email).filter(Boolean);
   }
   function applyRawMinubaContact(o,raw,sourceLabel='Gemt Minuba-tilbud'){
     if(!o||!raw||typeof raw!=='object')return null;
-    minubaContactOptions=rawAddressCandidates(raw);
+    minubaContactOptions=rawAddressCandidates(raw,o);
     const current=firstEmail(o?.contact_details);
-    const unsafeCurrent=current&&unsafeDeliveryEmails(raw).some(x=>x===lower(current));
+    const unsafeCurrent=current&&unsafeDeliveryEmails(raw,o).some(x=>x===lower(current));
     if(unsafeCurrent){o.contact_person='';o.contact_details=''}
     const best=bestRawContact(raw,o);
     const name=String(best?.name||'').trim(),email=String(best?.email||'').trim(),phone=String(best?.phone||'').trim();
@@ -365,7 +379,7 @@
       if(!data?.found){if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:`Ingen kontaktinformation fundet i Minuba på tilbud ${ref}.`;return}
       const rawContact=applyRawMinubaContact(o,data.raw||o.minuba_raw||{},'Kontakt fundet direkte på Minuba-tilbuddet');
       const apiOptions=(Array.isArray(data.contact_options)?data.contact_options:[]).filter(x=>x?.safe_for_offer===true||(!String(x?.source||'').includes('delivery')&&x?.recipient_scope==='direct_customer'));
-      minubaContactOptions=[...rawAddressCandidates(data.raw||o.minuba_raw||{}),...apiOptions].filter((x,i,a)=>x?.email&&a.findIndex(y=>lower(y?.email)===lower(x?.email)&&lower(y?.name)===lower(x?.name))===i);
+      minubaContactOptions=[...rawAddressCandidates(data.raw||o.minuba_raw||{},o),...apiOptions].filter((x,i,a)=>x?.email&&a.findIndex(y=>lower(y?.email)===lower(x?.email)&&lower(y?.name)===lower(x?.name))===i);
       const safeApiEmail=String(data.contact_email||'').trim();
       const email=minubaContactOptions.some(x=>lower(x.email)===lower(safeApiEmail))?safeApiEmail:String(rawContact?.email||'').trim();
       const selectedOption=minubaContactOptions.find(x=>lower(x.email)===lower(email));
@@ -403,12 +417,12 @@
     if(!to||!subject||!body){if(typeof toast==='function')toast('Udfyld modtager, emne og mailtekst');return}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){if(typeof toast==='function')toast('Mailadressen er ikke gyldig');return}
     if(bouncedContact(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl (Account disabled). Vælg en anden adresse.`);return}
-    const safeRecipients=rawAddressCandidates(o?.minuba_raw||{}).map(x=>lower(x.email));
+    const safeRecipients=rawAddressCandidates(o?.minuba_raw||{},o).map(x=>lower(x.email));
     if(safeRecipients.length&&!safeRecipients.includes(lower(to))){
       alert(`TILBUD BLOKERET – FORKERT MODTAGER\n\nTilbud og priser må kun sendes til den direkte kunde: ${o.customer_name||'kunden'}.\n\n${to} er ikke bekræftet som en mailadresse hos den direkte kunde. Mailen er ikke sendt.`);
       return;
     }
-    if(unsafeDeliveryEmails(o?.minuba_raw||{}).includes(lower(to))){
+    if(unsafeDeliveryEmails(o?.minuba_raw||{},o).includes(lower(to))){
       alert('TILBUD BLOKERET – FORKERT MODTAGER\n\nDen valgte mailadresse tilhører leverings-/arbejdsstedet og må ikke modtage tilbud eller priser. Mailen er ikke sendt.');
       return;
     }

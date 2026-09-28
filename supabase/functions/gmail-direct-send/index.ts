@@ -9,7 +9,7 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const trim=(v:unknown,max=10000)=>String(v??'').trim().slice(0,max);
 const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const emailList=(v:any)=>[...new Set((String(v??'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim().toLowerCase()))];
-function offerRecipientBoundary(offer:any,to:string){
+function offerRecipientBoundary(offer:any,to:string,company:any){
   if(!offer)return {blocked:false};
   const raw=offer?.minuba_raw||{},direct=new Set<string>(),delivery=new Set<string>();
   const add=(set:Set<string>,value:any)=>{for(const e of emailList(value))set.add(e)};
@@ -24,17 +24,31 @@ function offerRecipientBoundary(offer:any,to:string){
     if(type==='CONTACT'||type==='BILLING')addAddress(direct,a);else if(type==='DELIVERY')addAddress(delivery,a);
   }
   addAddress(delivery,raw?.deliveryAddress);
-  const domain=(email:string)=>{const at=email.lastIndexOf('@');return at>0?email.slice(at+1):''};
+  const domain=(email:string)=>{const e=trim(email,500).toLowerCase(),at=e.lastIndexOf('@');return at>0?e.slice(at+1):''};
+  const normalizeDomain=(value:any)=>{
+    let d=trim(value,500).toLowerCase().replace(/^https?:\/\//,'').split('/')[0].replace(/^www\./,'');
+    if(d.includes('@'))d=domain(d);
+    return d;
+  };
   const shared=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
-  const domains=new Set([...direct].map(domain).filter(d=>d&&!shared.has(d)));
-  for(const email of [...delivery])if(domains.has(domain(email))){direct.add(email);delivery.delete(email)}
+  const domains=new Set<string>();
+  for(const e of direct){const d=domain(e);if(d&&!shared.has(d))domains.add(d)}
+  for(const value of [company?.domain,company?.website_url,company?.email]){const d=normalizeDomain(value);if(d&&!shared.has(d))domains.add(d)}
+  const domainTrusted=(email:string)=>{
+    const d=domain(email);if(!d||shared.has(d))return false;
+    for(const trusted of domains)if(d===trusted||d.endsWith('.'+trusted)||trusted.endsWith('.'+d))return true;
+    return false;
+  };
+  for(const email of [...delivery])if(domainTrusted(email)){direct.add(email);delivery.delete(email)}
   const recipient=trim(to,320).toLowerCase(),customer=trim(offer?.customer_name||raw?.client?.name,500)||'den direkte kunde';
+  const companyEmail=trim(company?.email,320).toLowerCase();
   const minubaLinked=!!(offer?.minuba_offer_id||raw?.id||raw?.client?.id||raw?.clientId);
-  if(direct.size&&!direct.has(recipient))return {blocked:true,reason:`${recipient} er ikke bekræftet som mailadresse hos den direkte kunde ${customer}. Tilbud og priser må kun sendes til den direkte kunde.`};
+  if(direct.has(recipient)||domainTrusted(recipient)||companyEmail===recipient)return {blocked:false,verified:true};
   if(delivery.has(recipient))return {blocked:true,reason:`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må ikke sendes dertil.`};
-  if(minubaLinked&&!direct.size)return {blocked:true,reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customer}. Mailen er blokeret.`};
+  if(minubaLinked||offer)return {blocked:true,reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customer}. Mailen er blokeret.`};
   return {blocked:false};
 }
+
 const uuidOk=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const dateOk=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(new Date(v+'T12:00:00Z').getTime());
 const bytesToB64=(bytes:Uint8Array)=>{let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(s)};
@@ -184,11 +198,6 @@ Deno.serve(async(req:Request)=>{
     const companyId=String(offer?.company_id||lead?.company_id||'');
     if(!companyId)return json({error:'Tilbuddet er ikke koblet til en kunde',code:'OFFER_NO_COMPANY'},412);
     const effectiveLeadId=String(lead?.id||offer?.lead_id||'')||null;
-    if(offer){
-      const boundary=offerRecipientBoundary(offer,to);
-      if(boundary.blocked)return json({error:boundary.reason,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',status:'blocked'},409);
-    }
-
     if(limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
     const dailyLimit=Number(limits?.daily_mail_send_limit||100),sentToday=Number(usage?.mail_sends_today||0);
     if(sentToday>=dailyLimit)return json({error:'Dagens fair-use grænse for mails er nået',code:'MAIL_DAILY_LIMIT',limit:dailyLimit},429);
@@ -198,10 +207,14 @@ Deno.serve(async(req:Request)=>{
     if(!connectedAccount||connectedAccount!==from)return json({error:`Den forbundne Gmail-konto (${connectedAccount||'ingen'}) matcher ikke kundens afsendermail (${from})`,code:'FROM_ACCOUNT_MISMATCH'},412);
 
     const [{data:contactRows,error:contactFindError},{data:companyRow,error:companyFindError}]=await Promise.all([
-      admin.from('crm_contacts').select('id,email,verified').eq('client_id',clientId).eq('company_id',companyId),
-      admin.from('crm_companies').select('id,email').eq('id',companyId).eq('client_id',clientId).maybeSingle()
+      admin.from('crm_contacts').select('id,email,verified,source_type').eq('client_id',clientId).eq('company_id',companyId),
+      admin.from('crm_companies').select('id,email,domain,website_url').eq('id',companyId).eq('client_id',clientId).maybeSingle()
     ]);
     if(contactFindError)throw contactFindError;if(companyFindError)throw companyFindError;
+    if(offer){
+      const boundary=offerRecipientBoundary(offer,to,companyRow);
+      if(boundary.blocked)return json({error:boundary.reason,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',status:'blocked'},409);
+    }
     let contact=(contactRows||[]).find((c:any)=>String(c.email||'').trim().toLowerCase()===to);
     const companyEmail=String(companyRow?.email||'').trim().toLowerCase();
     if(!contact&&companyEmail&&companyEmail===to){
@@ -217,8 +230,8 @@ Deno.serve(async(req:Request)=>{
       const now=new Date().toISOString();
       const {data:created,error:createContactError}=await admin.from('crm_contacts').insert({
         client_id:clientId,company_id:companyId,full_name:trim(offer.contact_person,180)||null,email:to,
-        verified:true,verified_at:now,source_type:'manual_offer_mail',source_url:null,confidence:'high',
-        email_is_inferred:false,email_verification_method:'manual_user_confirmed',email_verified_at:now
+        verified:true,verified_at:now,source_type:'verified_company_contact',source_url:null,confidence:'high',
+        email_is_inferred:false,email_verification_method:'offer_recipient_policy',email_verified_at:now
       }).select('id,email,verified').single();
       if(createContactError)throw createContactError;contact=created;
     }

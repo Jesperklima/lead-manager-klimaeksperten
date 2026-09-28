@@ -46,8 +46,51 @@ function addressContact(a:any,source:string,score=0){
   if(!name&&!email&&!phone)return null;
   return {name,email,phone,source,score:score+(name?40:0)+(email?60:0)+(phone?5:0),address_id:clean(a?.id,200)};
 }
-function recordContact(record:any){
+function normalizeDomain(value:any){
+  let d=clean(value,500).toLowerCase().replace(/^https?:\/\//,'').split('/')[0].replace(/^www\./,'');
+  if(d.includes('@'))d=emailDomain(d);
+  return d;
+}
+function companyDomainsFor(o:any,companies:any[]){
+  const company=(companies||[]).find((x:any)=>x?.id===o?.company_id),out=new Set<string>();
+  for(const value of [company?.domain,company?.website_url,company?.email]){
+    const d=normalizeDomain(value);if(d&&!personalMailDomains.has(d))out.add(d);
+  }
+  return out;
+}
+function domainMatches(email:any,domains:Set<string>){
+  const d=emailDomain(email);if(!d||personalMailDomains.has(d))return false;
+  for(const trusted of domains)if(d===trusted||d.endsWith('.'+trusted)||trusted.endsWith('.'+d))return true;
+  return false;
+}
+function referenceContact(record:any){
+  const ref=clean(record?.theirref||record?.theirRef,300);if(!ref)return null;
+  const refKey=norm(ref);if(!refKey)return null;
+  // TheirRef identifies the commercial customer reference. Only CONTACT/BILLING
+  // addresses may prove that relation here. DELIVERY can be an end customer/site.
+  const addresses=[
+    record?.contactAddress,
+    record?.billingAddress,
+    ...(Array.isArray(record?.addresses)?record.addresses.filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())):[])
+  ].filter(Boolean);
+  let best:any=null,bestScore=0;
+  for(const a of addresses){
+    const phone=clean(a?.cellPhone||a?.mobile||a?.phone,120);
+    for(const email of emailList(a?.email||a?.mail||a?.emailAddress)){
+      const local=norm(email.split('@')[0]),att=norm(a?.att||a?.contactName||a?.referencePerson||'');
+      let score=0;
+      if(local&&refKey&&(local===refKey||local.includes(refKey)||refKey.includes(local)))score+=120;
+      const parts=clean(ref,300).toLowerCase().split(/\s+/).filter((x:string)=>x.length>=3);
+      if(parts.length&&parts.every((p:string)=>local.includes(norm(p))))score+=100;
+      if(att&&att===refKey)score+=70;
+      if(score>bestScore){bestScore=score;best={name:ref,email,phone,source:'offer_theirref_match',score:700+score,address_id:clean(a?.id,200)}}
+    }
+  }
+  return bestScore>=70?best:null;
+}
+function recordContact(record:any,trustedDomains=new Set<string>()){
   if(!record||typeof record!=='object')return null;
+  const reference=referenceContact(record);if(reference)return reference;
   const typedAddresses=(Array.isArray(record?.addresses)?record.addresses:[]).filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase()));
   const clientDirect=record?.client?.email?addressContact({email:record.client.email,name:record.client.name,phone:record.client.phone},'client_direct',480):null;
   const options:any[]=[
@@ -56,9 +99,9 @@ function recordContact(record:any){
     addressContact(record?.billingAddress,'offer_billing_address',430),
     ...typedAddresses.map((a:any)=>addressContact(a,'offer_customer_address',350))
   ].filter(Boolean);
-  const directDomains=new Set(options.map(x=>emailDomain(x?.email)).filter((d:string)=>d&&!personalMailDomains.has(d)));
+  const directDomains=new Set<string>([...trustedDomains,...options.map(x=>emailDomain(x?.email)).filter((d:string)=>d&&!personalMailDomains.has(d))]);
   const delivery=addressContact(record?.deliveryAddress,'verified_customer_delivery_address',300);
-  if(delivery?.email&&directDomains.has(emailDomain(delivery.email)))options.push(delivery);
+  if(delivery?.email&&domainMatches(delivery.email,directDomains))options.push(delivery);
   options.sort((a,b)=>b.score-a.score);
   return options.find(x=>x.name&&x.email)||options.find(x=>x.email)||options.find(x=>x.name)||options[0]||null;
 }
@@ -68,7 +111,7 @@ function storedContact(o:any){
   if(!name&&!email&&!phone)return null;
   return {name,email,phone,source:'stored_offer',score:100};
 }
-function unsafeStoredDeliveryContact(record:any,o:any){
+function unsafeStoredDeliveryContact(record:any,o:any,trustedDomains=new Set<string>()){
   const stored=firstEmail(o?.contact_details).toLowerCase();if(!stored||!record)return false;
   const addresses=Array.isArray(record?.addresses)?record.addresses:[];
   const deliveryEmails=[
@@ -83,14 +126,22 @@ function unsafeStoredDeliveryContact(record:any,o:any){
     ...addresses.filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).flatMap((a:any)=>emailList(a?.email))
   ].map((x:string)=>x.toLowerCase());
   if(directEmails.includes(stored))return false;
-  const directDomains=new Set(directEmails.map(emailDomain).filter((d:string)=>d&&!personalMailDomains.has(d)));
-  return !directDomains.has(emailDomain(stored));
+  const directDomains=new Set<string>([...trustedDomains,...directEmails.map(emailDomain).filter((d:string)=>d&&!personalMailDomains.has(d))]);
+  return !domainMatches(stored,directDomains);
 }
-function siblingConsensus(o:any,offers:any[]){
+function siblingConsensus(o:any,offers:any[],companies:any[]){
   const byEmail=new Map<string,any>(),byName=new Map<string,any>();
+  const currentClientId=clean(o?.minuba_raw?.client?.id||o?.minuba_raw?.clientId,200);
+  const currentName=norm(o?.customer_name||o?.minuba_raw?.client?.name);
+  const trusted=companyDomainsFor(o,companies);
   for(const x of offers){
     if(x?.id===o?.id||!o?.company_id||x?.company_id!==o.company_id)continue;
-    const c=recordContact(x?.minuba_raw)||storedContact(x);if(!c)continue;
+    const siblingClientId=clean(x?.minuba_raw?.client?.id||x?.minuba_raw?.clientId,200);
+    const siblingName=norm(x?.customer_name||x?.minuba_raw?.client?.name);
+    if(currentClientId&&siblingClientId&&currentClientId!==siblingClientId)continue;
+    if(!currentClientId&&!siblingClientId&&currentName&&siblingName&&currentName!==siblingName)continue;
+    const c=recordContact(x?.minuba_raw,trusted)||storedContact(x);if(!c)continue;
+    if(c.email&&trusted.size&&!domainMatches(c.email,trusted))continue;
     const email=clean(c.email,320).toLowerCase(),name=clean(c.name,300).toLowerCase();
     if(email&&!byEmail.has(email))byEmail.set(email,c);
     if(name&&!byName.has(name))byName.set(name,c);
@@ -99,8 +150,12 @@ function siblingConsensus(o:any,offers:any[]){
   if(byEmail.size===0&&byName.size===1)return [...byName.values()][0];
   return null;
 }
-function crmConsensus(o:any,contacts:any[]){
-  const rows=(contacts||[]).filter((x:any)=>x?.company_id===o?.company_id&&x?.email&&!String(x?.source_type||'').startsWith('smtp_bounced'));
+function crmConsensus(o:any,contacts:any[],companies:any[]){
+  const trusted=companyDomainsFor(o,companies);
+  const rows=(contacts||[]).filter((x:any)=>{
+    if(x?.company_id!==o?.company_id||!x?.email||String(x?.source_type||'').startsWith('smtp_bounced'))return false;
+    return trusted.size?domainMatches(x.email,trusted):x?.verified===true;
+  });
   const unique=new Map<string,any>();for(const x of rows){const e=clean(x.email,320).toLowerCase();if(e&&!unique.has(e))unique.set(e,x)}
   if(unique.size!==1)return null;
   const x=[...unique.values()][0];return{name:clean(x.full_name,300),email:clean(x.email,320),phone:clean(x.phone,120),source:'crm_contact',score:80};
@@ -121,13 +176,15 @@ function liveClientContact(record:any,clientRows:any[]){
   const unique=new Map<string,any>();for(const x of viable){const e=clean(x.email,320).toLowerCase();if(e&&!unique.has(e))unique.set(e,x)}
   return unique.size===1?[...unique.values()][0]:null;
 }
-function bestContact(record:any,o:any,offers:any[],clientRows:any[],contacts:any[]){
-  const embedded=recordContact(record);if(embedded?.email||embedded?.name)return embedded;
+function bestContact(record:any,o:any,offers:any[],clientRows:any[],contacts:any[],companies:any[]){
+  const trusted=companyDomainsFor(o,companies);
+  const embedded=recordContact(record,trusted);if(embedded?.email||embedded?.name)return embedded;
   const live=liveClientContact(record,clientRows);if(live?.email||live?.name)return live;
-  const sibling=siblingConsensus(o,offers);if(sibling?.email||sibling?.name)return sibling;
-  const crm=crmConsensus(o,contacts);if(crm?.email||crm?.name)return crm;
+  const sibling=siblingConsensus(o,offers,companies);if(sibling?.email||sibling?.name)return sibling;
+  const crm=crmConsensus(o,contacts,companies);if(crm?.email||crm?.name)return crm;
   return null;
 }
+
 function proposalInfo(p:any){const ca=p?.contactAddress||{},da=p?.deliveryAddress||ca,cl=p?.client||{},best=recordContact(p),email=clean(best?.email||ca?.email||cl?.email,300),phone=clean(best?.phone||ca?.cellPhone||ca?.phone,120),customer=clean(cl?.name||ca?.name,300),u=clean(p?.updated||p?.created,80);return{ref:clean(p?.orderNumber||p?.number,160),customer,cvr:clean(cl?.cvr||p?.cvr,40),contact:clean(best?.name||p?.theirref||ca?.att||(isPersonalMailbox(email)?looksLikePersonName(customer):''),300),details:clean([email,phone].filter(Boolean).join(' · '),700),address:clean(addressText(da),700),sent:/^\d{4}-\d{2}-\d{2}/.test(u)?u.slice(0,10):new Date().toISOString().slice(0,10)}}
 async function closeTasks(admin:any,o:any,now:string){await admin.from('crm_tasks').update({status:'done',updated_at:now}).eq('client_id',o.client_id).eq('offer_id',o.id).eq('task_type','offer_followup').eq('status','open')}
 async function ensureTask(admin:any,o:any,date:string,now:string){const {data}=await admin.from('crm_tasks').select('id').eq('client_id',o.client_id).eq('offer_id',o.id).eq('task_type','offer_followup').eq('status','open').limit(1);const patch={scheduled_at:date+'T09:00:00+02:00',status:'open',assigned_to:o.follow_up_owner||null,updated_at:now,title:`Følg op på tilbud ${o.offer_ref||''} – ${o.customer_name||''}`,planning_type:'flexible',priority:'A'};if(data?.[0])await admin.from('crm_tasks').update(patch).eq('id',data[0].id);else await admin.from('crm_tasks').insert({client_id:o.client_id,company_id:o.company_id,lead_id:o.lead_id||null,offer_id:o.id,...patch,task_type:'offer_followup',calendar_sync_status:'none'})}
@@ -167,10 +224,10 @@ async function clientRunner(admin:any,clientId:string){
   const allRecords=[...states.flatMap((s:string)=>buckets[s]||[])];
   for(const o of offerRows){
     const target=norm(o.offer_ref),record=allRecords.find((x:any)=>matchesRef(x,target))||o.minuba_raw||null;
-    const unsafeStored=unsafeStoredDeliveryContact(record,o);
+    const unsafeStored=unsafeStoredDeliveryContact(record,o,companyDomainsFor(o,companyRows));
     const missingName=!clean(o.contact_person,300)||unsafeStored,missingDetails=!firstEmail(o.contact_details)||unsafeStored;
     if(!missingName&&!missingDetails)continue;
-    let candidate=bestContact(record,o,offerRows,clientRows,contacts||[]);
+    let candidate=bestContact(record,o,offerRows,clientRows,contacts||[],companyRows);
     if(!candidate){
       const embeddedEmail=firstEmail(o.contact_person),embeddedPhone=phoneFrom(o.contact_person);
       if(embeddedEmail||embeddedPhone)candidate={name:'',email:embeddedEmail,phone:embeddedPhone,source:'contact_person_embedded'};
@@ -193,8 +250,8 @@ async function clientRunner(admin:any,clientId:string){
     if(!proposal){for(const s of states.slice(1)){const x=(buckets[s]||[]).find((z:any)=>matchesRef(z,target));if(x){order=x;orderState=s;break}}}
     if(proposal){
       const prev=o.status,wasClosed=prev==='LUKKET',status=rawStatus(proposal)||'proposal';
-      const resolvedContact=bestContact(proposal,o,offerRows,clientRows,contacts||[]);
-      const unsafeStored=unsafeStoredDeliveryContact(proposal,o);
+      const resolvedContact=bestContact(proposal,o,offerRows,clientRows,contacts||[],companyRows);
+      const unsafeStored=unsafeStoredDeliveryContact(proposal,o,companyDomainsFor(o,companyRows));
       const patch:any={minuba_status:status,minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:'active',minuba_raw:proposal,updated_at:now};
       if(unsafeStored){
         patch.contact_person=resolvedContact?.name?clean(resolvedContact.name,300):null;
@@ -210,8 +267,8 @@ async function clientRunner(admin:any,clientId:string){
     }
     if(order){
       const orderNo=clean(order?.orderNumber||order?.number,160),status=rawStatus(order)||orderState,prev=o.status;
-      const resolvedContact=bestContact(order,o,offerRows,clientRows,contacts||[]);
-      const unsafeStored=unsafeStoredDeliveryContact(order,o);
+      const resolvedContact=bestContact(order,o,offerRows,clientRows,contacts||[],companyRows);
+      const unsafeStored=unsafeStoredDeliveryContact(order,o,companyDomainsFor(o,companyRows));
       const patch:any={minuba_status:status,minuba_record_type:'order',minuba_order_number:orderNo||null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:'converted_to_order',minuba_raw:order,updated_at:now};
       if(unsafeStored){
         patch.contact_person=resolvedContact?.name?clean(resolvedContact.name,300):null;

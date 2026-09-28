@@ -41,7 +41,7 @@ function arrayFrom(value:any){
   return[];
 }
 function minubaOfferId(offer:any){return trim(offer?.minuba_offer_id||offer?.minuba_raw?.id||offer?.minuba_raw?.orderId,200)}
-function directCustomerRecipientPolicy(offer:any,to:string,companyEmail:string,contacts:any[]){
+function directCustomerRecipientPolicy(offer:any,to:string,company:any,contacts:any[]){
   const raw=offer?.minuba_raw||{},direct=new Set<string>(),delivery=new Set<string>();
   const add=(set:Set<string>,value:any)=>{for(const email of emailList(value))set.add(email)};
   const addAddress=(set:Set<string>,a:any)=>{if(a&&typeof a==='object')add(set,a?.email||a?.mail||a?.emailAddress)};
@@ -59,35 +59,51 @@ function directCustomerRecipientPolicy(offer:any,to:string,companyEmail:string,c
     else if(type==='DELIVERY')addAddress(delivery,a);
   }
   addAddress(delivery,raw?.deliveryAddress);
-  const domain=(email:string)=>{const at=email.lastIndexOf('@');return at>0?email.slice(at+1):''};
+
+  const domain=(email:string)=>{const e=trim(email,500).toLowerCase(),at=e.lastIndexOf('@');return at>0?e.slice(at+1):''};
+  const normalizeDomain=(value:any)=>{
+    let d=trim(value,500).toLowerCase().replace(/^https?:\/\//,'').split('/')[0].replace(/^www\./,'');
+    if(d.includes('@'))d=domain(d);
+    return d;
+  };
   const sharedPersonalDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
-  const directDomains=new Set([...direct].map(domain).filter(d=>d&&!sharedPersonalDomains.has(d)));
-  for(const email of [...delivery]){
-    if(directDomains.has(domain(email))){direct.add(email);delivery.delete(email)}
+  const trustedDomains=new Set<string>();
+  for(const e of direct){const d=domain(e);if(d&&!sharedPersonalDomains.has(d))trustedDomains.add(d)}
+  for(const value of [company?.domain,company?.website_url,company?.email]){
+    const d=normalizeDomain(value);if(d&&!sharedPersonalDomains.has(d))trustedDomains.add(d);
   }
+  const domainTrusted=(email:string)=>{
+    const d=domain(email);if(!d||sharedPersonalDomains.has(d))return false;
+    for(const trusted of trustedDomains)if(d===trusted||d.endsWith('.'+trusted)||trusted.endsWith('.'+d))return true;
+    return false;
+  };
+  for(const email of [...delivery])if(domainTrusted(email)){direct.add(email);delivery.delete(email)}
+
   const recipient=trim(to,320).toLowerCase();
   const customerName=trim(offer?.customer_name||raw?.client?.name,500)||'den direkte kunde';
-  const fallback=new Set<string>();add(fallback,companyEmail);for(const c of contacts||[])add(fallback,c?.email);
+  const companyEmail=trim(company?.email,320).toLowerCase();
+  const contactMatch=(contacts||[]).find((c:any)=>trim(c?.email,320).toLowerCase()===recipient&&!String(c?.source_type||'').startsWith('smtp_bounced'));
   const minubaLinked=!!(minubaOfferId(offer)||raw?.client?.id||raw?.clientId);
-  const resultBase={customer_name:customerName,allowed_recipients:[...direct],delivery_recipients:[...delivery]};
-  if(direct.size){
-    if(direct.has(recipient))return{...resultBase,blocked:false,verified:true,recipient_scope:'direct_customer'};
-    const isDelivery=delivery.has(recipient);
-    return{
-      ...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',
-      reason:isDelivery
-        ?`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må kun sendes til ${customerName}.`
-        :`${recipient} er ikke bekræftet som mailadresse hos den direkte kunde ${customerName}. Tilbud og priser må kun sendes til den direkte kunde.`
-    };
+  const resultBase={customer_name:customerName,allowed_recipients:[...direct],delivery_recipients:[...delivery],trusted_domains:[...trustedDomains]};
+
+  if(direct.has(recipient)||domainTrusted(recipient)){
+    return{...resultBase,blocked:false,verified:true,recipient_scope:direct.has(recipient)?'direct_customer':'verified_customer_domain'};
   }
   if(delivery.has(recipient)){
-    return{...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason:`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må ikke sendes dertil.`};
+    return{...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason:`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må kun sendes til ${customerName}.`};
   }
-  if(minubaLinked){
-    return{...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customerName}. Mailen er blokeret, indtil en direkte kundeadresse er valgt i Minuba.`};
+  if(companyEmail&&companyEmail===recipient){
+    return{...resultBase,blocked:false,verified:true,recipient_scope:'company_standard_email'};
   }
-  return{...resultBase,blocked:false,verified:fallback.has(recipient),recipient_scope:fallback.has(recipient)?'crm_direct_customer':'manual_non_minuba'};
+  if(!minubaLinked&&contactMatch?.verified===true&&['company_standard_email','verified_company_contact'].includes(String(contactMatch?.source_type||''))){
+    return{...resultBase,blocked:false,verified:true,recipient_scope:'verified_crm_contact'};
+  }
+  return{
+    ...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',
+    reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customerName}. Mailen er blokeret, indtil modtagerens virksomhedsrelation er bekræftet.`
+  };
 }
+
 function minubaPdfScore(item:any,offerRef:string,minubaId:string){
   const name=trim(item?.filename||item?.fileName||item?.name||item?.title,1000),n=refNorm(name),target=refNorm(offerRef);
   const mime=trim(item?.mimeType||item?.contentType||item?.type,200).toLowerCase();
@@ -636,11 +652,11 @@ Deno.serve(async(req:Request)=>{
     if(action==='send'||action==='preflight'){
       const [{data:recipientContacts,error:contactFindError},{data:recipientCompany,error:companyFindError}]=await Promise.all([
         admin.from('crm_contacts').select('id,email,verified,source_type').eq('client_id',clientId).eq('company_id',companyId),
-        admin.from('crm_companies').select('id,email').eq('id',companyId).eq('client_id',clientId).maybeSingle()
+        admin.from('crm_companies').select('id,email,domain,website_url').eq('id',companyId).eq('client_id',clientId).maybeSingle()
       ]);
       if(contactFindError)throw contactFindError;if(companyFindError)throw companyFindError;
       contactRows=recipientContacts||[];companyRow=recipientCompany||null;
-      const recipientPolicy=directCustomerRecipientPolicy(offer,to,String(companyRow?.email||''),contactRows);
+      const recipientPolicy=directCustomerRecipientPolicy(offer,to,companyRow,contactRows);
       if(recipientPolicy.blocked){
         const reason=trim(recipientPolicy.reason,1500)||'Tilbud og priser må kun sendes til den direkte kunde.';
         const payload={
@@ -725,8 +741,8 @@ Deno.serve(async(req:Request)=>{
       const now=new Date().toISOString();
       const {data:created,error:createContactError}=await admin.from('crm_contacts').insert({
         client_id:clientId,company_id:companyId,full_name:trim(offer.contact_person,180)||null,email:to,
-        verified:true,verified_at:now,source_type:'manual_offer_mail',source_url:null,confidence:'high',
-        email_is_inferred:false,email_verification_method:'manual_user_confirmed',email_verified_at:now
+        verified:true,verified_at:now,source_type:'verified_company_contact',source_url:null,confidence:'high',
+        email_is_inferred:false,email_verification_method:'offer_recipient_policy',email_verified_at:now
       }).select('id,email,verified').single();
       if(createContactError)throw createContactError;contact=created;
     }

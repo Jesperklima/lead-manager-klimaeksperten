@@ -50,10 +50,14 @@ for(const marker of [
   "SEND_INTERRUPTED_NOT_FOUND",
   "offerRecipientBoundary",
   "OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER",
-  "minuba_raw,minuba_offer_id"
+  "minuba_raw,minuba_offer_id",
+  "domainTrusted",
+  "select('id,email,domain,website_url')",
+  "source_type:'verified_company_contact'"
 ]) must(send.includes(marker),'direct-send reliability marker missing: '+marker);
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'direct send still writes mail history synchronously');
+must(!send.includes("source_type:'manual_offer_mail'"),'offer direct-send must not turn an unverified manual recipient into a verified customer contact');
 must(!send.includes("admin.from('crm_tasks').insert"),'direct send still creates follow-up tasks synchronously');
 must(!send.includes("admin.from('crm_usage_events').insert"),'direct send still writes usage synchronously');
 
