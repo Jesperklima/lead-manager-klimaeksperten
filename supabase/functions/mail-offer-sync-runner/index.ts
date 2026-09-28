@@ -117,7 +117,7 @@ async function markProviderRead(provider:string,access:string,messageId:string){
   const r=await fetch('https://graph.microsoft.com/v1.0/me/messages/'+encodeURIComponent(messageId),{method:'PATCH',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:JSON.stringify({isRead:true})});
   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(clean(d?.error?.message||('Microsoft mark-read fejlede ('+r.status+')'),1000));
 }
-async function markHandledRead(sb:any,requestedClientId:string){
+async function markHandledRead(sb:any,requestedClientId:string,syncData:any){
   let q=sb.from('crm_mail_messages').select('id,client_id,provider,external_message_id,direction,message_at,metadata').in('provider',['gmail','microsoft']).eq('direction','inbound').gte('message_at',READ_CUTOVER).order('message_at',{ascending:true}).limit(500);
   if(requestedClientId)q=q.eq('client_id',requestedClientId);
   const{data,error}=await q;if(error)throw error;
@@ -127,9 +127,19 @@ async function markHandledRead(sb:any,requestedClientId:string){
   for(const[key,items]of groups){
     const[clientId,provider]=key.split('|');
     try{
-      const{data:intg,error:intError}=await sb.from('crm_integrations').select('status,config').eq('client_id',clientId).eq('provider',provider).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+      const clientRun=(syncData?.results||[]).find((x:any)=>clean(x?.client_id,100)===clientId);
+      if(!clientRun||clientRun.error){results.push({client_id:clientId,provider,candidates:items.length,marked:0,blocked:'client_sync_failed'});continue}
+      const providerRun=(clientRun.providers||[]).find((x:any)=>x?.provider===provider);
+      if(!providerRun||providerRun.error){results.push({client_id:clientId,provider,candidates:items.length,marked:0,blocked:'mail_provider_sync_failed'});continue}
+      const{data:integrations,error:intError}=await sb.from('crm_integrations').select('provider,status,config').eq('client_id',clientId).in('provider',[provider,'minuba']);
       if(intError)throw intError;
+      const intg=(integrations||[]).find((x:any)=>x.provider===provider);
       if(!intg||intg.status!=='connected'){results.push({client_id:clientId,provider,candidates:items.length,marked:0,error:'Mailintegration er ikke forbundet'});continue}
+      const minubaConnected=(integrations||[]).some((x:any)=>x.provider==='minuba'&&x.status==='connected');
+      if(minubaConnected){
+        const minubaRun=(clientRun.providers||[]).find((x:any)=>x?.provider==='minuba_validation');
+        if(!minubaRun||minubaRun.error){results.push({client_id:clientId,provider,candidates:items.length,marked:0,blocked:'minuba_validation_failed'});continue}
+      }
       const token=provider==='gmail'?await gmailReadToken(sb,clientId,intg):await microsoftReadToken(sb,clientId,intg);
       if(token.scope_required){results.push({client_id:clientId,provider,candidates:items.length,marked:0,scope_required:true,error:token.error});continue}
       let marked=0,failed=0;
@@ -170,7 +180,7 @@ Deno.serve(async(req:Request)=>{
       if(duplicate){await wait(120);continue}if(transient&&attempt<3){await wait(300*(attempt+1));continue}
       const corrections=r.ok?await postflight(sb,clientId):[];
       const drafts=r.ok?await guardDraftApprovals(sb,url,secret,clientId,data):[];
-      const readSync=r.ok?await markHandledRead(sb,clientId):[];
+      const readSync=r.ok?await markHandledRead(sb,clientId,data):[];
       return out({...data,runner_retries:attempt,postflight_corrections:corrections,draft_ignored:drafts,mail_mark_read:readSync},r.status);
     }
     return out({ok:false,error:'Mail-sync kunne ikke blive idempotent efter gentagne sikre forsøg.',last:last?.data,runner_retries:12},500);
