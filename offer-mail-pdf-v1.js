@@ -118,6 +118,23 @@
     if(m)return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
     return v;
   }
+  function applyFollowDateLocally(o,value){
+    const expected=normalizeFollowDate(value);
+    if(!expected||!o?.id)return;
+    const local=(state.offers||[]).find(x=>x.id===o.id);
+    if(local)local.follow_up_date=expected;
+    o.follow_up_date=expected;
+    if(offer()?.id===o.id&&byId('oFollow'))byId('oFollow').value=expected;
+    const task=(state.tasks||[]).find(t=>t.offer_id===o.id&&t.task_type==='offer_followup'&&t.status==='open');
+    if(task&&typeof isoFromInputs==='function')task.scheduled_at=isoFromInputs(expected,'09:00');
+    for(const fn of ['renderOffers','renderTasks','renderCalendar','renderOfferPipeline']){
+      try{if(typeof window[fn]==='function')window[fn]()}catch(error){console.warn('[Offer mail] Kunne ikke opdatere '+fn,error)}
+    }
+  }
+  function effectiveFollowDate(data,fallback){
+    return normalizeFollowDate(data?.follow_up_date)||normalizeFollowDate(fallback);
+  }
+
   async function verifyOfferFollowUp(o,expectedDate){
     const expected=normalizeFollowDate(expectedDate);
     if(!expected||!o?.id||!state?.client?.id||typeof supabase==='undefined')return true;
@@ -149,6 +166,8 @@
     throw lastError||new Error('Opfølgningsdatoen blev ikke synkroniseret i tide');
   }
   async function finishPdfSend(o,to,data,name,follow){
+    const effectiveFollow=effectiveFollowDate(data,follow);
+    if(effectiveFollow)applyFollowDateLocally(o,effectiveFollow);
     const completedSendId=currentPdfSendId;
     clearPendingSend(o,completedSendId);
     renderSendStatus('success','Mailen er sendt – gemmer opfølgningen','Lead Manager kontrollerer automatisk opfølgningsdatoen, som synkroniseres i baggrunden. Gmail har bekræftet afsendelsen, så du kan arbejde videre.');
@@ -159,9 +178,9 @@
 
     setTimeout(()=>void (async()=>{
       try{
-        await waitForOfferFollowUp(o,follow,45000);
+        await waitForOfferFollowUp(o,effectiveFollow,45000);
         if(typeof openOffer==='function'&&offer()?.id===o.id)openOffer(o.id);
-        if(typeof toast==='function')toast(`Opfølgning opdateret til ${normalizeFollowDate(follow)||follow}`);
+        if(typeof toast==='function')toast(`Opfølgning opdateret til ${effectiveFollow||follow}`);
       }catch(error){
         console.error('[Offer mail] Mailen er sendt, men opfølgningsdatoen blev ikke synkroniseret',error);
         if(typeof toast==='function')toast('Mailen er sendt · opfølgningsdatoen kunne ikke bekræftes automatisk');
@@ -185,7 +204,9 @@
         const data=result?.data??result;
         if(data?.pending===false||data?.status==='none')return false;
         if(!data?.send_id)return false;
-        pending={request_id:data.send_id,created_at:Date.now(),to:to||'',follow:String(byId('offerMailFollow')?.value||''),name:pdfName(o)};
+        const backendFollow=effectiveFollowDate(data,'');
+        pending={request_id:data.send_id,created_at:Date.now(),to:to||'',follow:backendFollow||String(byId('offerMailFollow')?.value||''),name:pdfName(o)};
+        if(pending.follow)applyFollowDateLocally(o,pending.follow);
         savePendingSend(o,data.send_id,pending);
         if(isSentResult(data)){
           currentPdfSendId=data.send_id;
@@ -381,6 +402,7 @@
     if(!currentPdfSendId)currentPdfSendId=makeSendId();
     const requestId=currentPdfSendId,button=byId('sendOfferMail'),old='Send mail';
     savePendingSend(o,requestId,{to,subject,follow,name,created_at:Date.now()});
+    if(follow)applyFollowDateLocally(o,follow);
     renderSendStatus('checking','Forbereder og sender','Lead Manager bruger et unikt send-id og kontrollerer automatisk resultatet, hvis forbindelsen bliver afbrudt.');
     if(button){button.disabled=true;button.textContent='Forbereder PDF og sender…'}
     const attachment=byId('offerMailAttachment');
@@ -397,7 +419,7 @@
       ]);
       if(result?.__background){
         pdfSendState='uncertain';
-        renderSendStatus('checking','Afsendelsen kører i baggrunden',`Du kan arbejde videre. Opfølgningsdato ${follow||"—"} gemmes automatisk, så snart Gmail har bekræftet mailen.`);
+        renderSendStatus('checking','Afsendelsen kører i baggrunden',`Du kan arbejde videre. Næste opfølgning er sat til ${follow||"—"} og bekræftes automatisk fra send-jobbet.`);
         byId('offerMailModal')?.classList.remove('open');
         window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
         if(typeof toast==='function')toast('Mailen afsendes i baggrunden · opfølgningsdatoen opdateres automatisk');
