@@ -60,7 +60,8 @@ function directCustomerRecipientPolicy(offer:any,to:string,companyEmail:string,c
   }
   addAddress(delivery,raw?.deliveryAddress);
   const domain=(email:string)=>{const at=email.lastIndexOf('@');return at>0?email.slice(at+1):''};
-  const directDomains=new Set([...direct].map(domain).filter(Boolean));
+  const sharedPersonalDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+  const directDomains=new Set([...direct].map(domain).filter(d=>d&&!sharedPersonalDomains.has(d)));
   for(const email of [...delivery]){
     if(directDomains.has(domain(email))){direct.add(email);delivery.delete(email)}
   }
