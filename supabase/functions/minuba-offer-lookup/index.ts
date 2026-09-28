@@ -113,7 +113,7 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     ...directEmails.map(email=>({name:directPerson,email,phone:directPhone,source:'client_direct',safe_for_offer:true,recipient_scope:'direct_customer'})),
     ...directAddressOptions
   ]);
-  const directDomains=new Set(baseOptions.map((x:any)=>emailDomain(x.email)).filter(Boolean));
+  const directDomains=new Set(baseOptions.map((x:any)=>emailDomain(x.email)).filter((d:string)=>d&&!personalMailDomains.has(d)));
   const verifiedDeliveryOptions=deliveryOptions
     .filter((x:any)=>directDomains.has(emailDomain(x.email)))
     .map((x:any)=>({...x,source:'verified_customer_delivery_address',safe_for_offer:true,recipient_scope:'direct_customer'}));
