@@ -24,6 +24,9 @@ for(const marker of [
   'genererer den fra tilbudsdata i Minuba',
   'Forbereder PDF og sender',
   'FOLLOWUP_SUPPRESSED',
+  'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',
+  'TILBUD BLOKERET – FORKERT MODTAGER',
+  'Blokeret – vælg direkte kunde',
   "action:'preflight'",
   'MAIL BLOKERET – INGEN OPFØLGNING',
   'Blokeret – ingen opfølgning',
@@ -91,6 +94,10 @@ for(const marker of [
   'File/Download?',
   "admin.from('crm_followup_suppressions')",
   "code:'FOLLOWUP_SUPPRESSED'",
+  'directCustomerRecipientPolicy',
+  "code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER'",
+  "message:'TILBUD BLOKERET – FORKERT MODTAGER'",
+  'allowed_recipients',
   "'preflight'",
   "'resume'",
   "pending:true",
@@ -111,6 +118,10 @@ must(!send.includes("wrap76(attachmentB64)"),'offer PDF send still expands a lar
 must(!send.includes("await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{\n    method:'POST',\n    headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},\n    body:stream\n  });"),'Gmail upload regressed to an unbounded network wait');
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
+must(send.indexOf('directCustomerRecipientPolicy(offer,to') < send.indexOf('resolveOfferPdf(admin,clientId,offer,offerRef,accessToken)'), 'recipient boundary must run before PDF resolution/send work');
+must(send.includes("addAddress(delivery,raw?.deliveryAddress)"),'backend must identify delivery/end-customer addresses separately');
+must(send.includes('directDomains.has(domain(email))'),'backend may only promote a delivery contact when its mail domain matches the direct customer');
+
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
 must(!send.includes("admin.from('crm_usage_events').insert"),'offer PDF send still writes usage synchronously');
 

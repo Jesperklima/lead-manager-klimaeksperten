@@ -47,7 +47,10 @@ for(const marker of [
   "gmail-send-postprocess",
   "recoverProviderState",
   "rfc822msgid:",
-  "SEND_INTERRUPTED_NOT_FOUND"
+  "SEND_INTERRUPTED_NOT_FOUND",
+  "offerRecipientBoundary",
+  "OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER",
+  "minuba_raw,minuba_offer_id"
 ]) must(send.includes(marker),'direct-send reliability marker missing: '+marker);
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'direct send still writes mail history synchronously');

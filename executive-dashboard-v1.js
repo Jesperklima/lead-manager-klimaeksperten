@@ -246,7 +246,7 @@
   document.head.appendChild(approvalScript);
 
   const offerMailScript=document.createElement('script');
-  offerMailScript.src='/offer-mail-v1.js?v=20260925-5-contact-name';
+  offerMailScript.src='/offer-mail-v1.js?v=20260928-6-direct-customer';
   offerMailScript.defer=true;
   document.head.appendChild(offerMailScript);
 

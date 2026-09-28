@@ -22,7 +22,7 @@ must(!edge.includes("Date.now()-30*60*1000"), 'active interrupted sends must rem
 must(edge.includes("Date.now()-5*60*1000"), 'recent sent jobs must be recovered after refresh without blocking later legitimate resends');
 must(edge.includes("pending:true"), 'in-progress response must be explicit for the UI');
 
-must(app.includes('/offer-mail-pdf-v1.js?v=20260928-3-job-followup'), 'offer mail asset cache version not bumped');
+must(app.includes('/offer-mail-pdf-v1.js?v=20260928-4-direct-customer'), 'offer mail asset cache version not bumped');
 
 const backendNotFoundMs=120000;
 const clientWatchMs=135000;

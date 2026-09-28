@@ -8,6 +8,33 @@ const corsHeaders={
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
 const trim=(v:unknown,max=10000)=>String(v??'').trim().slice(0,max);
 const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const emailList=(v:any)=>[...new Set((String(v??'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim().toLowerCase()))];
+function offerRecipientBoundary(offer:any,to:string){
+  if(!offer)return {blocked:false};
+  const raw=offer?.minuba_raw||{},direct=new Set<string>(),delivery=new Set<string>();
+  const add=(set:Set<string>,value:any)=>{for(const e of emailList(value))set.add(e)};
+  const addAddress=(set:Set<string>,a:any)=>{if(a&&typeof a==='object')add(set,a?.email||a?.mail||a?.emailAddress)};
+  addAddress(direct,raw?.contactAddress);addAddress(direct,raw?.billingAddress);add(direct,raw?.client?.email);
+  for(const a of (Array.isArray(raw?.addresses)?raw.addresses:[])){
+    const type=trim(a?.addressType,80).toUpperCase();
+    if(type==='CONTACT'||type==='BILLING')addAddress(direct,a);else if(type==='DELIVERY')addAddress(delivery,a);
+  }
+  for(const a of (Array.isArray(raw?.client?.addresses)?raw.client.addresses:[])){
+    const type=trim(a?.addressType,80).toUpperCase();
+    if(type==='CONTACT'||type==='BILLING')addAddress(direct,a);else if(type==='DELIVERY')addAddress(delivery,a);
+  }
+  addAddress(delivery,raw?.deliveryAddress);
+  const domain=(email:string)=>{const at=email.lastIndexOf('@');return at>0?email.slice(at+1):''};
+  const shared=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+  const domains=new Set([...direct].map(domain).filter(d=>d&&!shared.has(d)));
+  for(const email of [...delivery])if(domains.has(domain(email))){direct.add(email);delivery.delete(email)}
+  const recipient=trim(to,320).toLowerCase(),customer=trim(offer?.customer_name||raw?.client?.name,500)||'den direkte kunde';
+  const minubaLinked=!!(offer?.minuba_offer_id||raw?.id||raw?.client?.id||raw?.clientId);
+  if(direct.size&&!direct.has(recipient))return {blocked:true,reason:`${recipient} er ikke bekræftet som mailadresse hos den direkte kunde ${customer}. Tilbud og priser må kun sendes til den direkte kunde.`};
+  if(delivery.has(recipient))return {blocked:true,reason:`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må ikke sendes dertil.`};
+  if(minubaLinked&&!direct.size)return {blocked:true,reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customer}. Mailen er blokeret.`};
+  return {blocked:false};
+}
 const uuidOk=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const dateOk=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(new Date(v+'T12:00:00Z').getTime());
 const bytesToB64=(bytes:Uint8Array)=>{let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(s)};
@@ -143,7 +170,7 @@ Deno.serve(async(req:Request)=>{
 
     const clientP=admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single();
     const leadP=leadId?admin.from('crm_leads').select('id,company_id,status,priority,planning_type,next_action,next_at').eq('id',leadId).eq('client_id',clientId).maybeSingle():Promise.resolve({data:null,error:null});
-    const offerP=offerId?admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date').eq('id',offerId).eq('client_id',clientId).maybeSingle():Promise.resolve({data:null,error:null});
+    const offerP=offerId?admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_raw,minuba_offer_id').eq('id',offerId).eq('client_id',clientId).maybeSingle():Promise.resolve({data:null,error:null});
     const materialP=admin.rpc('get_gmail_oauth_material',{p_client_id:clientId});
     const limitsP=admin.from('crm_usage_limits').select('*').eq('client_id',clientId).maybeSingle();
     const usageP=admin.rpc('crm_usage_snapshot',{p_client_id:clientId});
@@ -157,6 +184,10 @@ Deno.serve(async(req:Request)=>{
     const companyId=String(offer?.company_id||lead?.company_id||'');
     if(!companyId)return json({error:'Tilbuddet er ikke koblet til en kunde',code:'OFFER_NO_COMPANY'},412);
     const effectiveLeadId=String(lead?.id||offer?.lead_id||'')||null;
+    if(offer){
+      const boundary=offerRecipientBoundary(offer,to);
+      if(boundary.blocked)return json({error:boundary.reason,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',status:'blocked'},409);
+    }
 
     if(limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
     const dailyLimit=Number(limits?.daily_mail_send_limit||100),sentToday=Number(usage?.mail_sends_today||0);

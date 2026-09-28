@@ -9,6 +9,7 @@ const corsHeaders={
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}});
 const trim=(v:unknown,max=10000)=>String(v??'').trim().slice(0,max);
 const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const emailList=(v:any)=>[...new Set((String(v??'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim().toLowerCase()))];
 const uuidOk=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const dateOk=(v:string)=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(new Date(v+'T12:00:00Z').getTime());
 const bytesToB64=(bytes:Uint8Array)=>{let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(s)};
@@ -40,6 +41,53 @@ function arrayFrom(value:any){
   return[];
 }
 function minubaOfferId(offer:any){return trim(offer?.minuba_offer_id||offer?.minuba_raw?.id||offer?.minuba_raw?.orderId,200)}
+function directCustomerRecipientPolicy(offer:any,to:string,companyEmail:string,contacts:any[]){
+  const raw=offer?.minuba_raw||{},direct=new Set<string>(),delivery=new Set<string>();
+  const add=(set:Set<string>,value:any)=>{for(const email of emailList(value))set.add(email)};
+  const addAddress=(set:Set<string>,a:any)=>{if(a&&typeof a==='object')add(set,a?.email||a?.mail||a?.emailAddress)};
+  addAddress(direct,raw?.contactAddress);
+  addAddress(direct,raw?.billingAddress);
+  add(direct,raw?.client?.email);
+  for(const a of (Array.isArray(raw?.addresses)?raw.addresses:[])){
+    const type=trim(a?.addressType,80).toUpperCase();
+    if(type==='CONTACT'||type==='BILLING')addAddress(direct,a);
+    else if(type==='DELIVERY')addAddress(delivery,a);
+  }
+  for(const a of (Array.isArray(raw?.client?.addresses)?raw.client.addresses:[])){
+    const type=trim(a?.addressType,80).toUpperCase();
+    if(type==='CONTACT'||type==='BILLING')addAddress(direct,a);
+    else if(type==='DELIVERY')addAddress(delivery,a);
+  }
+  addAddress(delivery,raw?.deliveryAddress);
+  const domain=(email:string)=>{const at=email.lastIndexOf('@');return at>0?email.slice(at+1):''};
+  const sharedPersonalDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
+  const directDomains=new Set([...direct].map(domain).filter(d=>d&&!sharedPersonalDomains.has(d)));
+  for(const email of [...delivery]){
+    if(directDomains.has(domain(email))){direct.add(email);delivery.delete(email)}
+  }
+  const recipient=trim(to,320).toLowerCase();
+  const customerName=trim(offer?.customer_name||raw?.client?.name,500)||'den direkte kunde';
+  const fallback=new Set<string>();add(fallback,companyEmail);for(const c of contacts||[])add(fallback,c?.email);
+  const minubaLinked=!!(minubaOfferId(offer)||raw?.client?.id||raw?.clientId);
+  const resultBase={customer_name:customerName,allowed_recipients:[...direct],delivery_recipients:[...delivery]};
+  if(direct.size){
+    if(direct.has(recipient))return{...resultBase,blocked:false,verified:true,recipient_scope:'direct_customer'};
+    const isDelivery=delivery.has(recipient);
+    return{
+      ...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',
+      reason:isDelivery
+        ?`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må kun sendes til ${customerName}.`
+        :`${recipient} er ikke bekræftet som mailadresse hos den direkte kunde ${customerName}. Tilbud og priser må kun sendes til den direkte kunde.`
+    };
+  }
+  if(delivery.has(recipient)){
+    return{...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason:`${recipient} tilhører leverings-/arbejdsstedet eller kundens kunde. Tilbud og priser må ikke sendes dertil.`};
+  }
+  if(minubaLinked){
+    return{...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customerName}. Mailen er blokeret, indtil en direkte kundeadresse er valgt i Minuba.`};
+  }
+  return{...resultBase,blocked:false,verified:fallback.has(recipient),recipient_scope:fallback.has(recipient)?'crm_direct_customer':'manual_non_minuba'};
+}
 function minubaPdfScore(item:any,offerRef:string,minubaId:string){
   const name=trim(item?.filename||item?.fileName||item?.name||item?.title,1000),n=refNorm(name),target=refNorm(offerRef);
   const mime=trim(item?.mimeType||item?.contentType||item?.type,200).toLowerCase();
@@ -584,7 +632,27 @@ Deno.serve(async(req:Request)=>{
     const effectiveLeadId=String(leadId||offer.lead_id||'')||null;
     const offerRef=trim(offer.offer_ref,160);if(!offerRef)return json({error:'Tilbudsnummer mangler, så den rigtige PDF kan ikke findes',code:'OFFER_REF_MISSING'},412);
 
+    let contactRows:any[]=[],companyRow:any=null;
     if(action==='send'||action==='preflight'){
+      const [{data:recipientContacts,error:contactFindError},{data:recipientCompany,error:companyFindError}]=await Promise.all([
+        admin.from('crm_contacts').select('id,email,verified,source_type').eq('client_id',clientId).eq('company_id',companyId),
+        admin.from('crm_companies').select('id,email').eq('id',companyId).eq('client_id',clientId).maybeSingle()
+      ]);
+      if(contactFindError)throw contactFindError;if(companyFindError)throw companyFindError;
+      contactRows=recipientContacts||[];companyRow=recipientCompany||null;
+      const recipientPolicy=directCustomerRecipientPolicy(offer,to,String(companyRow?.email||''),contactRows);
+      if(recipientPolicy.blocked){
+        const reason=trim(recipientPolicy.reason,1500)||'Tilbud og priser må kun sendes til den direkte kunde.';
+        const payload={
+          ok:false,blocked:true,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason,
+          message:'TILBUD BLOKERET – FORKERT MODTAGER',
+          customer_name:recipientPolicy.customer_name,
+          allowed_recipients:recipientPolicy.allowed_recipients||[]
+        };
+        if(action==='preflight')return json(payload);
+        return json({...payload,error:reason,status:'blocked'},409);
+      }
+
       const {data:suppressions,error:suppressionError}=await admin.from('crm_followup_suppressions')
         .select('email,offer_ref,company_name_pattern,reason')
         .eq('client_id',clientId).eq('active',true);
@@ -613,7 +681,7 @@ Deno.serve(async(req:Request)=>{
           reason
         },409);
       }
-      if(action==='preflight')return json({ok:true,blocked:false});
+      if(action==='preflight')return json({ok:true,blocked:false,recipient_verified:true,recipient_scope:'direct_customer'});
     }
 
     if(action==='send'&&limits&&limits.allow_mail_send===false)return json({error:'Mailafsendelse er ikke inkluderet i denne pakke',code:'PLAN_MAIL_DISABLED'},403);
@@ -642,11 +710,6 @@ Deno.serve(async(req:Request)=>{
     const attachmentB64=resolvedPdf.b64,sourceMessageId=resolvedPdf.messageId||'',pdfName=resolvedPdf.filename||expectedPdfName;
     if(!pdfB64Valid(attachmentB64))return json({error:`PDF-kilden for tilbud ${offerRef} blev fundet, men indholdet er ikke en gyldig PDF. Mailen er ikke sendt.`,code:'OFFER_PDF_INVALID'},412);
 
-    const [{data:contactRows,error:contactFindError},{data:companyRow,error:companyFindError}]=await Promise.all([
-      admin.from('crm_contacts').select('id,email,verified').eq('client_id',clientId).eq('company_id',companyId),
-      admin.from('crm_companies').select('id,email').eq('id',companyId).eq('client_id',clientId).maybeSingle()
-    ]);
-    if(contactFindError)throw contactFindError;if(companyFindError)throw companyFindError;
     let contact=(contactRows||[]).find((c:any)=>String(c.email||'').trim().toLowerCase()===to);
     const companyEmail=String(companyRow?.email||'').trim().toLowerCase();
     if(!contact&&companyEmail&&companyEmail===to){
