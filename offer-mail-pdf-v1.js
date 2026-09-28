@@ -134,7 +134,7 @@
   async function finishPdfSend(o,to,data,name,follow){
     const completedSendId=currentPdfSendId;
     clearPendingSend(o,completedSendId);
-    renderSendStatus('success','Mail sendt','Gmail har bekræftet afsendelsen. Opfølgningen synkroniseres i baggrunden.');
+    renderSendStatus('success','Mailen er sendt – gemmer opfølgningen','Lead Manager kontrollerer automatisk opfølgningsdatoen i baggrunden. Gmail har bekræftet afsendelsen, så du kan arbejde videre.');
     byId('offerMailModal')?.classList.remove('open');
     window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
     currentPdfSendId=null;pdfSendState='idle';
