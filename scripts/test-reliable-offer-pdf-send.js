@@ -43,9 +43,7 @@ for(const marker of [
   "byId('oFollow').value=expected",
   'applyFollowDateLocally',
   'effectiveFollowDate',
-  'backendFollow',
-  'follow_up_date:existing.follow_up_date',
-  'follow_up_date:followUpDate'
+  'backendFollow'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
@@ -98,6 +96,9 @@ for(const marker of [
   "pending:true",
   "blocked:true",
   "message:'MAIL BLOKERET – INGEN OPFØLGNING'",
+  'follow_up_date:existing.follow_up_date',
+  'follow_up_at:existing.follow_up_at',
+  'follow_up_date:followUpDate',
   "err?.message||err?.error_description||err?.details||err?.hint"
 ]) must(send.includes(marker),'offer PDF backend reliability marker missing: '+marker);
 
