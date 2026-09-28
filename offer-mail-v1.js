@@ -116,7 +116,7 @@
       if(type==='CONTACT')push(a,'client_contact_address',130);
       else if(type==='BILLING')push(a,'client_billing_address',120);
     }
-    const directDomains=new Set(out.map(x=>emailDomain(x.email)).filter(Boolean));
+    const directDomains=new Set(out.map(x=>emailDomain(x.email)).filter(d=>d&&!personalMailDomains.has(d)));
     const pushVerifiedDelivery=(a,source,score)=>{
       if(!a||typeof a!=='object')return;
       for(const email of emailList(a.email||a.mail||a.emailAddress||'')){
@@ -134,7 +134,7 @@
       ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).map(a=>a?.email):[]),
       ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).map(a=>a?.email):[])
     ];
-    const directDomains=new Set(directValues.flatMap(emailList).map(emailDomain).filter(Boolean));
+    const directDomains=new Set(directValues.flatMap(emailList).map(emailDomain).filter(d=>d&&!personalMailDomains.has(d)));
     const addresses=[
       raw?.deliveryAddress,
       ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[]),
