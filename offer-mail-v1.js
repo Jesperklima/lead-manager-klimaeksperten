@@ -154,7 +154,7 @@
       ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[]),
       ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[])
     ].filter(Boolean);
-    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower).filter(email=>!domainMatchesTrusted(email,directDomains))))];
+    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower).filter(email=>!domainMatchesTrusted(email,directDomains)))];
   }
   function bestRawContact(raw,o=null){
     const options=rawAddressCandidates(raw,o);
