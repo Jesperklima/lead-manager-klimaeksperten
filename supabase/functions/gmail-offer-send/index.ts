@@ -314,12 +314,9 @@ async function resolveOfferPdf(admin:any,clientId:string,offer:any,offerRef:stri
   if(cachedKind.startsWith('gmail')&&offer?.pdf_source_message_id){
     found=await gmailCachedPdfCandidate(offer,offerRef,gmailToken);
   }
-  if(!found&&cachedKind.startsWith('minuba')){
-    found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
-  }
   if(!found)found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
+  if(!found&&stableId)found=await minubaLiveRenderCandidate(admin,clientId,offer,offerRef);
   if(!found)found=await gmailPdfCandidate(admin,clientId,offer,offerRef,gmailToken);
-  if(!found)found=await minubaLiveRenderCandidate(admin,clientId,offer,offerRef);
   if(found){
     const now=new Date().toISOString();
     await admin.from('crm_offers').update({
@@ -379,7 +376,7 @@ function createMimeUploadStream(parts:{
 async function gmailSendMime(accessToken:string,parts:any){
   const stream=createMimeUploadStream(parts);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),35000);
+  const timer=setTimeout(()=>controller.abort(),8000);
   try{
     const r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{
       method:'POST',
@@ -526,7 +523,7 @@ Deno.serve(async(req:Request)=>{
       }
 
       const ageMs=Date.now()-new Date(existing.updated_at||existing.created_at).getTime();
-      if(ageMs>=12000){
+      if(ageMs>=8000){
         const {data:mat}=await admin.rpc('get_gmail_oauth_material',{p_client_id:clientId});
         const recovered=await recoverProviderState(admin,existing,mat,supabaseUrl,serviceKey);
         if(recovered.state==='sent'){
