@@ -4,6 +4,8 @@ const s=fs.readFileSync('supabase/functions/minuba-offer-status-sync/index.ts','
 for(const m of [
  "addressContact(record?.contactAddress,'offer_contact_address',520)",
  "addressContact(record?.billingAddress,'offer_billing_address',430)",
+ "addressContact(record?.deliveryAddress,'verified_customer_delivery_address',300)",
+ "directDomains.has(emailDomain(delivery.email))",
  "function siblingConsensus",
  "function liveClientContact",
  "apiGet('Client',{include:'addresses'})",
@@ -27,4 +29,4 @@ assert.deepEqual(list(fixture.minuba_raw.contactAddress.email),['mp@iklima.dk','
 assert.deepEqual(list(fixture.minuba_raw.deliveryAddress.email),['tochr@kab-bolig.dk']);
 assert(!list(fixture.minuba_raw.contactAddress.email).includes('tochr@kab-bolig.dk'));
 
-console.log('PASS: all-offer Minuba contact backfill uses direct CONTACT/BILLING addresses and excludes DELIVERY/end-customer contacts');
+console.log('PASS: all-offer Minuba contact backfill uses direct customer addresses and only accepts DELIVERY contacts with a verified customer domain');
