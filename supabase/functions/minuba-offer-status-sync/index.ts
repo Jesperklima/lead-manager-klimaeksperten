@@ -66,7 +66,13 @@ function domainMatches(email:any,domains:Set<string>){
 function referenceContact(record:any){
   const ref=clean(record?.theirref||record?.theirRef,300);if(!ref)return null;
   const refKey=norm(ref);if(!refKey)return null;
-  const addresses=[record?.contactAddress,record?.billingAddress,record?.deliveryAddress,...(Array.isArray(record?.addresses)?record.addresses:[])].filter(Boolean);
+  // TheirRef identifies the commercial customer reference. Only CONTACT/BILLING
+  // addresses may prove that relation here. DELIVERY can be an end customer/site.
+  const addresses=[
+    record?.contactAddress,
+    record?.billingAddress,
+    ...(Array.isArray(record?.addresses)?record.addresses.filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())):[])
+  ].filter(Boolean);
   let best:any=null,bestScore=0;
   for(const a of addresses){
     const phone=clean(a?.cellPhone||a?.mobile||a?.phone,120);
