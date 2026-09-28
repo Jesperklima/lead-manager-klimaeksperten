@@ -56,7 +56,8 @@ for(const marker of [
   "source_type:'verified_company_contact'"
 ]) must(send.includes(marker),'direct-send reliability marker missing: '+marker);
 
-must(!send.includes("admin.from('crm_mail_messages').insert"),'direct send still writes mail history synchronously');\nmust(!send.includes("source_type:'manual_offer_mail'"),'offer direct-send must not turn an unverified manual recipient into a verified customer contact');
+must(!send.includes("admin.from('crm_mail_messages').insert"),'direct send still writes mail history synchronously');
+must(!send.includes("source_type:'manual_offer_mail'"),'offer direct-send must not turn an unverified manual recipient into a verified customer contact');
 must(!send.includes("admin.from('crm_tasks').insert"),'direct send still creates follow-up tasks synchronously');
 must(!send.includes("admin.from('crm_usage_events').insert"),'direct send still writes usage synchronously');
 
