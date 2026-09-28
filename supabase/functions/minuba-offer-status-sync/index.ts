@@ -50,12 +50,12 @@ function recordContact(record:any){
   const directName=clean(record?.theirref||record?.theirRef||record?.contactName||record?.contactPerson?.name||record?.contact?.name,300);
   const directEmail=firstEmail(record?.contactEmail||record?.contactPerson?.email||record?.contact?.email);
   const directPhone=clean(record?.contactPerson?.cellPhone||record?.contactPerson?.phone||record?.contact?.cellPhone||record?.contact?.phone,120);
+  const typedAddresses=(Array.isArray(record?.addresses)?record.addresses:[]).filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase()));
   const options:any[]=[
     directName||directEmail||directPhone?{name:directName,email:directEmail,phone:directPhone,source:'offer_direct',score:560}:null,
-    addressContact(record?.deliveryAddress,'offer_delivery_address',500),
-    addressContact(record?.contactAddress,'offer_contact_address',400),
-    addressContact(record?.billingAddress,'offer_billing_address',300),
-    ...(Array.isArray(record?.addresses)?record.addresses.map((a:any)=>addressContact(a,'offer_address',200)):[])
+    addressContact(record?.contactAddress,'offer_contact_address',520),
+    addressContact(record?.billingAddress,'offer_billing_address',430),
+    ...typedAddresses.map((a:any)=>addressContact(a,'offer_customer_address',350))
   ].filter(Boolean);
   options.sort((a,b)=>b.score-a.score);
   return options.find(x=>x.name&&x.email)||options.find(x=>x.email)||options.find(x=>x.name)||options[0]||null;
@@ -88,16 +88,16 @@ function crmConsensus(o:any,contacts:any[]){
 function liveClientContact(record:any,clientRows:any[]){
   const clientId=clean(record?.clientId||record?.client?.id,200);if(!clientId)return null;
   const client=(clientRows||[]).find((x:any)=>clean(x?.id,200)===clientId);if(!client)return null;
-  const addresses=Array.isArray(client?.addresses)?client.addresses:[];if(!addresses.length)return null;
-  const ids=[record?.deliveryAddressId,record?.contactAddressId,record?.billingAddressId,record?.client?.lastUsedDeliveryAddressId,record?.client?.lastUsedContactAddressId,record?.client?.lastUsedBillingAddressId].map((x:any)=>clean(x,200)).filter(Boolean);
-  for(const id of ids){const a=addresses.find((x:any)=>clean(x?.id,200)===id);const c=addressContact(a,'client_exact_address',350);if(c&&(c.email||c.name))return c}
-  const refAddress=record?.deliveryAddress||record?.contactAddress||record?.billingAddress||null;
+  const addresses=(Array.isArray(client?.addresses)?client.addresses:[]).filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase()));if(!addresses.length)return null;
+  const ids=[record?.contactAddressId,record?.billingAddressId,record?.client?.lastUsedContactAddressId,record?.client?.lastUsedBillingAddressId].map((x:any)=>clean(x,200)).filter(Boolean);
+  for(const id of ids){const a=addresses.find((x:any)=>clean(x?.id,200)===id);const c=addressContact(a,'client_exact_customer_address',350);if(c&&(c.email||c.name))return c}
+  const refAddress=record?.contactAddress||record?.billingAddress||null;
   if(refAddress){
     const street=norm(refAddress?.streetAddress||refAddress?.street),post=norm(refAddress?.postCode||refAddress?.postalCode),city=norm(refAddress?.city);
     const same=addresses.find((a:any)=>(!street||norm(a?.streetAddress||a?.street)===street)&&(!post||norm(a?.postCode||a?.postalCode)===post)&&(!city||norm(a?.city)===city));
-    const c=addressContact(same,'client_matching_address',300);if(c&&(c.email||c.name))return c;
+    const c=addressContact(same,'client_matching_customer_address',300);if(c&&(c.email||c.name))return c;
   }
-  const viable=addresses.map((a:any)=>addressContact(a,'client_address',150)).filter((x:any)=>x?.email);
+  const viable=addresses.map((a:any)=>addressContact(a,'client_customer_address',150)).filter((x:any)=>x?.email);
   const unique=new Map<string,any>();for(const x of viable){const e=clean(x.email,320).toLowerCase();if(e&&!unique.has(e))unique.set(e,x)}
   return unique.size===1?[...unique.values()][0]:null;
 }
