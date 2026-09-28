@@ -63,13 +63,16 @@ function installationAddressFor(record:any){
   const addresses=Array.isArray(record?.addresses)?record.addresses:[];
   return record?.deliveryAddress||addresses.find((a:any)=>String(a?.addressType||'').toUpperCase()==='DELIVERY')||record?.contactAddress||record?.billingAddress||addresses[0]||{};
 }
-function optionsFromAddress(a:any,source='address'){
+function optionsFromAddress(a:any,source='address',safeForOffer=true){
   if(!a||typeof a!=='object')return [];
   const phone=clean(a?.cellPhone||a?.phone,120);
   return emailList(a?.email).map(email=>{
     const explicitName=clean(a?.att||a?.contactName||a?.referencePerson||a?.theirref||a?.theirRef,300);
     const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(a?.name):'');
-    return {name,email,phone,source,address_id:clean(a?.id,200),address_type:clean(a?.addressType,80)};
+    return {
+      name,email,phone,source,address_id:clean(a?.id,200),address_type:clean(a?.addressType,80),
+      safe_for_offer:safeForOffer,recipient_scope:safeForOffer?'direct_customer':'delivery_or_end_customer'
+    };
   });
 }
 function dedupeOptions(items:any[]){
@@ -93,26 +96,30 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
   const directPerson=clean(contact?.name||record?.contactName||record?.theirref||record?.theirRef,300);
   const directPhone=clean(contact?.cellPhone||contact?.phone,120);
   const addresses=Array.isArray(record?.addresses)?record.addresses:[];
-  const addressOptions=dedupeOptions([
-    ...optionsFromAddress(record?.deliveryAddress,'offer_delivery_address'),
-    ...optionsFromAddress(record?.contactAddress,'offer_contact_address'),
-    ...optionsFromAddress(record?.billingAddress,'offer_billing_address'),
-    ...addresses.flatMap((a:any)=>optionsFromAddress(a,'offer_address'))
+  const directAddressOptions=dedupeOptions([
+    ...optionsFromAddress(record?.contactAddress,'offer_contact_address',true),
+    ...optionsFromAddress(record?.billingAddress,'offer_billing_address',true),
+    ...addresses.filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).flatMap((a:any)=>optionsFromAddress(a,'offer_customer_address',true))
+  ]);
+  const deliveryOptions=dedupeOptions([
+    ...optionsFromAddress(record?.deliveryAddress,'offer_delivery_address',false),
+    ...addresses.filter((a:any)=>String(a?.addressType||'').toUpperCase()==='DELIVERY').flatMap((a:any)=>optionsFromAddress(a,'offer_delivery_address',false))
   ]);
   const contactOptions=dedupeOptions([
-    ...directEmails.map(email=>({name:directPerson,email,phone:directPhone,source:'offer_direct'})),
-    ...addressOptions
+    ...directEmails.map(email=>({name:directPerson,email,phone:directPhone,source:'offer_direct',safe_for_offer:true,recipient_scope:'direct_customer'})),
+    ...directAddressOptions
   ]);
   const primary=
-    contactOptions.find(x=>x.source==='offer_delivery_address'&&x.name&&x.email)||
-    contactOptions.find(x=>x.name&&x.email)||
-    contactOptions.find(x=>x.source==='offer_delivery_address'&&x.email)||
-    contactOptions[0]||null;
-  const contactEmails=[...new Set([...directEmails,...contactOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean)])];
-  const selectedEmail=clean(primary?.email||contactEmails[0],320);
+    contactOptions.find((x:any)=>x.source==='offer_contact_address'&&x.name&&x.email)||
+    contactOptions.find((x:any)=>x.source==='offer_contact_address'&&x.email)||
+    contactOptions.find((x:any)=>x.source==='offer_billing_address'&&x.email)||
+    (contactOptions.length===1?contactOptions[0]:null);
+  const contactEmails=[...new Set(contactOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
+  const deliveryEmails=[...new Set(deliveryOptions.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
+  const selectedEmail=clean(primary?.email||'',320);
   const customerName=clean(client?.name||record?.clientName||record?.customerName||contactAddress?.name,300);
-  const selectedPerson=clean(primary?.name||directPerson||contactAddress?.att||installationAddress?.att||(isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''),300);
-  const contactPhone=clean(primary?.phone||directPhone||installationAddress?.cellPhone||installationAddress?.phone||contactAddress?.cellPhone||contactAddress?.phone,120);
+  const selectedPerson=clean(primary?.name||directPerson||contactAddress?.att||(isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''),300);
+  const contactPhone=clean(primary?.phone||directPhone||contactAddress?.cellPhone||contactAddress?.phone,120);
   return{
     found:true,
     record_type:recordType,
@@ -127,9 +134,12 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     contact_person:selectedPerson,
     contact_email:selectedEmail,
     contact_emails:contactEmails,
+    direct_customer_emails:contactEmails,
+    delivery_contact_emails:deliveryEmails,
     contact_phone:contactPhone,
-    contact_details:clean([selectedEmail,contactPhone].filter(Boolean).join(' · ')||record?.contactDetails,700),
+    contact_details:clean([selectedEmail,contactPhone].filter(Boolean).join(' · '),700),
     contact_options:contactOptions,
+    delivery_contact_options:deliveryOptions,
     minuba_id:clean(record?.id,200),
     raw:record
   };
@@ -188,8 +198,11 @@ Deno.serve(async(req:Request)=>{
     async function finalize(record:any,recordType:'proposal'|'order'){
       const result:any=extract(record,recordType,ref);
       const storedPerson=clean(storedOffer?.contact_person,300),storedEmail=firstEmail(storedOffer?.contact_details);
-      if(!result.contact_person&&storedPerson)result.contact_person=storedPerson;
-      if(!result.contact_email&&storedEmail){result.contact_email=storedEmail;result.contact_details=clean([storedEmail,result.contact_phone].filter(Boolean).join(' · '),700)}
+      const allowedStored=new Set((result.direct_customer_emails||[]).map((x:string)=>x.toLowerCase()));
+      if(storedEmail&&allowedStored.has(storedEmail.toLowerCase())){
+        if(!result.contact_person&&storedPerson)result.contact_person=storedPerson;
+        if(!result.contact_email){result.contact_email=storedEmail;result.contact_details=clean([storedEmail,result.contact_phone].filter(Boolean).join(' · '),700)}
+      }
 
       if(!result.contact_person||!result.contact_email){
         const clientKey=clean(record?.clientId||record?.client?.id,200);
@@ -200,17 +213,16 @@ Deno.serve(async(req:Request)=>{
             const clients=arr(clientsResponse.data,['clients','Clients','data']);
             const client=clients.find((x:any)=>String(x?.id||'')===clientKey);
             const addresses=Array.isArray(client?.addresses)?client.addresses:[];
-            const offerEmails=new Set((result.contact_emails||[]).map((x:string)=>x.toLowerCase()));
-            let options=dedupeOptions(addresses.flatMap((a:any)=>optionsFromAddress(a,'client_address')));
-            if(offerEmails.size){
-              const matched=options.filter((x:any)=>offerEmails.has(String(x.email).toLowerCase()));
-              if(matched.length)options=matched;
-            }
+            const directAddresses=addresses.filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase()));
+            const options=dedupeOptions(directAddresses.flatMap((a:any)=>optionsFromAddress(a,'client_customer_address',true)));
             result.contact_options=dedupeOptions([...(result.contact_options||[]),...options]);
-            const best=result.contact_options.find((x:any)=>x.name&&x.email&&(!offerEmails.size||offerEmails.has(String(x.email).toLowerCase())))||result.contact_options.find((x:any)=>x.name&&x.email)||null;
+            result.direct_customer_emails=[...new Set(result.contact_options.map((x:any)=>clean(x?.email,320)).filter(Boolean))];
+            const best=result.contact_options.find((x:any)=>x.source==='offer_contact_address'&&x.email)
+              ||result.contact_options.find((x:any)=>x.name&&x.email)
+              ||(result.contact_options.length===1?result.contact_options[0]:null);
             if(best){
               if(!result.contact_person)result.contact_person=clean(best.name,300);
-              if(!result.contact_email||offerEmails.has(String(best.email).toLowerCase()))result.contact_email=clean(best.email,320);
+              if(!result.contact_email)result.contact_email=clean(best.email,320);
               if(!result.contact_phone)result.contact_phone=clean(best.phone,120);
               result.contact_details=clean([result.contact_email,result.contact_phone].filter(Boolean).join(' · '),700);
             }
