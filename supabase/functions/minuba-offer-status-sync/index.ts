@@ -21,6 +21,7 @@ function appendNote(oldValue:any,note:string){const old=clean(oldValue,12000);if
 function addressText(a:any){return [a?.streetAddress||a?.street,a?.streetAddress2,a?.postCode||a?.postalCode,a?.city].filter(Boolean).join(', ')}
 const emailList=(v:any)=>[...new Set((clean(v,3000).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map((x:string)=>x.trim()))];
 const firstEmail=(v:any)=>emailList(v)[0]||'';
+const emailDomain=(v:any)=>{const e=firstEmail(v).toLowerCase(),at=e.lastIndexOf('@');return at>0?e.slice(at+1):''};
 const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
 function looksLikePersonName(value:any){
   const name=clean(value,100).replace(/\s+/g,' ');
@@ -55,6 +56,9 @@ function recordContact(record:any){
     addressContact(record?.billingAddress,'offer_billing_address',430),
     ...typedAddresses.map((a:any)=>addressContact(a,'offer_customer_address',350))
   ].filter(Boolean);
+  const directDomains=new Set(options.map(x=>emailDomain(x?.email)).filter(Boolean));
+  const delivery=addressContact(record?.deliveryAddress,'verified_customer_delivery_address',300);
+  if(delivery?.email&&directDomains.has(emailDomain(delivery.email)))options.push(delivery);
   options.sort((a,b)=>b.score-a.score);
   return options.find(x=>x.name&&x.email)||options.find(x=>x.email)||options.find(x=>x.name)||options[0]||null;
 }
