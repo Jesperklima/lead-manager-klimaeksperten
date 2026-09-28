@@ -47,13 +47,11 @@ function addressContact(a:any,source:string,score=0){
 }
 function recordContact(record:any){
   if(!record||typeof record!=='object')return null;
-  const directName=clean(record?.theirref||record?.theirRef||record?.contactName||record?.contactPerson?.name||record?.contact?.name,300);
-  const directEmail=firstEmail(record?.contactEmail||record?.contactPerson?.email||record?.contact?.email);
-  const directPhone=clean(record?.contactPerson?.cellPhone||record?.contactPerson?.phone||record?.contact?.cellPhone||record?.contact?.phone,120);
   const typedAddresses=(Array.isArray(record?.addresses)?record.addresses:[]).filter((a:any)=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase()));
+  const clientDirect=record?.client?.email?addressContact({email:record.client.email,name:record.client.name,phone:record.client.phone},'client_direct',480):null;
   const options:any[]=[
-    directName||directEmail||directPhone?{name:directName,email:directEmail,phone:directPhone,source:'offer_direct',score:560}:null,
     addressContact(record?.contactAddress,'offer_contact_address',520),
+    clientDirect,
     addressContact(record?.billingAddress,'offer_billing_address',430),
     ...typedAddresses.map((a:any)=>addressContact(a,'offer_customer_address',350))
   ].filter(Boolean);
