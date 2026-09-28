@@ -11,6 +11,7 @@
   const firstEmail=value=>(String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
   const emailList=value=>[...new Set((String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map(x=>x.trim()))];
   const lower=v=>String(v||'').trim().toLowerCase();
+  const emailDomain=value=>{const e=lower(firstEmail(value)),at=e.lastIndexOf('@');return at>0?e.slice(at+1):''};
   const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
   function looksLikePersonName(value){
     const name=String(value||'').trim().replace(/\s+/g,' ');
@@ -99,9 +100,9 @@
         out.push({name,email,phone,source,score,address_id:String(address.id||''),address_type:String(address.addressType||''),safe_for_offer:true,recipient_scope:'direct_customer'});
       }
     };
-    // Offers/prices belong to our direct customer. CONTACT/BILLING are commercial
-    // customer addresses; DELIVERY is an installation/end-customer address and is
-    // deliberately excluded from offer-recipient candidates.
+    // Offers/prices belong to our direct customer. CONTACT/BILLING/client email
+    // establish that customer's domains. A DELIVERY contact is only eligible when
+    // its email domain is already verified as belonging to that same direct customer.
     push(raw?.contactAddress,'offer_contact_address',180);
     push(raw?.billingAddress,'offer_billing_address',160);
     if(raw?.client?.email)push({email:raw.client.email,name:raw.client.name},'client_direct',150);
@@ -115,15 +116,31 @@
       if(type==='CONTACT')push(a,'client_contact_address',130);
       else if(type==='BILLING')push(a,'client_billing_address',120);
     }
+    const directDomains=new Set(out.map(x=>emailDomain(x.email)).filter(Boolean));
+    const pushVerifiedDelivery=(a,source,score)=>{
+      if(!a||typeof a!=='object')return;
+      for(const email of emailList(a.email||a.mail||a.emailAddress||'')){
+        if(directDomains.has(emailDomain(email)))push({...a,email},source,score);
+      }
+    };
+    pushVerifiedDelivery(raw?.deliveryAddress,'verified_customer_delivery_address',110);
+    for(const a of (Array.isArray(raw?.addresses)?raw.addresses:[]))if(String(a?.addressType||'').toUpperCase()==='DELIVERY')pushVerifiedDelivery(a,'verified_customer_delivery_address',105);
+    for(const a of (Array.isArray(raw?.client?.addresses)?raw.client.addresses:[]))if(String(a?.addressType||'').toUpperCase()==='DELIVERY')pushVerifiedDelivery(a,'verified_customer_delivery_address',100);
     return out.sort((a,b)=>b.score-a.score);
   }
   function unsafeDeliveryEmails(raw){
+    const directValues=[
+      raw?.contactAddress?.email,raw?.billingAddress?.email,raw?.client?.email,
+      ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).map(a=>a?.email):[]),
+      ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())).map(a=>a?.email):[])
+    ];
+    const directDomains=new Set(directValues.flatMap(emailList).map(emailDomain).filter(Boolean));
     const addresses=[
       raw?.deliveryAddress,
       ...(Array.isArray(raw?.addresses)?raw.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[]),
       ...(Array.isArray(raw?.client?.addresses)?raw.client.addresses.filter(a=>String(a?.addressType||'').toUpperCase()==='DELIVERY'):[])
     ].filter(Boolean);
-    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower))];
+    return [...new Set(addresses.flatMap(a=>emailList(a?.email||a?.mail||a?.emailAddress||'')).map(lower).filter(email=>!directDomains.has(emailDomain(email))))];
   }
   function bestRawContact(raw,o=null){
     const options=rawAddressCandidates(raw);
@@ -151,7 +168,7 @@
     o.minuba_raw=raw;
     const selectionRequired=!best&&minubaContactOptions.length>1;
     updateComposerFromOffer(o,selectionRequired
-      ?`${sourceLabel}: vælg en kontakt hos den direkte kunde – leveringsadressen bruges aldrig til tilbud/priser.`
+      ?`${sourceLabel}: vælg en kontakt hos den direkte kunde – leveringsadressen bruges kun, hvis maildomænet kan bekræftes som den direkte kundes.`
       :name&&email?`${sourceLabel}: ${name} · ${email}`:email?`${sourceLabel}: ${email}`:name?`${sourceLabel}: ${name}`:`${sourceLabel}: ingen sikker direkte kundemail fundet`);
     refreshGreeting(o);
     return best?{name,email,phone,source:best.source}:null;
@@ -256,7 +273,7 @@
       <h2 style="margin-top:0">Send mail om tilbud</h2>
       <div id="offerMailMeta" class="sub"></div>
       <div id="offerMailContactSource" class="sub" style="margin-top:6px"></div>
-      <div class="field hidden" id="offerMailContactChoiceField"><label>Kontakt hos direkte kunde</label><select id="offerMailContactChoice"></select><div class="sub" style="margin-top:5px">Kun kontakt-/faktureringsadresser hos den direkte kunde kan vælges. Kontakt på leverings-/arbejdsstedet bruges aldrig til tilbud eller priser.</div></div>
+      <div class="field hidden" id="offerMailContactChoiceField"><label>Kontakt hos direkte kunde</label><select id="offerMailContactChoice"></select><div class="sub" style="margin-top:5px">Kun kontakt-/faktureringsadresser hos den direkte kunde kan vælges. Kontakt på leverings-/arbejdsstedet kan kun vælges, hvis maildomænet er bekræftet som den direkte kundes.</div></div>
       <div class="field"><label>Kontaktperson</label><input id="offerMailContactName" placeholder="Navn på kontaktperson" autocomplete="name"><div class="sub" id="offerMailContactNameNote" style="margin-top:5px"></div></div>
       <div class="field"><label>Til</label><input id="offerMailTo" type="email" placeholder="kunde@firma.dk" autocomplete="email"><div class="sub" id="offerMailRecipientNote" style="margin-top:5px"></div></div>
       <div class="field"><label>Emne</label><input id="offerMailSubject"></div>
@@ -329,7 +346,7 @@
     }
     setNodeText('offerMailContactNameNote',o.contact_person?'Kontaktperson hentet hos den direkte kunde.':'Navnet udfyldes automatisk, hvis det findes på den direkte kundes kontakt-/faktureringsadresse i Minuba.');
     const directCustomer=String(o?.customer_name||o?.minuba_raw?.client?.name||'kunden').trim();
-    setNodeText('offerMailRecipientNote',to?`Modtageren er fundet hos den direkte kunde: ${directCustomer}.`:`Vælg en mailadresse hos den direkte kunde: ${directCustomer}. Leverings-/arbejdsstedets kontakt må ikke bruges til tilbud eller priser.`);
+    setNodeText('offerMailRecipientNote',to?`Modtageren er fundet hos den direkte kunde: ${directCustomer}.`:`Vælg en mailadresse hos den direkte kunde: ${directCustomer}. Leverings-/arbejdsstedets kontakt bruges kun, når maildomænet er bekræftet som den direkte kundes.`);
     renderContactChoices(o);
     document.dispatchEvent(new CustomEvent('lm:offer-contact-updated',{detail:{offer_id:o.id,contact_person:o.contact_person||'',contact_details:o.contact_details||''}}));
     const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
