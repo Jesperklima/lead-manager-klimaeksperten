@@ -20,9 +20,9 @@
   function bounced(email,o){const e=lower(email);return contacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function pdfName(o){const ref=String(o?.offer_ref||'').trim();return ref?`Tilbud ${ref}.pdf`:''}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
-  const finalizedStatuses=new Set(['sent','sent_pending_postprocess','postprocessing']);
+  const finalizedStatuses=new Set(['sent']);
   const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing']);
-  function isSentResult(data){return finalizedStatuses.has(String(data?.status||''))}
+  function isSentResult(data){const status=String(data?.status||'');return finalizedStatuses.has(status)||postprocessStatuses.has(status)}
   function isPostprocessPending(data){return postprocessStatuses.has(String(data?.status||''))}
   function mailErrorFrom(result){const e=new Error(result?.error?.message||'Mailafsendelsen fejlede');Object.assign(e,result?.error||{});return e}
   function friendlyMailError(error){
