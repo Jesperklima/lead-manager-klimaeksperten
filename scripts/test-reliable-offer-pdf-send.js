@@ -120,7 +120,9 @@ must(!send.includes("await fetch('https://gmail.googleapis.com/upload/gmail/v1/u
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
 must(send.indexOf('directCustomerRecipientPolicy(offer,to') < send.indexOf('resolveOfferPdf(admin,clientId,offer,offerRef,accessToken)'), 'recipient boundary must run before PDF resolution/send work');
 must(send.includes("addAddress(delivery,raw?.deliveryAddress)"),'backend must identify delivery/end-customer addresses separately');
-must(send.includes('domainTrusted(email)'),'backend may only promote a delivery contact when its mail domain matches trusted direct-customer evidence');\nmust(send.includes("select('id,email,domain,website_url')"),'offer send must read the linked company domain before approving a recipient');\nmust(send.includes("source_type:'verified_company_contact'"),'new recipient contacts must be created only after policy verification');
+must(send.includes('domainTrusted(email)'),'backend may only promote a delivery contact when its mail domain matches trusted direct-customer evidence');
+must(send.includes("select('id,email,domain,website_url')"),'offer send must read the linked company domain before approving a recipient');
+must(send.includes("source_type:'verified_company_contact'"),'new recipient contacts must be created only after policy verification');
 
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
 must(!send.includes("admin.from('crm_usage_events').insert"),'offer PDF send still writes usage synchronously');
