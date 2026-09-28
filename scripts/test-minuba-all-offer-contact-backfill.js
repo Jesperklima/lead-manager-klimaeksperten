@@ -8,6 +8,9 @@ for(const m of [
  "directDomains.has(emailDomain(delivery.email))",
  "function siblingConsensus",
  "function liveClientContact",
+ "function unsafeStoredDeliveryContact",
+ "const unsafeStored=unsafeStoredDeliveryContact(record,o)",
+ "patch.contact_person=candidate?.name?clean(candidate.name,300):null",
  "apiGet('Client',{include:'addresses'})",
  "let contactBackfilled=0,contactUnresolved=0",
  "contact_backfilled:contactBackfilled"
