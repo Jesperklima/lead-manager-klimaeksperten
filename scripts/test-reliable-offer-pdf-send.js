@@ -36,7 +36,11 @@ for(const marker of [
   "select('id,client_id,follow_up_date')",
   'Gmail har bekræftet afsendelsen',
   'synkroniseres i baggrunden',
-  'Mailen afsendes i baggrunden · du kan arbejde videre'
+  'Mailen afsendes i baggrunden · du kan arbejde videre',
+  'waitForOfferFollowUp',
+  'Promise.race',
+  '__background:true',
+  "byId('oFollow').value=expected"
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
@@ -77,7 +81,7 @@ for(const marker of [
   'upload/gmail/v1/users/me/messages/send?uploadType=media',
   "'Content-Type':'message/rfc822'",
   'new AbortController()',
-  'setTimeout(()=>controller.abort(),8000)',
+  'setTimeout(()=>controller.abort(),90000)',
   'uncertain:true',
   "code:'SEND_IN_PROGRESS'",
   "reason:sendAborted?'gmail_upload_timeout':'gmail_upload_uncertain'",
