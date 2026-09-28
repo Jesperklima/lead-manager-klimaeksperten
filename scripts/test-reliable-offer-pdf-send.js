@@ -40,7 +40,12 @@ for(const marker of [
   'waitForOfferFollowUp',
   'Promise.race',
   '__background:true',
-  "byId('oFollow').value=expected"
+  "byId('oFollow').value=expected",
+  'applyFollowDateLocally',
+  'effectiveFollowDate',
+  'backendFollow',
+  'follow_up_date:existing.follow_up_date',
+  'follow_up_date:followUpDate'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
