@@ -129,7 +129,24 @@
     if(normalizeFollowDate(row?.follow_up_date)!==expected)throw new Error(`Opfølgningsdatoen er endnu ikke gemt som ${expected}`);
     if(local)local.follow_up_date=expected;
     o.follow_up_date=expected;
+    if(offer()?.id===o.id&&byId('oFollow'))byId('oFollow').value=expected;
     return true;
+  }
+  async function waitForOfferFollowUp(o,expectedDate,maxMs=45000){
+    const started=Date.now();let lastError=null,attempt=0;
+    while(Date.now()-started<maxMs){
+      attempt++;
+      try{
+        if(await verifyOfferFollowUp(o,expectedDate)){
+          if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
+          else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
+          if(offer()?.id===o.id&&byId('oFollow'))byId('oFollow').value=normalizeFollowDate(expectedDate)||'';
+          return true;
+        }
+      }catch(error){lastError=error}
+      await sleep(Math.min(5000,650*attempt));
+    }
+    throw lastError||new Error('Opfølgningsdatoen blev ikke synkroniseret i tide');
   }
   async function finishPdfSend(o,to,data,name,follow){
     const completedSendId=currentPdfSendId;
@@ -142,14 +159,12 @@
 
     setTimeout(()=>void (async()=>{
       try{
-        await sleep(500);
-        if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
-        else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
-        await verifyOfferFollowUp(o,follow);
+        await waitForOfferFollowUp(o,follow,45000);
         if(typeof openOffer==='function'&&offer()?.id===o.id)openOffer(o.id);
+        if(typeof toast==='function')toast(`Opfølgning opdateret til ${normalizeFollowDate(follow)||follow}`);
       }catch(error){
-        console.warn('[Offer mail] Mailen er sendt; efterbehandlingen fortsætter i baggrunden',error);
-        if(typeof toast==='function')toast('Mailen er sendt · opfølgningen synkroniseres fortsat');
+        console.error('[Offer mail] Mailen er sendt, men opfølgningsdatoen blev ikke synkroniseret',error);
+        if(typeof toast==='function')toast('Mailen er sendt · opfølgningsdatoen kunne ikke bekræftes automatisk');
       }
     })(),0);
     return true;
@@ -322,6 +337,33 @@
     }
   }
 
+  async function handleBackgroundSendResult(o,requestId,to,name,follow,result){
+    const pending=loadPendingSend(o);
+    if(!pending||pending.request_id!==requestId)return;
+    if(result?.error){
+      const error=mailErrorFrom(result),status=Number(error?.status||0),code=String(error?.code||'');
+      if(status===546||code==='SEND_IN_PROGRESS'||(status>=500&&status<600))return;
+      sendWatchSeq++;
+      clearPendingSend(o,requestId);
+      pdfSendState='idle';currentPdfSendId=makeSendId();
+      if(typeof toast==='function')toast('Mailen blev ikke sendt · '+friendlyMailError(error));
+      return;
+    }
+    const data=result?.data??result;
+    if(isSentResult(data)){
+      sendWatchSeq++;
+      currentPdfSendId=requestId;
+      await finishPdfSend(o,to,data,name,follow);
+      return;
+    }
+    if(data?.status==='failed'){
+      sendWatchSeq++;
+      clearPendingSend(o,requestId);
+      pdfSendState='idle';currentPdfSendId=makeSendId();
+      if(typeof toast==='function')toast('Mailen blev ikke sendt · '+friendlyMailError(data));
+    }
+  }
+
   async function sendWithPdf(){
     const o=offer();if(!o)return;
     if(pdfSendState!=='idle')return;
@@ -345,10 +387,24 @@
     if(attachment&&pdfSendState!=='uncertain')attachment.innerHTML=`⏳ Henter eller genererer <strong>${name}</strong> fra Minuba…`;
     try{
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
-      const result=await callProtectedEdge('gmail-offer-send',{
+      const sendRequest=callProtectedEdge('gmail-offer-send',{
         client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,
         follow_up_date:follow||null,request_id:requestId
       });
+      const result=await Promise.race([
+        sendRequest,
+        sleep(1200).then(()=>({__background:true}))
+      ]);
+      if(result?.__background){
+        pdfSendState='uncertain';
+        renderSendStatus('checking','Afsendelsen kører i baggrunden',`Du kan arbejde videre. Opfølgningsdato ${follow||"—"} gemmes automatisk, så snart Gmail har bekræftet mailen.`);
+        byId('offerMailModal')?.classList.remove('open');
+        window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
+        if(typeof toast==='function')toast('Mailen afsendes i baggrunden · opfølgningsdatoen opdateres automatisk');
+        void sendRequest.then(r=>handleBackgroundSendResult(o,requestId,to,name,follow,r)).catch(error=>console.warn('[Offer mail] Baggrundsafsendelse mistede browserforbindelsen; statuskontrollen fortsætter',error));
+        setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),900);
+        return;
+      }
       if(result?.error)throw mailErrorFrom(result);
       const data=result?.data??result;
       if(isSentResult(data)){await finishPdfSend(o,to,data,name,follow);return}

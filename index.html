@@ -1059,7 +1059,9 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.quer
 async function callProtectedEdge(name,payload){
   const {data:{session}}=await supabase.auth.getSession();
   if(!session?.access_token) return {data:null,error:{message:'Du er ikke logget ind'}};
-  const res=await fetch(`${SUPABASE_URL}/functions/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
+  const body=JSON.stringify(payload);
+  const keepalive=name==='gmail-offer-send'&&(!payload?.action||payload.action==='send');
+  const res=await fetch(`${SUPABASE_URL}/functions/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body,keepalive});
   const text=await res.text();let data=null;try{data=text?JSON.parse(text):null}catch(_){data={error:text}}
   if(!res.ok)return {data:null,error:{message:data?.error||`${res.status} ${res.statusText}`,code:data?.code||null,status:res.status}};
   return {data,error:null};

@@ -376,7 +376,7 @@ function createMimeUploadStream(parts:{
 async function gmailSendMime(accessToken:string,parts:any){
   const stream=createMimeUploadStream(parts);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),8000);
+  const timer=setTimeout(()=>controller.abort(),90000);
   try{
     const r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{
       method:'POST',
@@ -523,7 +523,7 @@ Deno.serve(async(req:Request)=>{
       }
 
       const ageMs=Date.now()-new Date(existing.updated_at||existing.created_at).getTime();
-      if(ageMs>=8000){
+      if(ageMs>=15000){
         const {data:mat}=await admin.rpc('get_gmail_oauth_material',{p_client_id:clientId});
         const recovered=await recoverProviderState(admin,existing,mat,supabaseUrl,serviceKey);
         if(recovered.state==='sent'){
