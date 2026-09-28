@@ -8,23 +8,25 @@ const templates=fs.readFileSync('mail-templates-v1.js','utf8');
 const sync=fs.readFileSync('supabase/functions/minuba-offer-status-sync/index.ts','utf8');
 
 for(const marker of [
-  "push(raw?.deliveryAddress,'offer_delivery_address',120)",
-  "loadStoredMinubaContact(o)",
-  "applyRawMinubaContact(o,data.raw||o.minuba_raw||{},'Kontakt fundet direkte på Minuba-tilbuddet')",
-  "raw?.deliveryAddress?.email",
-  "function fallbackContactName(o)",
-  "isPersonalMailbox(email)?looksLikePersonName(address.name):''",
-  "ensureContactName(o);"
-]) assert(ui.includes(marker),'UI mangler Minuba deliveryAddress/contact-name guard: '+marker);
+  "push(raw?.contactAddress,'offer_contact_address',180)",
+  "push(raw?.billingAddress,'offer_billing_address',160)",
+  "function unsafeDeliveryEmails(raw)",
+  "safe_for_offer:true",
+  "recipient_scope:'direct_customer'",
+  "Leverings-/arbejdsstedets kontakt må ikke bruges til tilbud eller priser.",
+  "TILBUD BLOKERET – FORKERT MODTAGER"
+]) assert(ui.includes(marker),'UI mangler direkte-kunde guard: '+marker);
+assert(!ui.includes("push(raw?.deliveryAddress,'offer_delivery_address',120)"),'UI må ikke prioritere leveringsadressen som tilbudsmodtager');
 
 for(const marker of [
-  "optionsFromAddress(record?.deliveryAddress,'offer_delivery_address')",
-  "contactOptions.find(x=>x.source==='offer_delivery_address'&&x.name&&x.email)",
-  "installationAddress?.cellPhone",
-  "function isPersonalMailbox(value:any)",
-  "isPersonalMailbox(email)?looksLikePersonName(a?.name):''",
-  "isPersonalMailbox(selectedEmail)?looksLikePersonName(customerName):''"
-]) assert(edge.includes(marker),'Edge lookup mangler offer-specifik kontakt guard: '+marker);
+  "optionsFromAddress(record?.contactAddress,'offer_contact_address',true)",
+  "optionsFromAddress(record?.deliveryAddress,'offer_delivery_address',false)",
+  "safe_for_offer:safeForOffer",
+  "recipient_scope:safeForOffer?'direct_customer':'delivery_or_end_customer'",
+  "delivery_contact_emails:deliveryEmails",
+  "direct_customer_emails:contactEmails"
+]) assert(edge.includes(marker),'Minuba lookup mangler direkte-kunde guard: '+marker);
+assert(!edge.includes("contactOptions.find(x=>x.source==='offer_delivery_address'&&x.name&&x.email)"),'Minuba lookup må ikke vælge DELIVERY som primær tilbudsmodtager');
 
 for(const marker of [
   "function offerContactName(offer,c)",
@@ -33,38 +35,45 @@ for(const marker of [
 ]) assert(templates.includes(marker),'Mail-skabelon mangler sikkert kontakt-navn fallback: '+marker);
 
 for(const marker of [
-  "function isPersonalMailbox(value:any)",
-  "const name=explicitName||(isPersonalMailbox(email)?looksLikePersonName(a?.name):'')",
-  "isPersonalMailbox(email)?looksLikePersonName(customer):''"
-]) assert(sync.includes(marker),'Minuba status-sync mangler kontakt-navn backfill: '+marker);
+  "addressContact(record?.contactAddress,'offer_contact_address',520)",
+  "addressContact(record?.billingAddress,'offer_billing_address',430)",
+  "['CONTACT','BILLING'].includes(String(a?.addressType||'').toUpperCase())",
+  "record?.client?.lastUsedContactAddressId",
+  "record?.client?.lastUsedBillingAddressId"
+]) assert(sync.includes(marker),'Minuba status-sync mangler direkte-kunde guard: '+marker);
+assert(!sync.includes("addressContact(record?.deliveryAddress,'offer_delivery_address',500)"),'Status-sync må ikke backfille DELIVERY som tilbudskontakt');
+assert(!sync.includes('record?.client?.lastUsedDeliveryAddressId'),'Status-sync må ikke bruge seneste DELIVERY-adresse til tilbudskontakt');
 
-assert(dashboard.includes("/offer-mail-v1.js?v=20260925-5-contact-name"),'Offer mail cache-version er ikke opdateret');
+assert(dashboard.includes("/offer-mail-v1.js?v=20260928-6-direct-customer"),'Offer mail cache-version er ikke opdateret');
 assert(dashboard.includes("/mail-templates-v1.js?v=20260925-1-contact-name"),'Mail template cache-version er ikke opdateret');
 
-// Regression fixture: Minuba kan have tom CONTACT-adresse, mens den konkrete
-// installations-/leveringsadresse på tilbuddet har Att., mail og mobil.
+// Regression fixture for offer 2726: I-KLIMA is our direct customer, while Tom/KAB
+// belongs to the delivery/work site. Only the I-KLIMA CONTACT emails are eligible.
 const raw={
-  contactAddress:{name:'ISS FACILITY SERVICES A/S',att:'',email:'',phone:''},
+  client:{name:'I-KLIMA A/S',cvr:'27679366'},
+  contactAddress:{
+    addressType:'CONTACT',
+    name:'I-KLIMA A/S',
+    email:'mp@iklima.dk, mar@iklima.dk, js@iklima.dk, JAH@iklima.dk'
+  },
   deliveryAddress:{
     addressType:'DELIVERY',
-    name:'Danske Bank, Svendborg',
-    att:'Daniel Langhoff Jensen',
-    email:'daniel.jensen@dk.issworld.com',
-    cellPhone:'22 16 51 05',
-    streetAddress:'Møllergade 2',
-    postCode:'5700',
-    city:'Svendborg'
+    name:'Avedøre Stationsby Syd',
+    att:'Tom Christensen',
+    email:'tochr@kab-bolig.dk',
+    streetAddress:'Trædrejerporten 4',
+    postCode:'2650',
+    city:'Hvidovre'
   }
 };
-const delivery=raw.deliveryAddress;
-assert.equal(delivery.att,'Daniel Langhoff Jensen');
-assert.equal(delivery.email,'daniel.jensen@dk.issworld.com');
-assert.equal(delivery.cellPhone,'22 16 51 05');
-assert(!raw.contactAddress.att&&!raw.contactAddress.email,'Fixture skal bevare den oprindelige fejltilstand');
+const emails=v=>[...new Set((String(v||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map(x=>x.toLowerCase()))];
+const direct=emails(raw.contactAddress.email);
+const delivery=emails(raw.deliveryAddress.email);
+assert.deepEqual(direct.sort(),['jah@iklima.dk','js@iklima.dk','mar@iklima.dk','mp@iklima.dk']);
+assert.deepEqual(delivery,['tochr@kab-bolig.dk']);
+assert(!direct.includes('tochr@kab-bolig.dk'),'Kundens kunde må aldrig være sikker tilbudsmodtager');
 
-// Regression fixture for offer 2963-type data: Minuba has a personal customer name
-// and a personal mailbox, but no Att./contactName. This must be allowed as a safe
-// contact-name fallback so templates render "Hej Søren" instead of just "Hej".
+// Personal direct customers must still work when their CONTACT/customer email is personal.
 const personalMailDomains=new Set(['gmail.com','googlemail.com','hotmail.com','hotmail.dk','outlook.com','outlook.dk','live.com','live.dk','msn.com','icloud.com','me.com','mac.com','yahoo.com','yahoo.dk','proton.me','protonmail.com','mail.dk','ofir.dk','gmx.com','gmx.de']);
 const firstEmail=v=>(String(v||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
 const looksLikePersonName=value=>{
@@ -77,12 +86,8 @@ const looksLikePersonName=value=>{
   return name;
 };
 const isPersonalMailbox=value=>{const email=firstEmail(value).toLowerCase(),at=email.lastIndexOf('@');return at>0&&personalMailDomains.has(email.slice(at+1))};
-const personal={customer_name:'Søren Rytgaard',contact_details:'rytgaard@hotmail.com'};
-assert.equal(isPersonalMailbox(personal.contact_details),true);
-assert.equal(looksLikePersonName(personal.customer_name),'Søren Rytgaard');
-assert.equal(looksLikePersonName(personal.customer_name).split(/\s+/)[0],'Søren');
-assert.equal(looksLikePersonName('ISS FACILITY SERVICES A/S'),'');
-assert.equal(looksLikePersonName('Danske Bank, Svendborg'),'');
-assert.equal(isPersonalMailbox('kontakt@firma.dk'),false);
+assert.equal(isPersonalMailbox('rytgaard@hotmail.com'),true);
+assert.equal(looksLikePersonName('Søren Rytgaard'),'Søren Rytgaard');
+assert.equal(looksLikePersonName('I-KLIMA A/S'),'');
 
-console.log('PASS: Minuba offer contact resolver and mail templates safely recover personal customer names');
+console.log('PASS: offer recipients are restricted to the direct Minuba customer; delivery/end-customer contacts are excluded');
