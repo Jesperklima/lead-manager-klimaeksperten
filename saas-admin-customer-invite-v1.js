@@ -331,7 +331,7 @@ function mount(){
       <div class="lmaci-head">
         <div>
           <h3>Invitér ny kunde</h3>
-          <div class="sub">Opret et separat Lead Manager-workspace og send kunden direkte ind i den nye onboarding.</div>
+          <div class="sub">Opret en ny virksomhed med eget Lead Manager-workspace og send kunden direkte ind i den nye onboarding.</div>
         </div>
         <span class="lmaci-badge">Platform-admin</span>
       </div>
