@@ -30,29 +30,76 @@ async function claim(){
  try{
   inviteInfo=await edge('saas-invite-claim',{action:'inspect',token},false);
   await supabase.auth.signOut({scope:'local'});
-  let existing=inviteInfo.existing_login===true||inviteInfo.claimed===true;
-  const recoveryNote=inviteInfo.recoverable_login===true?'<div id="oc4Recovery" class="ob4note"><strong>Tidligere opsætning fundet.</strong><div class="sub" style="margin-top:4px">En tidligere onboarding nåede at oprette login-delen, men blev ikke færdig. Vælg en ny adgangskode her – Lead Manager reparerer koblingen automatisk.</div></div>':'';
-  const passwordHelp=existing?'Brug dit eksisterende Lead Manager-password. Hvis du ikke kender det, vælg Glemt adgangskode.':'Mindst 10 tegn. Brug en unik adgangskode – gerne med store og små bogstaver, tal og specialtegn.';
-  document.body.insertAdjacentHTML('beforeend',`<div id="lmClaim4"><div class="ob4login"><form class="ob4card" id="oc4Form"><h1 id="oc4Title">${existing?'Fortsæt med dit Lead Manager-login':'Opret dit Lead Manager-login'}</h1><div class="sub">${esc(inviteInfo.company_name)} · ${esc(inviteInfo.plan_code)}</div>${recoveryNote}<div class="ob4field"><label for="oc4Email">E-mail fra invitationen</label><input id="oc4Email" type="email" value="${esc(inviteInfo.email)}" readonly autocomplete="username"></div><div class="ob4field"><label for="oc4Pass">Adgangskode</label><input id="oc4Pass" type="password" required maxlength="256" autocomplete="${existing?'current-password':'new-password'}"><div id="oc4PassHelp" class="sub" style="margin-top:5px">${esc(passwordHelp)}</div></div><div id="oc4Repeat" class="ob4field" ${existing?'hidden':''}><label for="oc4Pass2">Gentag adgangskode</label><input id="oc4Pass2" type="password" autocomplete="new-password"></div><div id="oc4Msg" role="status" aria-live="polite" style="min-height:22px"></div><button id="oc4Go" type="submit" class="btn primary" style="width:100%">${existing?'Log ind og fortsæt':'Opret login og fortsæt'}</button><a id="oc4Forgot" href="/?email=${encodeURIComponent(inviteInfo.email)}" style="display:block;margin-top:12px">Glemt adgangskode?</a></form></div></div>`);
-  let submitting=false;
+
+  if(inviteInfo.claimed===true){
+   document.body.insertAdjacentHTML('beforeend',`<div id="lmClaim4"><div class="ob4login"><div class="ob4card"><h1>Din konto er allerede aktiveret</h1><div class="sub">${esc(inviteInfo.company_name)} · ${esc(inviteInfo.email)}</div><div class="ob4ok">Invitationen er allerede brugt, og din egen adgangskode er oprettet.</div><a class="btn primary" href="/?email=${encodeURIComponent(inviteInfo.email)}" style="display:block;text-align:center;margin-top:14px;text-decoration:none">Gå til login</a><a href="/?email=${encodeURIComponent(inviteInfo.email)}" style="display:block;margin-top:12px;text-align:center">Glemt adgangskode?</a></div></div></div>`);
+   return;
+  }
+
+  const blocked=inviteInfo.code_status==='locked'||inviteInfo.code_status==='expired'||inviteInfo.code_status==='missing';
+  if(blocked){
+   const message=inviteInfo.code_status==='locked'?'Engangskoden er låst efter for mange forkerte forsøg.':inviteInfo.code_status==='expired'?'Engangskoden er udløbet.':'Invitationen mangler en gyldig engangskode.';
+   document.body.insertAdjacentHTML('beforeend',`<div id="lmClaim4"><div class="ob4login"><div class="ob4card"><h1>Du skal have en ny invitation</h1><div class="sub">${esc(inviteInfo.company_name)} · ${esc(inviteInfo.email)}</div><div class="ob4warn">${esc(message)} Bed administratoren sende et nyt onboarding-link og en ny engangskode.</div><a href="/" style="display:block;margin-top:14px">Til login</a></div></div></div>`);
+   return;
+  }
+
+  const codeExpiry=inviteInfo.code_expires_at?new Date(inviteInfo.code_expires_at).toLocaleString('da-DK'):'inden for 24 timer';
+  const remaining=Number(inviteInfo.attempts_remaining||5);
+  document.body.insertAdjacentHTML('beforeend',`<div id="lmClaim4"><div class="ob4login"><form class="ob4card" id="oc4Form"><h1 id="oc4Title">Bekræft din invitation</h1><div class="sub">${esc(inviteInfo.company_name)} · ${esc(inviteInfo.plan_code)}</div><div class="ob4field"><label for="oc4Email">E-mail fra invitationen</label><input id="oc4Email" type="email" value="${esc(inviteInfo.email)}" readonly autocomplete="username"></div><div id="oc4CodeBlock"><div class="ob4field"><label for="oc4Code">Engangskode</label><input id="oc4Code" type="text" required maxlength="9" inputmode="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH"><div class="sub" style="margin-top:5px">Koden står i invitationsmailen, gælder til ${esc(codeExpiry)} og låses efter 5 forkerte forsøg. Du har ${remaining} forsøg tilbage.</div></div></div><div id="oc4PasswordBlock" hidden><div class="ob4ok">✓ Engangskoden er godkendt. Vælg nu din egen adgangskode.</div><div class="ob4field"><label for="oc4Pass">Ny adgangskode</label><input id="oc4Pass" type="password" maxlength="256" autocomplete="new-password"><div class="sub" style="margin-top:5px">Mindst 10 tegn. Brug en unik adgangskode – gerne med store og små bogstaver, tal og specialtegn.</div></div><div class="ob4field"><label for="oc4Pass2">Gentag adgangskode</label><input id="oc4Pass2" type="password" autocomplete="new-password"></div></div><div id="oc4Msg" role="status" aria-live="polite" style="min-height:22px"></div><button id="oc4Go" type="submit" class="btn primary" style="width:100%">Bekræft engangskode</button></form></div></div>`);
+
+  let submitting=false,stage='code',verificationTicket='';
+
+  $('oc4Code').addEventListener('input',event=>{
+   const raw=String(event.target.value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);
+   event.target.value=raw.length>4?raw.slice(0,4)+'-'+raw.slice(4):raw;
+  });
+
+  const showCodeStage=(message='')=>{
+   stage='code';verificationTicket='';$('oc4CodeBlock').hidden=false;$('oc4PasswordBlock').hidden=true;$('oc4Title').textContent='Bekræft din invitation';$('oc4Go').textContent='Bekræft engangskode';$('oc4Go').disabled=false;if(message)$('oc4Msg').textContent=message;
+  };
+  const showPasswordStage=()=>{
+   stage='password';$('oc4CodeBlock').hidden=true;$('oc4PasswordBlock').hidden=false;$('oc4Title').textContent='Vælg din adgangskode';$('oc4Go').textContent='Gem adgangskode og fortsæt';$('oc4Msg').textContent='';$('oc4Pass').focus();
+  };
+
   $('oc4Form').onsubmit=async event=>{
    event.preventDefault();if(submitting)return;
-   const email=txt(inviteInfo.email).toLowerCase(),password=$('oc4Pass').value,message=$('oc4Msg');
-   if(!existing&&password.length<10){message.textContent='Password skal være mindst 10 tegn.';return}
-   if(!existing&&password!==$('oc4Pass2').value){message.textContent='Passwords er ikke ens.';return}
-   submitting=true;$('oc4Go').disabled=true;message.textContent='Kontrollerer login og kundeadgang…';
+   const email=txt(inviteInfo.email).toLowerCase(),message=$('oc4Msg');
+   submitting=true;$('oc4Go').disabled=true;
    try{
-    const result=await edge('saas-invite-claim',{action:'claim',token,email,password},false);
+    if(stage==='code'){
+     const code=String($('oc4Code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+     if(code.length!==8){message.textContent='Indtast den 8-tegns engangskode fra mailen.';return}
+     message.textContent='Bekræfter engangskoden…';
+     const verified=await edge('saas-invite-claim',{action:'verify_code',token,email,code},false);
+     verificationTicket=String(verified.verification_ticket||'');
+     if(!verificationTicket)throw new Error('Bekræftelsen manglede. Prøv engangskoden igen.');
+     showPasswordStage();
+     return;
+    }
+
+    const password=$('oc4Pass').value;
+    if(password.length<10){message.textContent='Password skal være mindst 10 tegn.';return}
+    if(password!==$('oc4Pass2').value){message.textContent='Passwords er ikke ens.';return}
+    message.textContent='Gemmer din adgangskode og starter sikkert login…';
+    const result=await edge('saas-invite-claim',{action:'set_password',token,email,password,verification_ticket:verificationTicket},false);
     if(result.client_id!==inviteInfo.client_id||result.email!==email)throw new Error('Invitation og kundeadgang matcher ikke.');
     const accepted=await supabase.auth.setSession(result.session);
     if(accepted.error)throw new Error(accepted.error.message);
     localStorage.setItem('lm_last_email_v1',email);
     location.replace('/api/app');
    }catch(error){
-    if(error.code==='EXISTING_LOGIN_PASSWORD_REQUIRED'){
-     existing=true;$('oc4Repeat').hidden=true;$('oc4Title').textContent='Fortsæt med dit Lead Manager-login';$('oc4Go').textContent='Log ind og fortsæt';$('oc4Pass').setAttribute('autocomplete','current-password');$('oc4Recovery')?.remove();if($('oc4PassHelp'))$('oc4PassHelp').textContent='Brug dit eksisterende Lead Manager-password. Hvis du ikke kender det, vælg Glemt adgangskode.';
+    if(error.code==='VERIFICATION_EXPIRED'||error.code==='VERIFICATION_REQUIRED'){
+     showCodeStage(error.message||'Indtast engangskoden igen.');
+     $('oc4Code').value='';$('oc4Code').focus();
+    }else{
+     message.textContent=error.message||String(error);
+     if(error.code==='CODE_INVALID'){$('oc4Code').select();}
+     if(error.code==='CODE_LOCKED'||error.code==='CODE_EXPIRED'){$('oc4Go').disabled=true;}
     }
-    message.textContent=error.message||String(error);submitting=false;$('oc4Go').disabled=false;
+   }finally{
+    submitting=false;
+    if(!$('oc4Go').disabled&&stage==='password')$('oc4Go').disabled=false;
+    else if(stage==='code'&&!['CODE_LOCKED','CODE_EXPIRED'].includes(String(message.dataset?.code||'')))$('oc4Go').disabled=false;
    }
   };
  }catch(error){
