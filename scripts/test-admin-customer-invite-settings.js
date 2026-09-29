@@ -20,7 +20,7 @@ assert(ui.includes("action:'reissue'"),'invite reissue wiring missing');
 assert(ui.includes('Onboarding-status'),'onboarding status heading missing');
 assert(ui.includes('Send nyt link'),'reissue CTA missing');
 
-assert(bootstrap.includes('/saas-admin-customer-invite-v1.js?v=20260922-1'),'customer invite module not loaded with settings');
+assert(bootstrap.includes('/saas-admin-customer-invite-v1.js?v=20260929-onboarding-1'),'customer invite module not loaded with settings');
 assert(settings.includes('window.LMAdminCustomerInvite?.mount?.()'),'account settings do not mount customer invite');
 assert(onboarding.includes('function admin(){window.LMAdminCustomerInvite?.mount?.()}'),'legacy onboarding admin UI still active');
 assert(!onboarding.includes('<h2 style="margin-top:0">Invitér ny kunde</h2>'),'legacy duplicate invite form still present');
