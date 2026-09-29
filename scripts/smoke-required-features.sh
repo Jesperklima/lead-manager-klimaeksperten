@@ -137,6 +137,7 @@ node scripts/test-website-integrations-ops-v2.js
 node scripts/test-admin-workspace-self-heal.js
 node scripts/test-platform-legal-identity-setup.js
 node scripts/test-mail-offer-sync-guards.js
+node scripts/test-gmail-oauth-guards.js
 node scripts/test-dom-null-safety.js
 node scripts/test-performance-guards.js
 node scripts/test-onboarding-v6.js
