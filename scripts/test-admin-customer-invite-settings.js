@@ -14,7 +14,7 @@ assert(ui.includes("data-lmaci-plan=\"start\""),'Start package missing');
 assert(ui.includes("data-lmaci-plan=\"pro\""),'Pro package missing');
 assert(ui.includes("data-lmaci-plan=\"business\""),'Business package missing');
 assert(ui.includes('eget Lead Manager-workspace'),'new-workspace wording missing');
-assert(ui.includes('14')||ui.includes('invite_validity_days'),'invite validity handling missing');
+assert(ui.includes('14')||ui.includes('invite_validity_days'),'invite validity handling missing');\nassert(ui.includes("action:'status'")||ui.includes('action:\'status\''),'onboarding status API wiring missing');\nassert(ui.includes("action:'reissue'")||ui.includes('action:\'reissue\''),'invite reissue wiring missing');\nassert(ui.includes('Onboarding-status'),'onboarding status heading missing');\nassert(ui.includes('Send nyt link'),'reissue CTA missing');
 
 assert(bootstrap.includes('/saas-admin-customer-invite-v1.js?v=20260922-1'),'customer invite module not loaded with settings');
 assert(settings.includes('window.LMAdminCustomerInvite?.mount?.()'),'account settings do not mount customer invite');
