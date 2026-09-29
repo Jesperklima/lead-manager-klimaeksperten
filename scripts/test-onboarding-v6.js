@@ -26,6 +26,13 @@ for(const marker of [
   "authClient.auth.signInWithPassword",
   "reused_existing_login"
 ]) must((ui+'\n'+invite).includes(marker),'existing-login reuse marker missing: '+marker);
+for(const marker of [
+  "recoverable_login",
+  "Tidligere opsætning fundet.",
+  "recovered_stale_login",
+  "admin.auth.admin.updateUserById",
+  "PASSWORD_WEAK"
+]) must((ui+'\n'+invite).includes(marker),'interrupted-login recovery marker missing: '+marker);
 
 // 4) Server determines the resume step.
 must(edge.includes("resumeStep=version==='saas_v6'?Math.max(1,Math.min(4,rawStep))"),'server resume-step normalization missing');
