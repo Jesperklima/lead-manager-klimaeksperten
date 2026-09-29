@@ -5,198 +5,237 @@ const { stripTypeScriptTypes } = require('node:module');
 const { webcrypto } = require('node:crypto');
 const { test } = require('node:test');
 
+async function hex(value) {
+  return Buffer.from(await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(value))).toString('hex');
+}
+
 async function setup(options = {}) {
   const token = Buffer.from(webcrypto.getRandomValues(new Uint8Array(32))).toString('base64url');
-  const hash = Buffer.from(await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(token))).toString('hex');
-  const linked = options.existing === true;
-  const orphan = options.orphan === true;
-  const tables = {
-    crm_onboarding_invites: [{ id: 'invite', client_id: 'vention', email: 'tha@vention.dk', token_hash: hash,
-      plan_code: 'business', status: 'sent', expires_at: new Date(Date.now() + 3600000).toISOString(), ...options.invite }],
-    crm_users: [{ client_id: 'vention', email: 'tha@vention.dk', active: true, auth_user_id: linked ? 'thomas' : null }],
-    crm_clients: [{ id: 'vention', name: 'Vention' }],
-    crm_usage_limits: options.missingPlan ? [] : [{ client_id: 'vention', plan_code: 'business' }],
+  const tokenHash = await hex(token);
+  const code = 'ABCD2345';
+  const codeHash = await hex(code);
+  const client = { id: 'demo-client', name: 'Demo Kunde ApS' };
+  const member = { client_id: client.id, email: 'owner@example.test', active: true, auth_user_id: 'demo-user' };
+  const invite = {
+    id: 'invite',
+    client_id: client.id,
+    email: member.email,
+    token_hash: tokenHash,
+    plan_code: 'business',
+    status: 'sent',
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+    used_at: null,
+    metadata: {
+      first_login_mode: 'one_time_code',
+      otp_hash: codeHash,
+      otp_expires_at: new Date(Date.now() + 3600000).toISOString(),
+      otp_attempts: 0,
+      otp_max_attempts: 5,
+    },
+    ...options.invite,
   };
-  let account = (linked || orphan) ? { id: 'thomas', email: 'tha@vention.dk', password: 'old-pass' } : null;
-  let created = 0, finalized = 0, recovered = 0, failFinalize = options.failFinalize;
+  const tables = {
+    crm_onboarding_invites: [invite],
+    crm_users: [member],
+    crm_clients: [client],
+    crm_usage_limits: [{ client_id: client.id, plan_code: 'business' }],
+  };
+  let password = 'server-only-bootstrap-password';
+  let passwordUpdates = 0;
+  let finalized = 0;
 
-  function filtered(table, filters) {
-    return (tables[table] || []).filter(row => filters.every(filter => filter(row)));
+  function matches(row, filters) {
+    return filters.every(({ type, key, value }) => type === 'ilike'
+      ? String(row[key] || '').toLowerCase() === String(value || '').toLowerCase()
+      : row[key] === value);
+  }
+  function query(table) {
+    const filters = [];
+    let updatePayload = null;
+    const q = {
+      select() { return q; },
+      eq(key, value) { filters.push({ type: 'eq', key, value }); return q; },
+      ilike(key, value) { filters.push({ type: 'ilike', key, value }); return q; },
+      update(payload) { updatePayload = payload; return q; },
+      async maybeSingle() {
+        const rows = (tables[table] || []).filter(row => matches(row, filters));
+        if (rows.length > 1) return { data: null, error: { message: 'Multiple rows' } };
+        return { data: rows[0] || null, error: null };
+      },
+      then(resolve, reject) {
+        try {
+          const rows = (tables[table] || []).filter(row => matches(row, filters));
+          if (updatePayload) rows.forEach(row => Object.assign(row, updatePayload));
+          return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+        } catch (error) {
+          return Promise.reject(error).then(resolve, reject);
+        }
+      },
+    };
+    return q;
   }
 
   const admin = {
-    from(table) {
-      const filters = [];
-      const query = {
-        select() { return query; },
-        eq(key, value) { filters.push(row => row[key] === value); return query; },
-        async maybeSingle() {
-          const rows = filtered(table, filters);
-          if (rows.length > 1) return { data: null, error: { message: 'Multiple rows' } };
-          return { data: rows[0] || null, error: null };
-        },
-      };
-      return query;
-    },
+    from: query,
     auth: { admin: {
-      async listUsers() {
-        return { data: { users: account ? [{ id: account.id, email: account.email }] : [] }, error: null };
-      },
       async getUserById(id) {
-        if (!account || account.id !== id) return { data: { user: null }, error: { message: 'User not found' } };
-        return { data: { user: { id: account.id, email: account.email } }, error: null };
+        if (id !== member.auth_user_id) return { data: { user: null }, error: { message: 'not found' } };
+        return { data: { user: { id, email: member.email, app_metadata: { lead_manager_first_login_pending: true } } }, error: null };
       },
-      async updateUserById(id, input) {
-        assert.equal(id, 'thomas');
-        if (options.weakPassword) return { data: {}, error: { code: 'weak_password', message: 'Password is too weak' } };
-        account.password = input.password;
-        recovered++;
-        return { data: { user: { id: account.id, email: account.email } }, error: null };
-      },
-      async createUser(input) {
-        if (options.weakPassword) return { data: {}, error: { code: 'weak_password', message: 'Password is too weak' } };
-        if (account) return { data: {}, error: { code: 'email_exists', message: 'Already registered' } };
-        assert.equal(input.email, 'tha@vention.dk');
-        account = { id: 'thomas', email: input.email, password: input.password };
-        created++;
-        return { data: { user: account }, error: null };
+      async updateUserById(id, attrs) {
+        assert.equal(id, member.auth_user_id);
+        if (options.weakPassword) return { data: {}, error: { code: 'weak_password', message: 'Password is weak' } };
+        password = attrs.password;
+        passwordUpdates++;
+        return { data: { user: { id, email: member.email } }, error: null };
       },
     }, async signInWithPassword(input) {
-      if (!account || input.password !== account.password) {
+      if (input.email !== member.email || input.password !== password) {
         return { data: {}, error: { code: 'invalid_credentials', message: 'Invalid credentials' } };
       }
-      return { data: { user: { id: account.id, email: account.email }, session: {
-        access_token: 'verified-session', refresh_token: 'refresh', user: { id: account.id, email: account.email },
+      return { data: { user: { id: member.auth_user_id, email: member.email }, session: {
+        access_token: 'verified-session',
+        refresh_token: 'refresh',
+        user: { id: member.auth_user_id, email: member.email },
       } }, error: null };
     } },
     async rpc(name, args) {
-      assert.equal(name, 'crm_finalize_onboarding_invite');
-      assert.equal(args.p_token_hash, hash);
-      finalized++;
-      if (failFinalize) {
-        failFinalize = false;
-        return { data: null, error: { message: 'Temporary database failure' } };
+      if (name === 'crm_verify_onboarding_code') {
+        assert.equal(args.p_token_hash, tokenHash);
+        if (invite.metadata.otp_locked_at || invite.metadata.otp_attempts >= 5) {
+          return { data: { ok: false, code: 'CODE_LOCKED', attempts_remaining: 0 }, error: null };
+        }
+        if (args.p_code_hash !== codeHash) {
+          invite.metadata.otp_attempts++;
+          if (invite.metadata.otp_attempts >= 5) invite.metadata.otp_locked_at = new Date().toISOString();
+          return { data: {
+            ok: false,
+            code: invite.metadata.otp_attempts >= 5 ? 'CODE_LOCKED' : 'CODE_INVALID',
+            attempts_remaining: Math.max(0, 5 - invite.metadata.otp_attempts),
+          }, error: null };
+        }
+        invite.metadata.otp_verified_at = new Date().toISOString();
+        invite.metadata.password_ticket_hash = args.p_ticket_hash;
+        invite.metadata.password_ticket_expires_at = args.p_ticket_expires_at;
+        return { data: { ok: true, code: 'CODE_VERIFIED', ticket_expires_at: args.p_ticket_expires_at }, error: null };
       }
-      const invite = tables.crm_onboarding_invites[0];
-      if (options.revokeDuringLogin) return { error: { message: 'INVITE_REVOKED' } };
-      tables.crm_users[0].auth_user_id = args.p_user_id;
+      assert.equal(name, 'crm_finalize_onboarding_invite');
+      assert.equal(args.p_token_hash, tokenHash);
+      finalized++;
       invite.status = 'claimed';
-      return { data: { ok: true, claimed: true, email: 'tha@vention.dk', client_id: 'vention', plan_code: 'business' }, error: null };
+      invite.used_at = new Date().toISOString();
+      invite.metadata.claimed_user_id = args.p_user_id;
+      return { data: { ok: true, claimed: true, email: member.email, client_id: client.id, company_name: client.name, plan_code: 'business' }, error: null };
     },
   };
 
   let handler;
   vm.runInNewContext(stripTypeScriptTypes(fs.readFileSync('supabase/functions/saas-invite-claim/index.ts', 'utf8').replace(/^import .*\r?\n/, '')), {
-    crypto: webcrypto, TextEncoder, Response, console: { error() {} }, createClient: () => admin,
+    crypto: webcrypto,
+    TextEncoder,
+    Response,
+    console: { error() {} },
+    btoa: value => Buffer.from(value, 'binary').toString('base64'),
+    createClient: () => admin,
     Deno: { env: { get: () => 'test' }, serve(callback) { handler = callback; } },
   });
 
   return {
-    tables,
-    counts: () => ({ created, finalized, recovered }),
+    invite,
+    token,
+    code,
+    counts: () => ({ passwordUpdates, finalized }),
     async request(body = {}) {
-      const response = await handler(new Request('https://test/claim', { method: 'POST',
-        body: JSON.stringify({ token, email: 'tha@vention.dk', password: 'Fresh-password-2026', ...body }) }));
+      const response = await handler(new Request('https://test/claim', {
+        method: 'POST',
+        body: JSON.stringify({ token, email: member.email, ...body }),
+      }));
       return { status: response.status, body: await response.json() };
     },
   };
 }
 
-test('fresh invitation binds the correct workspace and returns a verified session', async () => {
+test('fresh invite requires code before password and never supports direct claim', async () => {
   const state = await setup();
   const inspected = await state.request({ action: 'inspect' });
-  assert.equal(inspected.body.email, 'tha@vention.dk');
-  assert.equal(inspected.body.company_name, 'Vention');
-  assert.equal(inspected.body.existing_login, false);
-  assert.equal(inspected.body.recoverable_login, false);
-  assert.deepEqual(state.counts(), { created: 0, finalized: 0, recovered: 0 });
+  assert.equal(inspected.status, 200);
+  assert.equal(inspected.body.company_name, 'Demo Kunde ApS');
+  assert.equal(inspected.body.otp_required, true);
+  assert.equal(inspected.body.attempts_remaining, 5);
 
-  const claimed = await state.request();
-  assert.equal(claimed.status, 200);
-  assert.equal(claimed.body.plan_code, 'business');
-  assert.equal(claimed.body.session.user.email, 'tha@vention.dk');
-  assert.equal(claimed.body.recovered_stale_login, false);
-  assert.equal(state.tables.crm_users[0].auth_user_id, 'thomas');
+  const bypass = await state.request({ action: 'claim', password: 'Some-password-2026!' });
+  assert.equal(bypass.status, 409);
+  assert.equal(bypass.body.code, 'CODE_REQUIRED');
 
-  const retry = await state.request();
-  assert.equal(retry.status, 200);
-  assert.equal(state.counts().created, 1);
-  assert.equal((await state.request({ password: 'someone-elses-password' })).status, 409);
+  const noTicket = await state.request({ action: 'set_password', password: 'Some-password-2026!' });
+  assert.equal(noTicket.status, 403);
+  assert.equal(noTicket.body.code, 'VERIFICATION_REQUIRED');
+  assert.deepEqual(state.counts(), { passwordUpdates: 0, finalized: 0 });
 });
 
-test('a stale auth account from an interrupted onboarding can choose a new password and continue', async () => {
-  const state = await setup({ orphan: true });
-  const inspected = await state.request({ action: 'inspect' });
-  assert.equal(inspected.body.existing_login, false);
-  assert.equal(inspected.body.recoverable_login, true);
+test('correct one-time code issues a ticket, then password activates login', async () => {
+  const state = await setup();
+  const verified = await state.request({ action: 'verify_code', code: 'ABCD-2345' });
+  assert.equal(verified.status, 200);
+  assert.match(verified.body.verification_ticket, /^[A-Za-z0-9_-]{43}$/);
 
-  const claimed = await state.request({ password: 'New-password-2026!' });
-  assert.equal(claimed.status, 200);
-  assert.equal(claimed.body.recovered_stale_login, true);
-  assert.equal(state.tables.crm_users[0].auth_user_id, 'thomas');
-  assert.deepEqual(state.counts(), { created: 0, finalized: 1, recovered: 1 });
+  const short = await state.request({ action: 'set_password', verification_ticket: verified.body.verification_ticket, password: 'short' });
+  assert.equal(short.status, 400);
+  assert.equal(short.body.code, 'PASSWORD_TOO_SHORT');
+
+  const activated = await state.request({
+    action: 'set_password',
+    verification_ticket: verified.body.verification_ticket,
+    password: 'Safe-password-2026!',
+  });
+  assert.equal(activated.status, 200);
+  assert.equal(activated.body.password_set, true);
+  assert.equal(activated.body.session.user.email, 'owner@example.test');
+  assert.equal(state.invite.status, 'claimed');
+  assert.ok(state.invite.metadata.password_set_at);
+  assert.equal(state.invite.metadata.otp_hash, null);
+  assert.deepEqual(state.counts(), { passwordUpdates: 1, finalized: 1 });
 });
 
-test('a transient finalization error is recoverable even after the auth account was created', async () => {
-  const state = await setup({ failFinalize: true });
-  assert.equal((await state.request()).status, 500);
-  assert.equal(state.tables.crm_users[0].auth_user_id, null);
-
-  const retry = await state.request({ password: 'Another-password-2026!' });
-  assert.equal(retry.status, 200);
-  assert.equal(retry.body.recovered_stale_login, true);
-  assert.equal(state.counts().created, 1);
-  assert.equal(state.counts().recovered, 1);
+test('five incorrect codes lock the invitation code', async () => {
+  const state = await setup();
+  for (let i = 0; i < 4; i++) {
+    const wrong = await state.request({ action: 'verify_code', code: 'ZZZZ-9999' });
+    assert.equal(wrong.status, 400);
+    assert.equal(wrong.body.code, 'CODE_INVALID');
+    assert.equal(wrong.body.attempts_remaining, 4 - i);
+  }
+  const locked = await state.request({ action: 'verify_code', code: 'ZZZZ-9999' });
+  assert.equal(locked.status, 423);
+  assert.equal(locked.body.code, 'CODE_LOCKED');
+  const correctAfterLock = await state.request({ action: 'verify_code', code: state.code });
+  assert.equal(correctAfterLock.status, 423);
+  assert.equal(correctAfterLock.body.code, 'CODE_LOCKED');
+  assert.deepEqual(state.counts(), { passwordUpdates: 0, finalized: 0 });
 });
 
-test('existing linked passwords are verified rather than replaced', async () => {
-  const state = await setup({ existing: true });
-  const inspected = await state.request({ action: 'inspect' });
-  assert.equal(inspected.body.existing_login, true);
-  assert.equal(inspected.body.recoverable_login, false);
-
-  assert.equal((await state.request()).status, 409);
-  assert.equal((await state.request({ password: 'old-pass' })).status, 200);
-  assert.equal(state.counts().created, 0);
-  assert.equal(state.counts().recovered, 0);
+test('expired code cannot issue password ticket', async () => {
+  const state = await setup({ invite: { metadata: {
+    first_login_mode: 'one_time_code',
+    otp_hash: await hex('ABCD2345'),
+    otp_expires_at: new Date(0).toISOString(),
+    otp_attempts: 0,
+    otp_max_attempts: 5,
+  } } });
+  const result = await state.request({ action: 'verify_code', code: state.code });
+  assert.equal(result.status, 410);
+  assert.equal(result.body.code, 'CODE_EXPIRED');
 });
 
-test('weak passwords return a specific actionable error instead of a generic onboarding failure', async () => {
+test('weak password returns a specific error after valid code', async () => {
   const state = await setup({ weakPassword: true });
-  const result = await state.request({ password: 'long-but-rejected-password' });
+  const verified = await state.request({ action: 'verify_code', code: state.code });
+  const result = await state.request({
+    action: 'set_password',
+    verification_ticket: verified.body.verification_ticket,
+    password: 'Long-but-rejected-2026!',
+  });
   assert.equal(result.status, 400);
   assert.equal(result.body.code, 'PASSWORD_WEAK');
-  assert.match(result.body.error, /sikkerhedskravene/i);
-  assert.equal(state.counts().finalized, 0);
+  assert.deepEqual(state.counts(), { passwordUpdates: 0, finalized: 0 });
 });
-
-test('invalid, expired, revoked, wrong-email and short-password requests never create users', async () => {
-  for (const [options, input, code] of [
-    [{}, { token: 'invalid' }, 'INVALID_INVITE'],
-    [{ invite: { status: 'revoked' } }, {}, 'INVITE_REVOKED'],
-    [{ invite: { status: 'expired' } }, {}, 'INVITE_EXPIRED'],
-    [{ invite: { expires_at: 'not-a-date' } }, {}, 'INVITE_EXPIRED'],
-    [{ invite: { expires_at: new Date(0).toISOString() } }, {}, 'INVITE_EXPIRED'],
-    [{ invite: { status: 'send_failed' } }, {}, 'INVALID_INVITE'],
-    [{}, { email: 'js@klimaeksperten.dk' }, 'EMAIL_MISMATCH'],
-    [{}, { password: 'short' }, 'PASSWORD_TOO_SHORT'],
-  ]) {
-    const state = await setup(options);
-    assert.equal((await state.request(input)).body.code, code);
-    assert.equal(state.counts().created, 0);
-  }
-});
-
-test('revocation between inspection and finalization is enforced by the transaction', async () => {
-  const state = await setup({ revokeDuringLogin: true });
-  assert.equal((await state.request()).body.code, 'INVITE_REVOKED');
-  assert.equal(state.tables.crm_users[0].auth_user_id, null);
-});
-
-test('parallel claims converge on one account', async () => {
-  const state = await setup();
-  const results = await Promise.all([state.request(), state.request()]);
-  assert.ok(results.every(result => result.status === 200));
-  assert.equal(state.counts().created, 1);
-});
-
