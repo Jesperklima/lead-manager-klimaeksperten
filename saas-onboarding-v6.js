@@ -64,7 +64,7 @@ async function claim(){
   $('oc4Form').onsubmit=async event=>{
    event.preventDefault();if(submitting)return;
    const email=txt(inviteInfo.email).toLowerCase(),message=$('oc4Msg');
-   submitting=true;$('oc4Go').disabled=true;
+   submitting=true;$('oc4Go').disabled=true;let permanentStop=false;
    try{
     if(stage==='code'){
      const code=String($('oc4Code').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -94,12 +94,11 @@ async function claim(){
     }else{
      message.textContent=error.message||String(error);
      if(error.code==='CODE_INVALID'){$('oc4Code').select();}
-     if(error.code==='CODE_LOCKED'||error.code==='CODE_EXPIRED'){$('oc4Go').disabled=true;}
+     if(error.code==='CODE_LOCKED'||error.code==='CODE_EXPIRED'){permanentStop=true;}
     }
    }finally{
     submitting=false;
-    if(!$('oc4Go').disabled&&stage==='password')$('oc4Go').disabled=false;
-    else if(stage==='code'&&!['CODE_LOCKED','CODE_EXPIRED'].includes(String(message.dataset?.code||'')))$('oc4Go').disabled=false;
+    $('oc4Go').disabled=permanentStop;
    }
   };
  }catch(error){
