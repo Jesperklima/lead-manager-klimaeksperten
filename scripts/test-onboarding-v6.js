@@ -6,6 +6,7 @@ const ui=read('saas-onboarding-v6.js');
 const invite=read('supabase/functions/saas-invite-claim/index.ts');
 const edge=read('supabase/functions/saas-onboarding/index.ts');
 const boot=read('access-bootstrap-v1.js');
+const otpMigration=read('supabase/migrations/20260929061500_onboarding_one_time_code.sql');
 
 // 1) Four steps instead of six.
 must(ui.includes("Trin ${step} af 4"),'onboarding is not four steps');
@@ -35,6 +36,8 @@ for(const marker of [
   "password_ticket_hash"
 ]) must(invite.includes(marker),'one-time-code backend marker missing: '+marker);
 must(!ui.includes("action:'claim'"),'UI can still bypass one-time code with direct claim');
+must(otpMigration.includes("'otp_verified_at', to_jsonb(clock_timestamp())"),'OTP verification timestamp is not persisted');
+must(!otpMigration.includes("coalesce(metadata->'otp_verified_at'"),'JSON null can suppress OTP verification timestamp');
 
 // 4) Server determines the resume step.
 must(edge.includes("resumeStep=version==='saas_v6'?Math.max(1,Math.min(4,rawStep))"),'server resume-step normalization missing');
