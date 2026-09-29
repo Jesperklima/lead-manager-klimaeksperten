@@ -13,6 +13,7 @@ const INVITE_VALIDITY_DAYS=14;
 const CODE_VALIDITY_HOURS=24;
 const CODE_MAX_ATTEMPTS=5;
 const OTP_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const BOOTSTRAP_PASSWORD_LENGTH=14;
 
 function safeInviteOrigin(v:string){
   try{
@@ -45,6 +46,13 @@ function oneTimeCode(){
   let raw='';
   for(const b of bytes)raw+=OTP_ALPHABET[b%OTP_ALPHABET.length];
   return raw.slice(0,4)+'-'+raw.slice(4);
+}
+
+function bootstrapPassword(){
+  const random=b64url(crypto.getRandomValues(new Uint8Array(8))).slice(0,10);
+  const password='A!1a'+random;
+  if(password.length!==BOOTSTRAP_PASSWORD_LENGTH)throw new Error('BOOTSTRAP_PASSWORD_LENGTH_INVALID');
+  return password;
 }
 
 async function getInternalAdmin(admin:any,user:any){
@@ -111,10 +119,10 @@ async function provisionAuthUser(admin:any,clientId:string,email:string){
     if(de)throw new Error('Et gammelt ufuldstændigt login kunne ikke nulstilles: '+de.message);
   }
 
-  const bootstrapPassword='LM!9-'+b64url(crypto.getRandomValues(new Uint8Array(48)))+'aA1!';
+  const bootstrapPasswordValue=bootstrapPassword();
   const {data:created,error:ce}=await admin.auth.admin.createUser({
     email,
-    password:bootstrapPassword,
+    password:bootstrapPasswordValue,
     email_confirm:true,
     app_metadata:{lead_manager_first_login_pending:true}
   });
