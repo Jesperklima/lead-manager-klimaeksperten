@@ -105,7 +105,7 @@ begin
 
   update public.crm_onboarding_invites
   set metadata = metadata || jsonb_build_object(
-    'otp_verified_at', coalesce(metadata->'otp_verified_at', to_jsonb(clock_timestamp())),
+    'otp_verified_at', to_jsonb(clock_timestamp()),
     'password_ticket_hash', p_ticket_hash,
     'password_ticket_expires_at', p_ticket_expires_at,
     'otp_last_attempt_at', clock_timestamp()
