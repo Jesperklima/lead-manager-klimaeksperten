@@ -18,9 +18,11 @@ assert(ui.includes('14')||ui.includes('invite_validity_days'),'invite validity h
 assert(ui.includes("action:'status'"),'onboarding status API wiring missing');
 assert(ui.includes("action:'reissue'"),'invite reissue wiring missing');
 assert(ui.includes('Onboarding-status'),'onboarding status heading missing');
-assert(ui.includes('Send nyt link'),'reissue CTA missing');
+assert(ui.includes('Send nyt link + kode'),'reissue CTA missing');
+assert(ui.includes('engangskode'),'one-time code onboarding copy missing');
+assert(ui.includes('Konto klargjort'),'provisioned login state missing');
 
-assert(bootstrap.includes('/saas-admin-customer-invite-v1.js?v=20260929-onboarding-1'),'customer invite module not loaded with settings');
+assert(bootstrap.includes('/saas-admin-customer-invite-v1.js?v=20260929-code-1'),'customer invite module not loaded with settings');
 assert(settings.includes('window.LMAdminCustomerInvite?.mount?.()'),'account settings do not mount customer invite');
 assert(onboarding.includes('function admin(){window.LMAdminCustomerInvite?.mount?.()}'),'legacy onboarding admin UI still active');
 assert(!onboarding.includes('<h2 style="margin-top:0">Invitér ny kunde</h2>'),'legacy duplicate invite form still present');

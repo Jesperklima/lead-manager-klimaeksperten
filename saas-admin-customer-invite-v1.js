@@ -63,8 +63,19 @@ function inviteLabel(row){
 }
 
 function loginLabel(row){
-  if(!row?.login?.created)return pill('Ikke oprettet','neutral');
-  return pill('Login oprettet','success');
+  if(row?.login?.activated)return pill('Login aktiveret','success');
+  if(row?.login?.provisioned)return pill('Konto klargjort','info');
+  return pill('Ikke klargjort','danger');
+}
+
+function codeLabel(row){
+  const s=String(row?.code?.status||'none');
+  if(s==='consumed')return pill('Kode brugt','success');
+  if(s==='verified')return pill('Kode godkendt','info');
+  if(s==='ready')return pill('Engangskode klar','info');
+  if(s==='locked')return pill('Kode låst','danger');
+  if(s==='expired')return pill('Kode udløbet','warning');
+  return pill('Ingen kode','neutral');
 }
 
 function mfaLabel(row){
@@ -199,7 +210,8 @@ async function loadStatus(host){
       const inviteDate=row?.invite?.sent_at||row?.invite?.created_at;
       const expiry=row?.invite?.expires_at;
       const lastLogin=row?.login?.last_sign_in_at;
-      const button=active?'':`<button type="button" class="btn lmaci-mini-btn" data-lmaci-resend="${esc(row.client_id)}" data-lmaci-email="${esc(row.email||'')}" ${resendBusy.has(row.client_id)?'disabled':''}>${resendBusy.has(row.client_id)?'Sender…':'Send nyt link'}</button>`;
+      const canReissue=row.reissue_allowed===true;
+      const button=canReissue?`<button type="button" class="btn lmaci-mini-btn" data-lmaci-resend="${esc(row.client_id)}" data-lmaci-email="${esc(row.email||'')}" ${resendBusy.has(row.client_id)?'disabled':''}>${resendBusy.has(row.client_id)?'Sender…':'Send nyt link + kode'}</button>`:(active?'':'<span class="lmaci-small">Login er aktiveret</span>');
       return `
         <div class="lmaci-row" data-client-id="${esc(row.client_id)}">
           <div class="lmaci-cell lmaci-company" data-label="Kunde">
@@ -207,8 +219,8 @@ async function loadStatus(host){
             <div class="lmaci-small">${esc(row.email||'Ingen owner-mail')} · ${esc(String(row.plan_code||'—').toUpperCase())}</div>
           </div>
           <div class="lmaci-cell" data-label="Invitation">
-            <div class="lmaci-stack">${inviteLabel(row)}</div>
-            <div class="lmaci-small">${inviteDate?'Sendt/oprettet '+esc(fmtDate(inviteDate)):'Ingen dato'}${expiry?'<br>Udløber '+esc(fmtDate(expiry)):''}</div>
+            <div class="lmaci-stack">${inviteLabel(row)} ${codeLabel(row)}</div>
+            <div class="lmaci-small">${inviteDate?'Sendt/oprettet '+esc(fmtDate(inviteDate)):'Ingen dato'}${row?.code?.expires_at?'<br>Kode til '+esc(fmtDate(row.code.expires_at)):''}${expiry?'<br>Link til '+esc(fmtDate(expiry)):''}</div>
           </div>
           <div class="lmaci-cell" data-label="Login / 2FA">
             <div class="lmaci-stack">${loginLabel(row)} ${mfaLabel(row)}</div>
@@ -241,7 +253,7 @@ async function resend(host,clientId,email){
   try{
     const result=await edge({action:'reissue',client_id:clientId,email});
     if(result.sent!==true)throw new Error('Invitationen blev oprettet, men mailen blev ikke bekræftet sendt.');
-    if(typeof toast==='function')toast('Nyt onboarding-link sendt til '+email);
+    if(typeof toast==='function')toast('Nyt onboarding-link og ny engangskode sendt til '+email);
   }catch(error){
     if(typeof toast==='function')toast(error.message||String(error));
     const msg=host.querySelector('#lmaciStatusMsg');
@@ -291,7 +303,7 @@ async function submit(host){
     success.className='lmaci-success';
     success.innerHTML='<strong>✓ Kunden er oprettet, og invitationen er sendt.</strong><br>'+
       esc(result.company_name||company)+' har fået sit eget workspace på '+esc(plan.toUpperCase())+
-      '. Mailen er sendt til '+esc(result.email||email)+', og linket er gyldigt i '+days+' dage.';
+      '. Mailen er sendt til '+esc(result.email||email)+'. Engangskoden gælder i '+Number(result.code_validity_hours||24)+' timer, og linket er gyldigt i '+days+' dage.';
     host.querySelector('#lmaciCreateArea')?.appendChild(success);
 
     host.querySelector('#lmaciCompany').value='';
@@ -362,14 +374,14 @@ function mount(){
         <button type="button" class="btn primary" id="lmaciSend">Opret kunde og send invitation</button>
         <div id="lmaciMsg" class="lmaci-msg" role="status" aria-live="polite"></div>
       </div>
-      <div class="lm-settings-note" style="margin-top:12px">Invitationen fører kunden gennem password, 2-faktor-login og de 4 onboarding-trin. Brug <strong>+ Invitér bruger</strong> længere nede til ekstra brugere på en eksisterende kundekonto.</div>
+      <div class="lm-settings-note" style="margin-top:12px">Lead Manager klargør kundens konto før mailen sendes. Kunden bekræfter derefter en engangskode, vælger sin egen adgangskode, opsætter 2-faktor-login og gennemfører de 4 onboarding-trin. Brug <strong>+ Invitér bruger</strong> længere nede til ekstra brugere på en eksisterende kundekonto.</div>
     </div>
 
     <div class="lmaci-status">
       <div class="lmaci-status-head">
         <div>
           <h3>Onboarding-status</h3>
-          <div class="lmaci-status-note">Se om invitationen er sendt, login og 2FA er oprettet, hvilket trin kunden er på, og om kunden er aktiv.</div>
+          <div class="lmaci-status-note">Se om konto og engangskode er klargjort, om kunden har valgt eget password og 2FA, hvilket onboarding-trin kunden er på, og om kunden er aktiv.</div>
         </div>
         <button type="button" class="btn lmaci-mini-btn" id="lmaciRefresh">Opdater</button>
       </div>
