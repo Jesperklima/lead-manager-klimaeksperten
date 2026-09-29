@@ -101,9 +101,9 @@ function style(){
     #lmAdminCustomerInvite .lmaci-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     #lmAdminCustomerInvite .field{margin:0}
     #lmAdminCustomerInvite label{display:block;font-size:12px;font-weight:800;color:var(--muted,#94a3b8);margin-bottom:5px}
-    #lmAdminCustomerInvite input,#lmAdminCustomerInvite select{width:100%;min-height:42px;padding:9px 10px;border:1px solid var(--border,#334155);border-radius:10px;background:var(--surface-2,rgba(15,23,42,.35));color:var(--text,#e2e8f0)}
+    #lmAdminCustomerInvite input,#lmAdminCustomerInvite select{width:100%;min-height:42px;padding:9px 10px;border:1px solid var(--border,#334155);border-radius:10px;background:var(--soft,#eef2ff);color:var(--text,#10203a)}
     #lmAdminCustomerInvite .lmaci-plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
-    #lmAdminCustomerInvite .lmaci-plan{border:1px solid var(--border,#334155);background:var(--surface-2,rgba(15,23,42,.35));color:var(--text,#e2e8f0);border-radius:10px;padding:10px;cursor:pointer;text-align:left}
+    #lmAdminCustomerInvite .lmaci-plan{border:1px solid var(--border,#334155);background:var(--soft,#eef2ff);color:var(--text,#10203a);border-radius:10px;padding:10px;cursor:pointer;text-align:left}
     #lmAdminCustomerInvite .lmaci-plan strong{display:block;font-size:13px}
     #lmAdminCustomerInvite .lmaci-plan span{display:block;font-size:11px;color:var(--muted,#94a3b8);margin-top:2px}
     #lmAdminCustomerInvite .lmaci-plan.active{border-color:#5b7cfa;background:rgba(49,87,232,.12);box-shadow:0 0 0 1px rgba(49,87,232,.16)}
@@ -114,8 +114,8 @@ function style(){
     #lmAdminCustomerInvite .lmaci-status-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
     #lmAdminCustomerInvite .lmaci-status-head h3{margin:0 0 3px;font-size:16px}
     #lmAdminCustomerInvite .lmaci-status-note{font-size:12px;color:var(--muted,#94a3b8)}
-    #lmAdminCustomerInvite .lmaci-table{display:grid;gap:8px}
-    #lmAdminCustomerInvite .lmaci-row{display:grid;grid-template-columns:minmax(150px,1.35fr) minmax(115px,.8fr) minmax(145px,1fr) minmax(105px,.75fr) minmax(90px,.7fr) auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid var(--border,#334155);border-radius:12px;background:var(--surface-2,rgba(15,23,42,.28))}
+    #lmAdminCustomerInvite .lmaci-table{display:grid;gap:8px}\n    #lmAdminCustomerInvite #lmaciStatusBody{display:grid;gap:8px}
+    #lmAdminCustomerInvite .lmaci-row{display:grid;grid-template-columns:minmax(150px,1.35fr) minmax(115px,.8fr) minmax(145px,1fr) minmax(105px,.75fr) minmax(90px,.7fr) auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid var(--border,#334155);border-radius:12px;background:var(--soft,#eef2ff)}
     #lmAdminCustomerInvite .lmaci-row.head{padding:4px 12px 2px;border:0;background:transparent;color:var(--muted,#94a3b8);font-size:11px;font-weight:800}
     #lmAdminCustomerInvite .lmaci-company strong{display:block;font-size:13px}
     #lmAdminCustomerInvite .lmaci-small{font-size:11px;color:var(--muted,#94a3b8);margin-top:2px;overflow-wrap:anywhere}
