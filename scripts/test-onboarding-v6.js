@@ -18,21 +18,23 @@ for(const marker of ["action:'inspect'","inviteInfo.company_name","inviteInfo.em
 for(const marker of ["action === 'inspect'","email: inviteEmail","company_name: client.name"])
   must(invite.includes(marker),'invite inspect marker missing: '+marker);
 
-// 3) Existing login can be reused.
+// 3) First login uses a one-time code before password creation.
 for(const marker of [
-  "inviteInfo.existing_login===true",
-  "Fortsæt med dit Lead Manager-login",
-  "EXISTING_LOGIN_PASSWORD_REQUIRED",
-  "authClient.auth.signInWithPassword",
-  "reused_existing_login"
-]) must((ui+'\n'+invite).includes(marker),'existing-login reuse marker missing: '+marker);
+  "action:'verify_code'",
+  "action:'set_password'",
+  "verification_ticket",
+  "autocomplete=\"one-time-code\"",
+  "Bekræft din invitation",
+  "Vælg din adgangskode"
+]) must(ui.includes(marker),'one-time-code UI marker missing: '+marker);
 for(const marker of [
-  "recoverable_login",
-  "Tidligere opsætning fundet.",
-  "recovered_stale_login",
+  "crm_verify_onboarding_code",
   "admin.auth.admin.updateUserById",
-  "PASSWORD_WEAK"
-]) must((ui+'\n'+invite).includes(marker),'interrupted-login recovery marker missing: '+marker);
+  "PASSWORD_WEAK",
+  "CODE_REQUIRED",
+  "password_ticket_hash"
+]) must(invite.includes(marker),'one-time-code backend marker missing: '+marker);
+must(!ui.includes("action:'claim'"),'UI can still bypass one-time code with direct claim');
 
 // 4) Server determines the resume step.
 must(edge.includes("resumeStep=version==='saas_v6'?Math.max(1,Math.min(4,rawStep))"),'server resume-step normalization missing');
@@ -54,7 +56,7 @@ must(!validateBlock.includes('step===3'),'integration step still has blocking va
 must(edge.includes("mailPreference=str(body.mail_provider||'later'"),'server complete does not default mail to later');
 must(edge.includes("onboarding_completed:true"),'server does not complete onboarding without integrations');
 
-must(boot.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260929-password-recovery-1')"),'central loader is not on onboarding v6');
+must(boot.includes("loadLazyScript('/saas-onboarding-v6.js?v=20260929-one-time-code-1')"),'central loader is not on onboarding v6');
 must(!boot.includes("loadLazyScript('/saas-onboarding-v5.js"),'central loader still loads onboarding v5');
 
-console.log('PASS: Onboarding v2 requirements — 4 steps, invite prefill, login reuse, server resume, optional mail/CRM');
+console.log('PASS: Onboarding v2 requirements — one-time code, password creation, 4 steps, server resume, optional mail/CRM');
