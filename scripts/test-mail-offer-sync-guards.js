@@ -56,7 +56,7 @@ assert(src.includes("offer_sync_processed&&!m.reinspect_legacy"),'legacy process
 assert(!src.includes("const automatic=highConfidence&&!matched?.manual_lock&&!analysis.needsReview"),'identity linking must not be blocked by ambiguous status analysis');
 assert(src.includes("if(matched&&!statusAutomatic)"),'existing exact/thread offer must link even when status is ambiguous or manually locked');
 assert(src.includes("reinspect_legacy:revisitPending"),'pending approvals must be eligible for deterministic backfill reinspection');
-assert(src.includes("supplierQuote=!matched&&!min&&supplierQuoteLooksLikely(m)"),'supplier quote filter must run before customer offer creation');
+assert(src.includes("supplierQuote=!matched&&!min&&(supplierQuoteLooksLikely(m)||supplierThread)"),'supplier quote/thread filter must run before customer offer creation');
 assert(src.includes("supplierRole=/(?:spare\\s+parts?|reservdel(?:ar|e)?|leverandør|supplier|vendor|after\\s+sales|logistics"),'supplier-role detection missing');
 function supplierQuoteProbe(subject,body){
   const x=(String(subject||'')+'\n'+String(body||'')).toLowerCase();
