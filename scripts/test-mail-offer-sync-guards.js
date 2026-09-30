@@ -68,6 +68,10 @@ function supplierQuoteProbe(subject,body){
 }
 assert(supplierQuoteProbe('Sv: Re: Beställning: 20142841','Kan vi bruge PDF faktura? Spare Parts Department. Gällande reservdelar.')===true,'Carrier-style supplier thread must be filtered');
 assert(supplierQuoteProbe('Re: Tilbud 2981','Kan I sende en revideret pris på tilbuddet?')===false,'ordinary customer offer discussion must not be classified as supplier quote');
+assert(src.includes("const supplierThreadKeys=new Set<string>()"),'supplier thread preclassification missing');
+assert(src.includes("supplierThreadKeys.add(\`${message.provider}:${message.thread}\`)"),'supplier thread key registration missing');
+assert(src.includes("supplierQuoteLooksLikely(m)||supplierThread"),'supplier thread must suppress all messages in the quotation thread');
+
 assert(src.includes("customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1"),'known external customer mail must be able to create an offer independently of Minuba');
 assert(src.includes("const minubaSystemMail=domainOf(m.from)==='minuba.dk'"),'Minuba system mail must not masquerade as an external customer reply');
 assert(src.includes("proposal.status=min?'I GANG':'STATUS UKLAR'"),'mail-only offers must start safely when Minuba has not matched them');
