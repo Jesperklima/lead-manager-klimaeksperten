@@ -57,7 +57,10 @@ assert(!src.includes("const automatic=highConfidence&&!matched?.manual_lock&&!an
 assert(src.includes("if(matched&&!statusAutomatic)"),'existing exact/thread offer must link even when status is ambiguous or manually locked');
 assert(src.includes("reinspect_legacy:revisitPending"),'pending approvals must be eligible for deterministic backfill reinspection');
 assert(src.includes("supplierQuote=!matched&&!min&&supplierQuoteLooksLikely(m)"),'supplier quote filter must run before customer offer creation');
-assert(src.includes("customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&candidateCompanyIds.length===1"),'known-customer mail must be able to create an offer independently of Minuba');
+assert(src.includes("customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1"),'known external customer mail must be able to create an offer independently of Minuba');
+assert(src.includes("const minubaSystemMail=domainOf(m.from)==='minuba.dk'"),'Minuba system mail must not masquerade as an external customer reply');
+assert(src.includes("proposal.status=min?'I GANG':'STATUS UKLAR'"),'mail-only offers must start safely when Minuba has not matched them');
+assert((src.match(/crm_approvals'\)\.update\(\{status:'rejected'/g)||[]).length>=2,'stale and supplier pending approvals must be closed during reconciliation');
 
 
 
