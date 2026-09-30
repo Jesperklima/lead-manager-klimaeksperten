@@ -349,6 +349,42 @@ async function linkProposalWithoutStatusChange(admin:any,p:any,actor='Mail & Con
   return offer;
 }
 
+async function reconcilePendingMailApprovals(admin:any,clientId:string){
+  const summary:any={closed:0,expired:0,errors:[] as string[]};
+  try{
+    const{data:pending,error}=await admin.from('crm_approvals').select('id,payload,created_at').eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').order('created_at',{ascending:true}).limit(200);
+    if(error){summary.errors.push(errText(error));return summary}
+    const ids=[...new Set((pending||[]).map((a:any)=>clean(a?.payload?.external_message_id,1000)).filter(Boolean))];
+    if(!ids.length)return summary;
+    const{data:mails,error:mailError}=await admin.from('crm_mail_messages').select('provider,external_message_id,message_at,metadata,offer_id').eq('client_id',clientId).in('external_message_id',ids);
+    if(mailError){summary.errors.push(errText(mailError));return summary}
+    const byKey=new Map((mails||[]).map((m:any)=>[`${clean(m.provider,80)}:${clean(m.external_message_id,1000)}`,m]));
+    const now=new Date().toISOString(),cutoff=Date.now()-14*86400000;
+    for(const approval of pending||[]){
+      const payload=approval.payload||{},provider=clean(payload.provider,80),messageId=clean(payload.external_message_id,1000),mail:any=byKey.get(`${provider}:${messageId}`);
+      if(!mail)continue;
+      const result=clean(mail.metadata?.offer_sync_result,160).toUpperCase();let reason='',expired=false;
+      if(result&&result!=='PENDING_APPROVAL')reason=`Mailen er allerede afgjort som ${result}; den gamle godkendelse er lukket automatisk.`;
+      else{
+        const messageTime=new Date(mail.message_at||0).getTime();
+        if(result==='PENDING_APPROVAL'&&!mail.offer_id&&Number.isFinite(messageTime)&&messageTime<cutoff){
+          expired=true;reason='Historisk tilbudsmail uden aktivt Lead Manager-tilbud eller sikkert Minuba-match er udløbet efter 14 dage.';
+          const metadata={...(mail.metadata||{}),offer_sync_candidate:false,offer_sync_processed:true,offer_sync_result:'IGNORED_HISTORICAL_NONACTIVE',offer_sync_reason:reason};
+          const mailUp=await admin.from('crm_mail_messages').update({metadata}).eq('client_id',clientId).eq('provider',provider).eq('external_message_id',messageId);
+          if(mailUp.error){summary.errors.push(errText(mailUp.error));continue}
+          mail.metadata=metadata;
+        }
+      }
+      if(!reason)continue;
+      const nextPayload={...payload,auto_closed_reason:reason,auto_closed_at:now};
+      const up=await admin.from('crm_approvals').update({status:'rejected',decided_at:now,payload:nextPayload}).eq('id',approval.id).eq('client_id',clientId).eq('status','pending');
+      if(up.error){summary.errors.push(errText(up.error));continue}
+      summary.closed++;if(expired)summary.expired++;
+    }
+  }catch(e){summary.errors.push(errText(e))}
+  return summary;
+}
+
 async function loadStoredPendingMessages(admin:any,clientId:string,integrations:any[],backfillDays:number,internalDomains:Set<string>){
   const days=Math.max(45,backfillDays||0),since=new Date(Date.now()-days*86400000).toISOString();
   const{data,error}=await admin.from('crm_mail_messages').select('*').eq('client_id',clientId).gte('message_at',since).order('message_at',{ascending:false}).limit(500);
@@ -546,12 +582,14 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
       if(pending.error)throw new Error(errText(pending.error));
     }
   }
+  let approvalCleanup:any={closed:0,expired:0,errors:[]};
   if(!dryRun){
+    approvalCleanup=await reconcilePendingMailApprovals(admin,clientId);
     if(followUpNotices.length){try{await sendGmailFollowUpNotice(admin,clientId,owner,followUpNotices)}catch(e){providerResults.push({provider:'gmail_notification',error:errText(e)})}}
     const now=new Date().toISOString();for(const p of successfulProviders)await admin.from('crm_integrations').update({last_sync_at:now,last_error:null,updated_at:now}).eq('client_id',clientId).eq('provider',p);
-    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,mode:'mail_decision_v3_paginated_multi_offer_v16_auto_link'}});
+    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,mode:'mail_decision_v3_paginated_multi_offer_v17_approval_reconciliation'}});
   }
-  return{client_id:clientId,dry_run:dryRun,providers:providerResults,fetched:allMessages.length,candidates:proposals.length,stored,processed,ignored,approvals,minuba_created:minubaCreated,proposals:proposals.slice(0,25)};
+  return{client_id:clientId,dry_run:dryRun,providers:providerResults,fetched:allMessages.length,candidates:proposals.length,stored,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,proposals:proposals.slice(0,25)};
 }
 
 Deno.serve(async(req:Request)=>{
