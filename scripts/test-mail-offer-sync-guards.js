@@ -13,6 +13,14 @@ for(const marker of [
   'IGNORED_CLOSED_STATUS_CONFLICT',
   'markMailIgnored',
   'PENDING_APPROVAL',
+  'LINKED_NO_STATUS_CHANGE',
+  'IGNORED_SUPPLIER_QUOTE',
+  'supplierQuoteLooksLikely',
+  'customerMailVerified',
+  'identityAutomatic',
+  'statusAutomatic',
+  "syncResult==='PENDING_APPROVAL'",
+  "source_evidence:min?'explicit_mail_minuba_validated':'explicit_customer_mail_verified'",
   "offer_sync_processed:targetComplete",
   "const allowDecisiveOverrideOpen=!!matched&&decisiveInbound&&!closedStatuses.has(matched.status)",
   "matchType='mail_thread_offer'",
@@ -23,7 +31,7 @@ for(const marker of [
   'decision_excerpt:clean(decisionBody,1200)',
   'needs_review:!!analysis.needsReview',
   'Godkendt via mail – afventer ordreoprettelse i Minuba.',
-  "mode:'mail_decision_v3_paginated_multi_offer_v15'"
+  "mode:'mail_decision_v3_paginated_multi_offer_v16_auto_link'"
 ]) assert(src.includes(marker),'missing mail-offer guard: '+marker);
 
 assert(!src.includes('fetchMicrosoftasync function fetchMicrosoft'),'duplicate fetchMicrosoft function marker');
@@ -45,6 +53,15 @@ assert(src.includes("legacyReinspect=new Set<string>()"),'legacy Gmail backfill 
 assert(src.includes("reinspect_legacy:legacyReinspect.has(id)"),'legacy Gmail backfill marker missing');
 assert(src.includes("meta.offer_sync_evidence?.attachments"),'stored mail must recover attachment evidence');
 assert(src.includes("offer_sync_processed&&!m.reinspect_legacy"),'legacy processed mail must be reinspectable during backfill');
+assert(!src.includes("const automatic=highConfidence&&!matched?.manual_lock&&!analysis.needsReview"),'identity linking must not be blocked by ambiguous status analysis');
+assert(src.includes("if(matched&&!statusAutomatic)"),'existing exact/thread offer must link even when status is ambiguous or manually locked');
+assert(src.includes("reinspect_legacy:revisitPending"),'pending approvals must be eligible for deterministic backfill reinspection');
+assert(src.includes("supplierQuote=!matched&&!min&&supplierQuoteLooksLikely(m)"),'supplier quote filter must run before customer offer creation');
+assert(src.includes("customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1"),'known external customer mail must be able to create an offer independently of Minuba');
+assert(src.includes("const minubaSystemMail=domainOf(m.from)==='minuba.dk'"),'Minuba system mail must not masquerade as an external customer reply');
+assert(src.includes("proposal.status=min?'I GANG':'STATUS UKLAR'"),'mail-only offers must start safely when Minuba has not matched them');
+assert((src.match(/crm_approvals'\)\.update\(\{status:'rejected'/g)||[]).length>=2,'stale and supplier pending approvals must be closed during reconciliation');
+
 
 
 function sourceRegex(name){

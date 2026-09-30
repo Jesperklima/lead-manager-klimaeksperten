@@ -172,6 +172,13 @@ function classify(text:string,at:any){
 function evidenceText(m:any){return`${m.subject||''}\n${m.body||''}\n${(m.attachments||[]).join('\n')}`}
 function isCandidate(m:any){if(/^lead manager:\s*(?:tilbud registreret|mailkontrol)/i.test(clean(m.subject)))return false;const evidence=evidenceText(m);return explicitRefs(evidence).length>0||/\b(?:tilbud(?:det|s)?|offer|quotation|quote|proposal|overslag)\b/i.test(`${m.subject}\n${newestMessageBody(m.body)}`)}
 function forwardedOwnOffer(m:any){const t=evidenceText(m);return/\bmail\+klimaeksperten@minuba\.dk\b/i.test(t)||(/\btilbuds?\s*nr\.?\s*[:#-]?\s*[a-z]?\d{3,8}\b/i.test(t)&&/\bklimaeksperten\b/i.test(t))}
+function supplierQuoteLooksLikely(m:any){
+  if(m.direction!=='inbound'||forwardedOwnOffer(m))return false;
+  const t=lower(`${m.subject||''}\n${newestMessageBody(m.body)||m.body||''}`);
+  const attachedQuote=/(?:bifogat|vedhæftet|attached)\s+(?:offert|tilbud|quote|quotation)/i.test(t);
+  const procurement=/(?:beställning|bestilling|purchase\s+order|ordrebekræftelse|faktura|invoice|reservdel|spare\s+part|leveringstid|delivery\s+time|fragt|freight)/i.test(t);
+  return attachedQuote&&procurement;
+}
 function minubaRefs(x:any){return[x?.orderNumber,x?.number,x?.offerNumber,x?.offerNo,x?.offerReference,x?.reference,x?.quotationNumber,x?.quoteNumber].map(norm).filter(Boolean)}
 function minubaMatchesRef(x:any,target:string){
   if(minubaRefs(x).includes(target))return true;const seen=new Set<any>();
@@ -229,7 +236,8 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
     for(const row of data||[]){
       const id=clean(row.external_message_id,1000);if(!id)continue;known.add(id);
       const meta=row.metadata||{},refs=Array.isArray(meta.offer_sync_refs)?meta.offer_sync_refs.map(norm).filter(Boolean):[];
-      if(backfillDays>0&&meta.offer_sync_processed===true&&!refs.length)legacyReinspect.add(id);
+      const syncResult=clean(meta.offer_sync_result,160).toUpperCase();
+      if(backfillDays>0&&meta.offer_sync_processed===true&&(!refs.length||syncResult==='PENDING_APPROVAL'))legacyReinspect.add(id);
     }
   }
   const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id)).slice(0,300);
@@ -313,7 +321,7 @@ async function applyProposal(admin:any,p:any,actor='Mail & Conversation Agent'){
   const now=new Date().toISOString();let offer=p.offer||null;const targetComplete=p.target_complete!==false;const allOfferRefs=[...new Set((Array.isArray(p.all_offer_refs)?p.all_offer_refs:[p.offer_ref]).map((x:any)=>norm(x)).filter(Boolean))];
   const min=p.minuba_info||null;
   if(!offer&&p.create_offer){
-    const payload:any={client_id:p.client_id,company_id:p.company_id,lead_id:p.lead_id||null,offer_ref:p.offer_ref,customer_name:p.customer_name||null,sent_date:min?.sent_date||p.message_at.slice(0,10),follow_up_date:p.follow_up_date,follow_up_owner:p.owner||null,status:p.status,status_reason:p.reason,current_comment:p.comment,status_source:'mail_sync',status_updated_at:now,contact_person:min?.contact_person||null,contact_details:min?.contact_details||null,installation_address:min?.installation_address||null,raw:{created_from_mail:true,external_message_id:p.external_message_id,source_evidence:'explicit_mail_minuba_validated'}};
+    const payload:any={client_id:p.client_id,company_id:p.company_id,lead_id:p.lead_id||null,offer_ref:p.offer_ref,customer_name:p.customer_name||null,sent_date:min?.sent_date||p.message_at.slice(0,10),follow_up_date:p.follow_up_date,follow_up_owner:p.owner||null,status:p.status,status_reason:p.reason,current_comment:p.comment,status_source:'mail_sync',status_updated_at:now,contact_person:min?.contact_person||null,contact_details:min?.contact_details||null,installation_address:min?.installation_address||null,raw:{created_from_mail:true,external_message_id:p.external_message_id,source_evidence:min?'explicit_mail_minuba_validated':'explicit_customer_mail_verified',awaiting_minuba_match:!min}};
     if(min){payload.minuba_status=min.minuba_status;payload.minuba_record_type='proposal';payload.minuba_last_checked_at=now;payload.minuba_last_seen_at=now;payload.minuba_sync_state='active';payload.minuba_raw=min.raw}
     const ins=await admin.from('crm_offers').insert(payload).select('*').single();if(ins.error)throw new Error(errText(ins.error));offer=ins.data;
   }else if(offer){
@@ -325,6 +333,17 @@ async function applyProposal(admin:any,p:any,actor='Mail & Conversation Agent'){
   if(closedStatuses.has(p.status)){await admin.from('crm_tasks').update({status:'done',updated_at:now}).eq('client_id',p.client_id).eq('offer_id',offer.id).eq('task_type','offer_followup').eq('status','open')}
   await admin.from('crm_mail_messages').update({offer_id:offer.id,company_id:offer.company_id,lead_id:offer.lead_id,contact_id:p.contact_id||null,metadata:{...(p.mail_metadata||{}),offer_sync_processed:targetComplete,offer_sync_result:p.status,offer_sync_reason:p.reason,offer_sync_evidence:p.evidence||{},offer_sync_refs:allOfferRefs}}).eq('client_id',p.client_id).eq('provider',p.provider).eq('external_message_id',p.external_message_id);
   await admin.from('crm_activities').insert({client_id:p.client_id,company_id:offer.company_id,lead_id:offer.lead_id,offer_id:offer.id,type:'Mail→tilbud',actor_type:'agent',actor_name:actor,summary:p.comment,metadata:{provider:p.provider,external_message_id:p.external_message_id,previous_status:p.previous_status||null,status:p.status,follow_up_date:p.follow_up_date,automatic:true,evidence:p.evidence||{},minuba_validated:!!min}});
+  return offer;
+}
+
+async function linkProposalWithoutStatusChange(admin:any,p:any,actor='Mail & Conversation Agent'){
+  const offer=p.offer;if(!offer)return null;
+  const targetComplete=p.target_complete!==false,allOfferRefs=[...new Set((Array.isArray(p.all_offer_refs)?p.all_offer_refs:[p.offer_ref]).map((x:any)=>norm(x)).filter(Boolean))];
+  const reason=`Mailen er automatisk koblet til tilbud ${offer.offer_ref||p.offer_ref}. Tilbudsidentiteten er sikker; ingen usikker mailfortolkning må blokere koblingen eller ændre tilbudsstatus.`;
+  const metadata={...(p.mail_metadata||{}),offer_sync_candidate:true,offer_sync_processed:targetComplete,offer_sync_result:'LINKED_NO_STATUS_CHANGE',offer_sync_reason:reason,offer_sync_evidence:p.evidence||{},offer_sync_refs:allOfferRefs,status_review_needed:!!p.needs_review};
+  const{error}=await admin.from('crm_mail_messages').update({offer_id:offer.id,company_id:offer.company_id,lead_id:offer.lead_id,contact_id:p.contact_id||null,metadata}).eq('client_id',p.client_id).eq('provider',p.provider).eq('external_message_id',p.external_message_id);
+  if(error)throw new Error(errText(error));
+  await admin.from('crm_activities').insert({client_id:p.client_id,company_id:offer.company_id,lead_id:offer.lead_id,offer_id:offer.id,type:'Mail→tilbud',actor_type:'agent',actor_name:actor,summary:reason,metadata:{provider:p.provider,external_message_id:p.external_message_id,automatic:true,status_change:false,match_type:p.match_type||null,needs_review:!!p.needs_review,evidence:p.evidence||{}}});
   return offer;
 }
 
@@ -343,15 +362,17 @@ async function loadStoredPendingMessages(admin:any,clientId:string,integrations:
   }
   const rows:any[]=[];
   for(const m of data||[]){
-    if(m?.metadata?.offer_sync_processed===true||!m?.external_message_id)continue;
+    const meta=m.metadata||{},syncResult=clean(meta.offer_sync_result,160).toUpperCase(),storedRefs=Array.isArray(meta.offer_sync_refs)?meta.offer_sync_refs.map(norm).filter(Boolean):[];
+    const revisitPending=backfillDays>0&&meta.offer_sync_processed===true&&syncResult==='PENDING_APPROVAL'&&storedRefs.length>0;
+    if((meta.offer_sync_processed===true&&!revisitPending)||!m?.external_message_id)continue;
     const provider=clean(m.provider,80),account=accountByProvider.get(provider)||'',from=lower(m.from_email);
     const to=Array.isArray(m.to_emails)?m.to_emails.map(lower).filter(Boolean):[];
     const cc=Array.isArray(m.cc_emails)?m.cc_emails.map(lower).filter(Boolean):[];
     const body=clean(m.body_text,30000),embedded=emailsInText(body),outbound=m.direction==='outbound'||internalDomains.has(domainOf(from));
     const correspondents=[...new Set([...(outbound?[...to,...cc]:[from]),...embedded].filter(x=>x&&!internalAccounts.has(x)&&x!==account&&!internalDomains.has(domainOf(x))))];
-    const meta=m.metadata||{};let attachments=Array.isArray(meta.attachments)?meta.attachments:Array.isArray(meta.attachment_names)?meta.attachment_names:Array.isArray(meta.offer_sync_evidence?.attachments)?meta.offer_sync_evidence.attachments:[];
+    let attachments=Array.isArray(meta.attachments)?meta.attachments:Array.isArray(meta.attachment_names)?meta.attachment_names:Array.isArray(meta.offer_sync_evidence?.attachments)?meta.offer_sync_evidence.attachments:[];
     if(!attachments.length&&Array.isArray(meta.offer_sync_refs))attachments=meta.offer_sync_refs.map((ref:any)=>`Tilbud ${clean(ref,160)}`).filter((x:string)=>x!=='Tilbud ');
-    rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents});
+    rows.push({provider,id:clean(m.external_message_id,1000),thread:clean(m.external_thread_id,1000),direction:outbound?'outbound':'inbound',from,to,cc,subject:clean(m.subject,1000),body,attachments,at:m.message_at||m.created_at||new Date().toISOString(),url:clean(meta.source_url,3000),correspondents,reinspect_legacy:revisitPending});
   }
   return rows;
 }
@@ -458,12 +479,29 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
           ?`Tilbuddet står allerede som ${matched.status}; et modstridende mailsignal kræver manuel kontrol.`
           :`Tilbuddet står allerede som ${matched.status}; en almindelig opfølgningsmail må ikke genåbne det automatisk.`;
       proposals.push({client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,offer:{id:matched.id,offer_ref:matched.offer_ref,status:matched.status,manual_lock:matched.manual_lock},offer_ref:matched.offer_ref,status:matched.status,ignored:true,offer_sync_result:result,reason});
-      if(!dryRun){await markMailIgnored(admin,clientId,m,existing,matched,result,reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++}
+      if(!dryRun){
+        await markMailIgnored(admin,clientId,m,existing,matched,result,reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++;
+        await admin.from('crm_approvals').update({status:'rejected',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id});
+      }
       continue;
     }
-    if(offerRef&&minuba.enabled&&!minuba.error){const row=minuba.rows.find((x:any)=>minubaMatchesRef(x,norm(offerRef)));if(row&&!isMinubaDraft(row)){min=minubaInfo(row,offerRef);if(!companyId){const company=await ensureMinubaCompany(admin,clientId,min,companies||[]);companyId=company.id;rebuildMaps()}if(companyId){const contact=await ensureMinubaContact(admin,clientId,companyId,min,contacts||[]);contactId=contact?.id||null;rebuildMaps()}}else if(!matched)minubaExplanation=`Tilbud ${offerRef} blev ikke fundet som et aktivt PROPOSAL i Minuba og oprettes derfor ikke automatisk.`}
-    else if(offerRef&&minuba.enabled&&minuba.error&&!matched)minubaExplanation=`Minuba-valideringen fejlede: ${minuba.error}. Nyt tilbud oprettes ikke uden sikker validering.`;
-    const canCreate=!matched&&!!offerRef&&!!companyId&&(minuba.enabled?!!min:(m.direction==='outbound'||forwardedOwnOffer(m)));
+    if(offerRef&&minuba.enabled&&!minuba.error){const row=minuba.rows.find((x:any)=>minubaMatchesRef(x,norm(offerRef)));if(row&&!isMinubaDraft(row)){min=minubaInfo(row,offerRef);if(!companyId){const company=await ensureMinubaCompany(admin,clientId,min,companies||[]);companyId=company.id;rebuildMaps()}if(companyId){const contact=await ensureMinubaContact(admin,clientId,companyId,min,contacts||[]);contactId=contact?.id||null;rebuildMaps()}}else if(!matched)minubaExplanation=`Tilbud ${offerRef} blev ikke fundet som et aktivt PROPOSAL i Minuba.`}
+    else if(offerRef&&minuba.enabled&&minuba.error&&!matched)minubaExplanation=`Minuba-valideringen fejlede: ${minuba.error}.`;
+    if(companyId&&!contactId){const mailContact=(contacts||[]).find((c:any)=>c.company_id===companyId&&(m.correspondents||[]).some((e:string)=>lower(c.email)===lower(e)));contactId=mailContact?.id||null}
+    const supplierQuote=!matched&&!min&&supplierQuoteLooksLikely(m);
+    if(supplierQuote){
+      const reason='Indgående leverandørtilbud er identificeret som indkøb til virksomheden og skal ikke ind i kundetilbudspipelinen.';
+      proposals.push({client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,offer_ref:offerRef,ignored:true,offer_sync_result:'IGNORED_SUPPLIER_QUOTE',reason});
+      if(!dryRun){
+        await markMailIgnored(admin,clientId,m,existing,null,'IGNORED_SUPPLIER_QUOTE',reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++;
+        await admin.from('crm_approvals').update({status:'rejected',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id});
+      }
+      continue;
+    }
+    const minubaSystemMail=domainOf(m.from)==='minuba.dk';
+    const customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1&&!supplierQuote;
+    const ownOfferMailVerified=!matched&&!!offerRef&&!!companyId&&(m.direction==='outbound'||forwardedOwnOffer(m));
+    const canCreate=!matched&&!!offerRef&&!!companyId&&(!!min||customerMailVerified||(!minuba.enabled&&ownOfferMailVerified));
     const highConfidence=matchType==='explicit_offer_ref'||matchType==='mail_thread_offer'||canCreate;
     const customerName=min?.customer_name||companyById.get(companyId)?.name||null;
     const decisionNote=analysis.status==='VUNDET'&&m.direction==='inbound'?(min?' Godkendt via mail – afventer ordreoprettelse i Minuba.':' Godkendt via mail.'):analysis.status==='TABT'&&m.direction==='inbound'?' Kundens afslag er registreret via mail.':'';
@@ -472,8 +510,28 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     const proposal:any={client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,company_id:companyId,contact_id:contactId,lead_id:matched?.lead_id||null,offer:matched,create_offer:canCreate,offer_ref:offerRef,customer_name:customerName,previous_status:matched?.status||null,status:analysis.status,follow_up_date:analysis.followUp,owner,reason:analysis.reason,comment,mail_metadata:{...(existing?.metadata||{}),source_url:m.url,offer_sync_candidate:true,offer_sync_refs:m.all_offer_refs||refs},match_type:matchType||(canCreate?'explicit_minuba_validated':'uncertain'),needs_review:!!analysis.needsReview,evidence:evidenceMeta,minuba_info:min,target_complete:m.target_index===m.target_count-1,all_offer_refs:m.all_offer_refs||refs};
     proposals.push({...proposal,offer:matched?{id:matched.id,offer_ref:matched.offer_ref,status:matched.status,manual_lock:matched.manual_lock}:null,minuba_info:min?{offer_ref:min.offer_ref,customer_name:min.customer_name,status:min.minuba_status}:null});if(dryRun)continue;
     if(!existing){const ins=await admin.from('crm_mail_messages').insert({client_id:clientId,company_id:companyId,lead_id:proposal.lead_id,offer_id:matched?.id||null,contact_id:contactId,provider:m.provider,external_message_id:m.id,external_thread_id:m.thread,direction:m.direction,from_email:m.from,to_emails:m.to,cc_emails:m.cc,subject:m.subject,body_text:m.body,message_at:m.at,metadata:proposal.mail_metadata}).select('*').single();if(ins.error)throw new Error(errText(ins.error));proposal.mail_metadata=ins.data.metadata||{};existing=ins.data;existingByKey.set(key,ins.data);stored++}
-    const automatic=highConfidence&&!matched?.manual_lock&&!analysis.needsReview;
-    if(automatic){const applied=await applyProposal(admin,proposal);processed++;if(applied){if(matched)Object.assign(matched,applied);else if(Array.isArray(offers))offers.push(applied);if(m.thread)threadOfferByKey.set(`${m.provider}:${m.thread}`,applied)}if(applied&&proposal.follow_up_date)followUpNotices.push({...proposal,offer:applied});if(canCreate&&min)minubaCreated++;await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id})}
+    const identityAutomatic=highConfidence,statusAutomatic=identityAutomatic&&!matched?.manual_lock&&!analysis.needsReview;
+    if(identityAutomatic){
+      let applied:any=null,statusApplied=false;
+      if(matched&&!statusAutomatic){
+        proposal.status=matched.status;proposal.follow_up_date=matched.follow_up_date||null;proposal.needs_review=!!analysis.needsReview||!!matched.manual_lock;
+        proposal.reason=matched.manual_lock?'Mailen er sikkert koblet til tilbuddet, men tilbuddet er manuelt låst; status og opfølgning er bevaret.':'Mailen er sikkert koblet til tilbuddet; den aktuelle status og opfølgning er bevaret, fordi mailens betydning ikke er entydig.';
+        proposal.comment=`${proposal.reason} Mail: ${m.subject||'(uden emne)'} (${new Date(m.at).toLocaleDateString('da-DK')}).`;
+        applied=await linkProposalWithoutStatusChange(admin,proposal);
+      }else{
+        if(!matched&&canCreate&&analysis.needsReview){
+          proposal.status=min?'I GANG':'STATUS UKLAR';proposal.follow_up_date=analysis.followUp||addBusinessDays(m.at,7);proposal.needs_review=false;
+          proposal.reason=min?'Tilbuddet er sikkert identificeret på tilbudsnummer og aktiv Minuba-post og oprettes automatisk. Mailen gav ingen sikker statusændring.':'Tilbuddet er sikkert identificeret fra kundemail og eksisterende CRM-kundematch og oprettes automatisk. Status står som STATUS UKLAR, indtil Minuba-match eller et entydigt kundesvar afklarer den.';
+          proposal.comment=`${proposal.reason} Mail: ${m.subject||'(uden emne)'} (${new Date(m.at).toLocaleDateString('da-DK')}).`;
+        }
+        applied=await applyProposal(admin,proposal);statusApplied=true;
+      }
+      processed++;
+      if(applied){if(matched&&statusApplied)Object.assign(matched,applied);else if(!matched&&Array.isArray(offers))offers.push(applied);if(m.thread)threadOfferByKey.set(`${m.provider}:${m.thread}`,applied)}
+      if(statusApplied&&applied&&proposal.follow_up_date)followUpNotices.push({...proposal,offer:applied});
+      if(canCreate&&min)minubaCreated++;
+      await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id});
+    }
     else{
       const explanation=analysis.needsReview?'Kundens seneste svar er ikke entydigt; eksisterende opfølgning er bevaret og kræver kontrol.':minubaExplanation||(!companyId?'Kunden kunne ikke matches sikkert ud fra mailen eller Minuba.':!matched&&!canCreate?'Tilbuddet står i mailen, men kan ikke oprettes automatisk med sikkerhed.':matched?.manual_lock?'Tilbuddet er manuelt låst.':'Kræver kontrol.');
       const{data:prior}=await admin.from('crm_approvals').select('id').eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id}).limit(1);
@@ -486,7 +544,7 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
   if(!dryRun){
     if(followUpNotices.length){try{await sendGmailFollowUpNotice(admin,clientId,owner,followUpNotices)}catch(e){providerResults.push({provider:'gmail_notification',error:errText(e)})}}
     const now=new Date().toISOString();for(const p of successfulProviders)await admin.from('crm_integrations').update({last_sync_at:now,last_error:null,updated_at:now}).eq('client_id',clientId).eq('provider',p);
-    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,mode:'mail_decision_v3_paginated_multi_offer_v15'}});
+    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,mode:'mail_decision_v3_paginated_multi_offer_v16_auto_link'}});
   }
   return{client_id:clientId,dry_run:dryRun,providers:providerResults,fetched:allMessages.length,candidates:proposals.length,stored,processed,ignored,approvals,minuba_created:minubaCreated,proposals:proposals.slice(0,25)};
 }
