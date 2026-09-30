@@ -479,7 +479,10 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
           ?`Tilbuddet står allerede som ${matched.status}; et modstridende mailsignal kræver manuel kontrol.`
           :`Tilbuddet står allerede som ${matched.status}; en almindelig opfølgningsmail må ikke genåbne det automatisk.`;
       proposals.push({client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,offer:{id:matched.id,offer_ref:matched.offer_ref,status:matched.status,manual_lock:matched.manual_lock},offer_ref:matched.offer_ref,status:matched.status,ignored:true,offer_sync_result:result,reason});
-      if(!dryRun){await markMailIgnored(admin,clientId,m,existing,matched,result,reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++}
+      if(!dryRun){
+        await markMailIgnored(admin,clientId,m,existing,matched,result,reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++;
+        await admin.from('crm_approvals').update({status:'rejected',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id});
+      }
       continue;
     }
     if(offerRef&&minuba.enabled&&!minuba.error){const row=minuba.rows.find((x:any)=>minubaMatchesRef(x,norm(offerRef)));if(row&&!isMinubaDraft(row)){min=minubaInfo(row,offerRef);if(!companyId){const company=await ensureMinubaCompany(admin,clientId,min,companies||[]);companyId=company.id;rebuildMaps()}if(companyId){const contact=await ensureMinubaContact(admin,clientId,companyId,min,contacts||[]);contactId=contact?.id||null;rebuildMaps()}}else if(!matched)minubaExplanation=`Tilbud ${offerRef} blev ikke fundet som et aktivt PROPOSAL i Minuba.`}
@@ -489,10 +492,14 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     if(supplierQuote){
       const reason='Indgående leverandørtilbud er identificeret som indkøb til virksomheden og skal ikke ind i kundetilbudspipelinen.';
       proposals.push({client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,offer_ref:offerRef,ignored:true,offer_sync_result:'IGNORED_SUPPLIER_QUOTE',reason});
-      if(!dryRun){await markMailIgnored(admin,clientId,m,existing,null,'IGNORED_SUPPLIER_QUOTE',reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++}
+      if(!dryRun){
+        await markMailIgnored(admin,clientId,m,existing,null,'IGNORED_SUPPLIER_QUOTE',reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++;
+        await admin.from('crm_approvals').update({status:'rejected',decided_at:new Date().toISOString()}).eq('client_id',clientId).eq('action_type','offer_mail_update').eq('status','pending').contains('payload',{provider:m.provider,external_message_id:m.id});
+      }
       continue;
     }
-    const customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&candidateCompanyIds.length===1&&!supplierQuote;
+    const minubaSystemMail=domainOf(m.from)==='minuba.dk';
+    const customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1&&!supplierQuote;
     const ownOfferMailVerified=!matched&&!!offerRef&&!!companyId&&(m.direction==='outbound'||forwardedOwnOffer(m));
     const canCreate=!matched&&!!offerRef&&!!companyId&&(!!min||customerMailVerified||(!minuba.enabled&&ownOfferMailVerified));
     const highConfidence=matchType==='explicit_offer_ref'||matchType==='mail_thread_offer'||canCreate;
@@ -513,8 +520,8 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
         applied=await linkProposalWithoutStatusChange(admin,proposal);
       }else{
         if(!matched&&canCreate&&analysis.needsReview){
-          proposal.status='I GANG';proposal.follow_up_date=analysis.followUp||addBusinessDays(m.at,7);proposal.needs_review=false;
-          proposal.reason=min?'Tilbuddet er sikkert identificeret på tilbudsnummer og aktiv Minuba-post og oprettes automatisk. Mailen gav ingen sikker statusændring.':'Tilbuddet er sikkert identificeret fra kundemail og eksisterende CRM-kundematch og oprettes automatisk. Tilbuddet afventer Minuba-match.';
+          proposal.status=min?'I GANG':'STATUS UKLAR';proposal.follow_up_date=analysis.followUp||addBusinessDays(m.at,7);proposal.needs_review=false;
+          proposal.reason=min?'Tilbuddet er sikkert identificeret på tilbudsnummer og aktiv Minuba-post og oprettes automatisk. Mailen gav ingen sikker statusændring.':'Tilbuddet er sikkert identificeret fra kundemail og eksisterende CRM-kundematch og oprettes automatisk. Status står som STATUS UKLAR, indtil Minuba-match eller et entydigt kundesvar afklarer den.';
           proposal.comment=`${proposal.reason} Mail: ${m.subject||'(uden emne)'} (${new Date(m.at).toLocaleDateString('da-DK')}).`;
         }
         applied=await applyProposal(admin,proposal);statusApplied=true;
