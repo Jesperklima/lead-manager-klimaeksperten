@@ -57,6 +57,17 @@ assert(!src.includes("const automatic=highConfidence&&!matched?.manual_lock&&!an
 assert(src.includes("if(matched&&!statusAutomatic)"),'existing exact/thread offer must link even when status is ambiguous or manually locked');
 assert(src.includes("reinspect_legacy:revisitPending"),'pending approvals must be eligible for deterministic backfill reinspection');
 assert(src.includes("supplierQuote=!matched&&!min&&supplierQuoteLooksLikely(m)"),'supplier quote filter must run before customer offer creation');
+assert(src.includes("supplierRole=/(?:spare\\s+parts?|reservdel(?:ar|e)?|leverandør|supplier|vendor|after\\s+sales|logistics"),'supplier-role detection missing');
+function supplierQuoteProbe(subject,body){
+  const x=(String(subject||'')+'\n'+String(body||'')).toLowerCase();
+  const attachedQuote=/(?:bifogat|vedhæftet|attached)\s+(?:offert|tilbud|quote|quotation)/i.test(x);
+  const procurement=/(?:beställning|bestilling|purchase\s+order|ordrebekræftelse|faktura|invoice|reservdel|spare\s+part|leveringstid|delivery\s+time|fragt|freight)/i.test(x);
+  const supplierRole=/(?:spare\s+parts?|reservdel(?:ar|e)?|leverandør|supplier|vendor|after\s+sales|logistics(?:\s+coordinator)?)/i.test(x);
+  const procurementSubject=/(?:beställning|bestilling|purchase\s+order|offert|quotation)/i.test(String(subject||'').toLowerCase());
+  return(attachedQuote&&procurement)||(procurement&&supplierRole)||(procurementSubject&&supplierRole);
+}
+assert(supplierQuoteProbe('Sv: Re: Beställning: 20142841','Kan vi bruge PDF faktura? Spare Parts Department. Gällande reservdelar.')===true,'Carrier-style supplier thread must be filtered');
+assert(supplierQuoteProbe('Re: Tilbud 2981','Kan I sende en revideret pris på tilbuddet?')===false,'ordinary customer offer discussion must not be classified as supplier quote');
 assert(src.includes("customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1"),'known external customer mail must be able to create an offer independently of Minuba');
 assert(src.includes("const minubaSystemMail=domainOf(m.from)==='minuba.dk'"),'Minuba system mail must not masquerade as an external customer reply');
 assert(src.includes("proposal.status=min?'I GANG':'STATUS UKLAR'"),'mail-only offers must start safely when Minuba has not matched them');
