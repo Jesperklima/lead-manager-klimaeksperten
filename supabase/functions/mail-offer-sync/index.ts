@@ -445,6 +445,8 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
   for(const m of allMessages){if(!m.thread)continue;const a=threadIdsByProvider.get(m.provider)||[];if(!a.includes(m.thread))a.push(m.thread);threadIdsByProvider.set(m.provider,a)}
   for(const[provider,threads]of threadIdsByProvider){for(let i=0;i<threads.length;i+=100){const batch=threads.slice(i,i+100);if(!batch.length)continue;const{data}=await admin.from('crm_mail_messages').select('external_thread_id,offer_id,message_at').eq('client_id',clientId).eq('provider',provider).in('external_thread_id',batch).order('message_at',{ascending:false});for(const row of(data||[])){if(!row.offer_id||!row.external_thread_id)continue;const k=`${provider}:${row.external_thread_id}`;if(threadOfferByKey.has(k))continue;const offer=(offers||[]).find((o:any)=>o.id===row.offer_id);if(offer)threadOfferByKey.set(k,offer)}}}
   const proposals:any[]=[],followUpNotices:any[]=[];let stored=0,processed=0,ignored=0,approvals=0,minubaCreated=0;
+  const supplierThreadKeys=new Set<string>();
+  for(const message of allMessages)if(message.thread&&supplierQuoteLooksLikely(message))supplierThreadKeys.add(`${message.provider}:${message.thread}`);
   const expandedMessages:any[]=[];
   for(const baseMessage of allMessages){
     const messageRefs=explicitRefs(evidenceText(baseMessage));
@@ -490,9 +492,10 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     if(offerRef&&minuba.enabled&&!minuba.error){const row=minuba.rows.find((x:any)=>minubaMatchesRef(x,norm(offerRef)));if(row&&!isMinubaDraft(row)){min=minubaInfo(row,offerRef);if(!companyId){const company=await ensureMinubaCompany(admin,clientId,min,companies||[]);companyId=company.id;rebuildMaps()}if(companyId){const contact=await ensureMinubaContact(admin,clientId,companyId,min,contacts||[]);contactId=contact?.id||null;rebuildMaps()}}else if(!matched)minubaExplanation=`Tilbud ${offerRef} blev ikke fundet som et aktivt PROPOSAL i Minuba.`}
     else if(offerRef&&minuba.enabled&&minuba.error&&!matched)minubaExplanation=`Minuba-valideringen fejlede: ${minuba.error}.`;
     if(companyId&&!contactId){const mailContact=(contacts||[]).find((c:any)=>c.company_id===companyId&&(m.correspondents||[]).some((e:string)=>lower(c.email)===lower(e)));contactId=mailContact?.id||null}
-    const supplierQuote=!matched&&!min&&supplierQuoteLooksLikely(m);
+    const supplierThread=!!m.thread&&supplierThreadKeys.has(`${m.provider}:${m.thread}`);
+    const supplierQuote=!matched&&!min&&(supplierQuoteLooksLikely(m)||supplierThread);
     if(supplierQuote){
-      const reason='Indgående leverandørtilbud er identificeret som indkøb til virksomheden og skal ikke ind i kundetilbudspipelinen.';
+      const reason='Leverandørtilbud/-tråd er identificeret som indkøb til virksomheden og skal ikke ind i kundetilbudspipelinen.';
       proposals.push({client_id:clientId,provider:m.provider,external_message_id:m.id,message_at:m.at,offer_ref:offerRef,ignored:true,offer_sync_result:'IGNORED_SUPPLIER_QUOTE',reason});
       if(!dryRun){
         await markMailIgnored(admin,clientId,m,existing,null,'IGNORED_SUPPLIER_QUOTE',reason,m.target_index===m.target_count-1,m.all_offer_refs||refs);ignored++;
