@@ -401,7 +401,7 @@ async function loadStoredPendingMessages(admin:any,clientId:string,integrations:
   const rows:any[]=[];
   for(const m of data||[]){
     const meta=m.metadata||{},syncResult=clean(meta.offer_sync_result,160).toUpperCase(),storedRefs=Array.isArray(meta.offer_sync_refs)?meta.offer_sync_refs.map(norm).filter(Boolean):[];
-    const revisitPending=backfillDays>0&&meta.offer_sync_processed===true&&syncResult==='PENDING_APPROVAL'&&storedRefs.length>0;
+    const revisitPending=meta.offer_sync_processed===true&&syncResult==='PENDING_APPROVAL'&&storedRefs.length>0;
     if((meta.offer_sync_processed===true&&!revisitPending)||!m?.external_message_id)continue;
     const provider=clean(m.provider,80),account=accountByProvider.get(provider)||'',from=lower(m.from_email);
     const to=Array.isArray(m.to_emails)?m.to_emails.map(lower).filter(Boolean):[];
@@ -587,7 +587,7 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     approvalCleanup=await reconcilePendingMailApprovals(admin,clientId);
     if(followUpNotices.length){try{await sendGmailFollowUpNotice(admin,clientId,owner,followUpNotices)}catch(e){providerResults.push({provider:'gmail_notification',error:errText(e)})}}
     const now=new Date().toISOString();for(const p of successfulProviders)await admin.from('crm_integrations').update({last_sync_at:now,last_error:null,updated_at:now}).eq('client_id',clientId).eq('provider',p);
-    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,mode:'mail_decision_v3_paginated_multi_offer_v17_approval_reconciliation'}});
+    await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,mode:'mail_decision_v3_paginated_multi_offer_v18_pending_retry'}});
   }
   return{client_id:clientId,dry_run:dryRun,providers:providerResults,fetched:allMessages.length,candidates:proposals.length,stored,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,proposals:proposals.slice(0,25)};
 }
