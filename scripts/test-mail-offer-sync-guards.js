@@ -31,7 +31,7 @@ for(const marker of [
   'decision_excerpt:clean(decisionBody,1200)',
   'needs_review:!!analysis.needsReview',
   'Godkendt via mail – afventer ordreoprettelse i Minuba.',
-  "mode:'mail_decision_v3_paginated_multi_offer_v16_auto_link'"
+  "mode:'mail_decision_v3_paginated_multi_offer_v17_approval_reconciliation'"
 ]) assert(src.includes(marker),'missing mail-offer guard: '+marker);
 
 assert(!src.includes('fetchMicrosoftasync function fetchMicrosoft'),'duplicate fetchMicrosoft function marker');
@@ -71,6 +71,12 @@ assert(supplierQuoteProbe('Re: Tilbud 2981','Kan I sende en revideret pris på t
 assert(src.includes("const supplierThreadKeys=new Set<string>()"),'supplier thread preclassification missing');
 assert(src.includes("supplierThreadKeys.add(\`${message.provider}:${message.thread}\`)"),'supplier thread key registration missing');
 assert(src.includes("supplierQuoteLooksLikely(m)||supplierThread"),'supplier thread must suppress all messages in the quotation thread');
+assert(src.includes("async function reconcilePendingMailApprovals"),'stale mail-offer approval reconciliation helper missing');
+assert(src.includes("IGNORED_HISTORICAL_NONACTIVE"),'historical unresolved mail offers must expire safely');
+assert(src.includes("Date.now()-14*86400000"),'historical approval expiry window must remain 14 days');
+assert(src.includes("auto_closed_reason"),'auto-closed approvals must retain an audit reason');
+assert(src.includes("approvalCleanup=await reconcilePendingMailApprovals(admin,clientId)"),'approval reconciliation must run on every non-dry sync');
+
 
 assert(src.includes("customerMailVerified=!matched&&!!offerRef&&m.direction==='inbound'&&!minubaSystemMail&&candidateCompanyIds.length===1"),'known external customer mail must be able to create an offer independently of Minuba');
 assert(src.includes("const minubaSystemMail=domainOf(m.from)==='minuba.dk'"),'Minuba system mail must not masquerade as an external customer reply');
