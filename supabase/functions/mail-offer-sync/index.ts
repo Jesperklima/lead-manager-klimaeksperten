@@ -174,10 +174,12 @@ function isCandidate(m:any){if(/^lead manager:\s*(?:tilbud registreret|mailkontr
 function forwardedOwnOffer(m:any){const t=evidenceText(m);return/\bmail\+klimaeksperten@minuba\.dk\b/i.test(t)||(/\btilbuds?\s*nr\.?\s*[:#-]?\s*[a-z]?\d{3,8}\b/i.test(t)&&/\bklimaeksperten\b/i.test(t))}
 function supplierQuoteLooksLikely(m:any){
   if(m.direction!=='inbound'||forwardedOwnOffer(m))return false;
-  const t=lower(`${m.subject||''}\n${newestMessageBody(m.body)||m.body||''}`);
+  const t=lower(`${m.subject||''}\n${newestMessageBody(m.body)||m.body||''}\n${(m.attachments||[]).join(' ')}`);
   const attachedQuote=/(?:bifogat|vedhæftet|attached)\s+(?:offert|tilbud|quote|quotation)/i.test(t);
   const procurement=/(?:beställning|bestilling|purchase\s+order|ordrebekræftelse|faktura|invoice|reservdel|spare\s+part|leveringstid|delivery\s+time|fragt|freight)/i.test(t);
-  return attachedQuote&&procurement;
+  const supplierRole=/(?:spare\s+parts?|reservdel(?:ar|e)?|leverandør|supplier|vendor|after\s+sales|logistics(?:\s+coordinator)?)/i.test(t);
+  const procurementSubject=/(?:beställning|bestilling|purchase\s+order|offert|quotation)/i.test(lower(m.subject));
+  return(attachedQuote&&procurement)||(procurement&&supplierRole)||(procurementSubject&&supplierRole);
 }
 function minubaRefs(x:any){return[x?.orderNumber,x?.number,x?.offerNumber,x?.offerNo,x?.offerReference,x?.reference,x?.quotationNumber,x?.quoteNumber].map(norm).filter(Boolean)}
 function minubaMatchesRef(x:any,target:string){
