@@ -31,7 +31,7 @@ for(const marker of [
   'decision_excerpt:clean(decisionBody,1200)',
   'needs_review:!!analysis.needsReview',
   'Godkendt via mail – afventer ordreoprettelse i Minuba.',
-  "mode:'mail_decision_v3_paginated_multi_offer_v17_approval_reconciliation'"
+  "mode:'mail_decision_v3_paginated_multi_offer_v18_pending_retry'"
 ]) assert(src.includes(marker),'missing mail-offer guard: '+marker);
 
 assert(!src.includes('fetchMicrosoftasync function fetchMicrosoft'),'duplicate fetchMicrosoft function marker');
@@ -56,6 +56,8 @@ assert(src.includes("offer_sync_processed&&!m.reinspect_legacy"),'legacy process
 assert(!src.includes("const automatic=highConfidence&&!matched?.manual_lock&&!analysis.needsReview"),'identity linking must not be blocked by ambiguous status analysis');
 assert(src.includes("if(matched&&!statusAutomatic)"),'existing exact/thread offer must link even when status is ambiguous or manually locked');
 assert(src.includes("reinspect_legacy:revisitPending"),'pending approvals must be eligible for deterministic backfill reinspection');
+assert(src.includes("const revisitPending=meta.offer_sync_processed===true&&syncResult==='PENDING_APPROVAL'&&storedRefs.length>0"),'pending exact-reference mail must be retried on every scheduled sync');
+assert(!src.includes("const revisitPending=backfillDays>0"),'pending retry must not depend on manual backfill');
 assert(src.includes("supplierQuote=!matched&&!min&&(supplierQuoteLooksLikely(m)||supplierThread)"),'supplier quote/thread filter must run before customer offer creation');
 assert(src.includes("supplierRole=/(?:spare\\s+parts?|reservdel(?:ar|e)?|leverandør|supplier|vendor|after\\s+sales|logistics"),'supplier-role detection missing');
 function supplierQuoteProbe(subject,body){
