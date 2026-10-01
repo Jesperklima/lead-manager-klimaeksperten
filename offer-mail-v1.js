@@ -400,6 +400,28 @@
     }catch(error){console.warn('Minuba kontaktopslag fejlede',error);if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:'Minuba kunne ikke hente kontaktoplysningerne lige nu.'}
   }
 
+  async function verifyMinubaStillActiveForFollowUp(o){
+    const ref=String(o?.offer_ref||'').trim();
+    if(!ref||!state?.client?.id)return {ok:false,reason:'Tilbudsnummer eller kunde-id mangler, så Minuba-status kan ikke verificeres.'};
+    if(typeof supabase==='undefined'||typeof callProtectedEdge!=='function')throw new Error('Minuba-statuskontrollen er ikke tilgængelig i denne version af Lead Manager.');
+    const {data:rows,error}=await supabase.from('crm_integrations').select('status').eq('client_id',state.client.id).eq('provider','minuba').limit(1);
+    if(error)throw new Error(error.message||'Kunne ikke kontrollere Minuba-forbindelsen');
+    const integration=Array.isArray(rows)?rows[0]:rows;
+    if(!integration||String(integration.status||'').toLowerCase()!=='connected')return {ok:true,skipped:true};
+    const response=await callProtectedEdge('minuba-offer-lookup',{client_id:state.client.id,offer_ref:ref});
+    if(response?.error)throw new Error(response.error.message||String(response.error));
+    const data=response?.data??response;
+    if(!data?.found)return {ok:false,reason:`Tilbud ${ref} blev ikke fundet som et aktivt tilbud eller en ordre i Minuba.`};
+    const crmStatus=String(data.crm_status||'').trim(),recordType=String(data.record_type||'').trim();
+    if(data.active!==true||recordType!=='proposal'||crmStatus!=='I GANG'){
+      const detail=recordType==='order'?'tilbuddet er blevet til en ordre':crmStatus?`Minuba-status er ${crmStatus}`:'tilbuddet er ikke aktivt';
+      return {ok:false,reason:`Tilbud ${ref} kan ikke følges op: ${detail}.`};
+    }
+    o.minuba_raw=data.raw||o.minuba_raw||{};
+    o.minuba_record_type=recordType;o.minuba_order_number=data.order_number||null;o.minuba_status=data.status_raw||o.minuba_status||null;o.minuba_last_checked_at=new Date().toISOString();
+    return {ok:true,data};
+  }
+
   function openMail(){
     ensureModal();const o=offer();if(!o){if(typeof toast==='function')toast('Åbn et tilbud først');return}if(!composerReady()){if(typeof toast==='function')toast('Mailvinduet kunne ikke indlæses. Genindlæs siden.');return}
     minubaContactOptions=[];currentSendId=makeSendId();sendState='idle';
@@ -424,6 +446,16 @@
     }
     if(unsafeDeliveryEmails(o?.minuba_raw||{},o).includes(lower(to))){
       alert('TILBUD BLOKERET – FORKERT MODTAGER\n\nDen valgte mailadresse tilhører leverings-/arbejdsstedet og må ikke modtage tilbud eller priser. Mailen er ikke sendt.');
+      return;
+    }
+    try{
+      const gate=await verifyMinubaStillActiveForFollowUp(o);
+      if(!gate.ok){
+        alert('OPFØLGNING BLOKERET – MINUBA-STATUS\n\n'+gate.reason+'\n\nMailen er ikke sendt.');
+        return;
+      }
+    }catch(error){
+      alert('OPFØLGNING BLOKERET – STATUS IKKE VERIFICERET\n\nLead Manager kunne ikke bekræfte den aktuelle tilbudsstatus i Minuba. For at undgå at følge op på et lukket eller afvist tilbud er mailen ikke sendt.\n\n'+String(error?.message||error));
       return;
     }
     o.contact_person=name;o.contact_details=to;
