@@ -33,7 +33,7 @@ must('supabase/functions/customer-feedback/index.ts',[
 must('supabase/functions/minuba-offer-status-sync/index.ts',[
   "minuba_sync_state:'missing_once'",
   "o.minuba_sync_state==='missing_once'",
-  '30*60*1000',
+  '10*60*1000',
   "patch.status='LUKKET'",
   'to sikre statuskontroller',
   "minuba_sync_state:'converted_to_order'",
