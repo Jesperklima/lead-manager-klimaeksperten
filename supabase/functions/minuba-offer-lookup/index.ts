@@ -46,12 +46,17 @@ function matchesRef(x:any,target:string){
   return walk(x);
 }
 function rawStatus(x:any){return clean(x?.state||x?.status||x?.statusName||x?.offerState||x?.orderState||x?.phase,160)}
-function crmStatus(recordType:string,status:string){
+function crmStatus(recordType:string,status:string,record:any=null){
   const s=norm(status);
-  if(recordType==='proposal'||s==='proposal')return 'I GANG';
   if(recordType==='order')return 'VUNDET';
+  const rejected=[record?.isRejected,record?.rejected,record?.isDeclined,record?.declined].some(v=>v===true)
+    ||/^(?:rejected|declined|lost|afvist|tabt)$/.test(s);
+  const closed=[record?.isClosed,record?.closed,record?.isCancelled,record?.cancelled,record?.isCanceled,record?.canceled].some(v=>v===true)
+    ||/^(?:closed|cancelled|canceled|lukket|annulleret)$/.test(s);
+  if(rejected)return 'TABT';
+  if(closed)return 'LUKKET';
   if(/accepted|approved|won|converted|accepteret|godkendt/.test(s))return 'VUNDET';
-  if(/rejected|declined|lost|cancelled|canceled|afvist|tabt/.test(s))return 'TABT';
+  if(recordType==='proposal'||s==='proposal')return 'I GANG';
   if(/paused|delayed|postponed|onhold|udskudt/.test(s))return 'PÅ PAUSE';
   if(/active|open|sent|started|pending|offered|proposal/.test(s))return 'I GANG';
   return null;
@@ -95,7 +100,7 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
   const client=record?.client||record?.customer||{};
   const installationAddress=installationAddressFor(record);
   const contactAddress=contactAddressFor(record);
-  const status=rawStatus(record);
+  const status=rawStatus(record),mappedStatus=crmStatus(recordType,status,record);
   const directEmails=emailList(client?.email);
   const directPerson='';
   const directPhone='';
@@ -135,7 +140,9 @@ function extract(record:any,recordType:'proposal'|'order',ref:string){
     record_type:recordType,
     offer_ref:recordType==='proposal'?clean(record?.orderNumber||record?.number||ref,160):clean(record?.offerNumber||record?.offerNo||record?.offerReference||ref,160),
     status_raw:status,
-    crm_status:crmStatus(recordType,status),
+    crm_status:mappedStatus,
+    active:recordType==='proposal'&&mappedStatus==='I GANG',
+    terminal:['VUNDET','TABT','LUKKET'].includes(String(mappedStatus||'')),
     order_number:recordType==='order'?clean(record?.orderNumber||record?.number,160):'',
     customer_name:customerName,
     cvr:clean(client?.cvr||record?.cvr,40),
@@ -269,7 +276,7 @@ Deno.serve(async(req:Request)=>{
       }
     }
     await sb.from('crm_integrations').update({status:'connected',last_error:null,last_sync_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider','minuba');
-    return resp({found:false,offer_ref:ref,attempts});
+    return resp({found:false,active:false,terminal:false,offer_ref:ref,attempts});
   }catch(e:any){
     console.error(e);
     return resp({error:e instanceof Error?e.message:String(e),code:'MINUBA_OFFER_LOOKUP_ERROR'},e?.httpStatus===401?401:500);
