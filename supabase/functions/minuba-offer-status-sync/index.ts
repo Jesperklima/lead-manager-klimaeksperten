@@ -312,8 +312,19 @@ async function clientRunner(admin:any,clientId:string){
     const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;
     await closeTasks(admin,o,now);if(o.manual_lock)manualOverrides++;await log(admin,o,`Tilbud ${o.offer_ref} lukket efter to Minuba-kontroller uden aktivt tilbud eller ordre.`,{previous_status:prev,status:'LUKKET',reason:'minuba_missing_twice',manual_lock_overridden:!!o.manual_lock});closed++;
   }
+  let terminalFollowupCleaned=0;
+  const terminalStatuses=new Set(['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT']);
+  for(const o of offerRows.filter((x:any)=>terminalStatuses.has(String(x.status||'')))){
+    if(o.follow_up_date){
+      const {error}=await admin.from('crm_offers').update({follow_up_date:null,updated_at:now}).eq('id',o.id);
+      if(error)throw error;
+      o.follow_up_date=null;
+      terminalFollowupCleaned++;
+    }
+    await closeTasks(admin,o,now);
+  }
   await admin.from('crm_integrations').update({status:'connected',last_error:null,last_sync_at:now,updated_at:now}).eq('client_id',clientId).eq('provider','minuba');
-  return {client_id:clientId,checked:candidates.length,total_offers:offerRows.length,created_missing:createdMissing,contact_backfilled:contactBackfilled,contact_unresolved:contactUnresolved,active,won,closed,rejected,reopened,missing_once:missingOnce,unlinked,manual_locked:manual,manual_terminal_overrides:manualOverrides};
+  return {client_id:clientId,checked:candidates.length,total_offers:offerRows.length,created_missing:createdMissing,contact_backfilled:contactBackfilled,contact_unresolved:contactUnresolved,active,won,closed,rejected,reopened,missing_once:missingOnce,unlinked,manual_locked:manual,manual_terminal_overrides:manualOverrides,terminal_followup_cleaned:terminalFollowupCleaned};
 }
 
 Deno.serve(async(req:Request)=>{
