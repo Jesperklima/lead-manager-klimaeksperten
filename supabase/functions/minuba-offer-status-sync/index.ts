@@ -7,6 +7,16 @@ const arr=(x:any,keys:string[])=>{if(Array.isArray(x))return x;for(const k of ke
 const rawStatus=(x:any)=>clean(x?.state||x?.status||x?.statusName||x?.offerState||x?.orderState||x?.phase,160);
 const numberRefs=(x:any)=>[x?.orderNumber,x?.number,x?.offerNumber,x?.offerNo,x?.offerReference,x?.reference,x?.quotationNumber,x?.quoteNumber].map(norm).filter(Boolean);
 const closedCrm=new Set(['VUNDET','TABT','LUKKET – UDSKUDT']);
+function terminalProposalDisposition(x:any){
+  const statusKey=norm(rawStatus(x));
+  const rejected=[x?.isRejected,x?.rejected,x?.isDeclined,x?.declined].some(v=>v===true)
+    ||/^(?:rejected|declined|lost|afvist|tabt)$/.test(statusKey);
+  const closed=[x?.isClosed,x?.closed,x?.isCancelled,x?.cancelled,x?.isCanceled,x?.canceled].some(v=>v===true)
+    ||/^(?:closed|cancelled|canceled|lukket|annulleret)$/.test(statusKey);
+  if(rejected)return{crmStatus:'TABT',syncState:'rejected',reason:'Tilbuddet er afvist i Minuba.'};
+  if(closed)return{crmStatus:'LUKKET',syncState:'closed',reason:'Tilbuddet er lukket eller annulleret i Minuba.'};
+  return null;
+}
 function errText(e:any){
   if(e instanceof Error&&e.message)return e.message;
   if(e?.message)return String(e.message);
@@ -211,7 +221,7 @@ async function clientRunner(admin:any,clientId:string){
   const {data:users}=await admin.from('crm_users').select('email,role').eq('client_id',clientId).eq('active',true);
   const owner=(users||[]).find((u:any)=>['owner','admin'].includes(String(u.role||'').toLowerCase()))?.email||(users||[])[0]?.email||null;
   const offerRows:any[]=[...(offers||[])],companyRows:any[]=[...(companies||[])],existingRefs=new Set(offerRows.map((o:any)=>norm(o.offer_ref)).filter(Boolean));let createdMissing=0;
-  for(const p of buckets.proposal||[]){
+  for(const p of (buckets.proposal||[]).filter((x:any)=>!terminalProposalDisposition(x))){
     const info=proposalInfo(p),ref=norm(info.ref);if(!ref||existingRefs.has(ref))continue;
     let company=companyRows.find((x:any)=>info.cvr&&clean(x.cvr,40)===info.cvr)||companyRows.find((x:any)=>norm(x.name)===norm(info.customer));
     if(!company&&info.customer){const ins=await admin.from('crm_companies').insert({client_id:clientId,name:info.customer,cvr:info.cvr||null,address:info.address||null,minuba_relationship_status:'existing_customer',minuba_exact_match:true,minuba_checked_at:new Date().toISOString(),minuba_raw:p}).select('*').single();if(ins.error)throw ins.error;company=ins.data;companyRows.push(company)}
@@ -244,12 +254,22 @@ async function clientRunner(admin:any,clientId:string){
     if(!clean(o.contact_person,300)&&!firstEmail(o.contact_details))contactUnresolved++;
   }
   const candidates=offerRows.filter((o:any)=>o.offer_ref&&!closedCrm.has(o.status)&&(o.status!=='LUKKET'||o.status_source==='minuba'));
-  const now=new Date().toISOString();let active=0,won=0,closed=0,reopened=0,missingOnce=0,unlinked=0,manual=0;
+  const now=new Date().toISOString();let active=0,won=0,closed=0,rejected=0,reopened=0,missingOnce=0,unlinked=0,manual=0,manualOverrides=0;
   for(const o of candidates){
     const target=norm(o.offer_ref),proposal=(buckets.proposal||[]).find((x:any)=>matchesRef(x,target));let order:any=null,orderState='';
     if(!proposal){for(const s of states.slice(1)){const x=(buckets[s]||[]).find((z:any)=>matchesRef(z,target));if(x){order=x;orderState=s;break}}}
     if(proposal){
-      const prev=o.status,wasClosed=prev==='LUKKET',status=rawStatus(proposal)||'proposal';
+      const prev=o.status,wasClosed=prev==='LUKKET',status=rawStatus(proposal)||'proposal',terminal=terminalProposalDisposition(proposal);
+      if(terminal){
+        const note=`${dkDate()}: ${terminal.reason} Aktiv tilbudsopfølgning er stoppet automatisk.`;
+        const patch:any={minuba_status:status,minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:terminal.syncState,minuba_raw:proposal,status:terminal.crmStatus,follow_up_date:null,status_source:'minuba',status_updated_at:now,status_reason:terminal.reason,current_comment:appendNote(o.current_comment,note),updated_at:now};
+        const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;
+        await closeTasks(admin,o,now);
+        if(o.manual_lock)manualOverrides++;
+        if(prev!==terminal.crmStatus)await log(admin,o,`Tilbud ${o.offer_ref} markeret ${terminal.crmStatus}, fordi Minuba har en terminal tilbudsstatus.`,{previous_status:prev,status:terminal.crmStatus,minuba_status:status,manual_lock_overridden:!!o.manual_lock});
+        if(terminal.crmStatus==='TABT')rejected++;else closed++;
+        continue;
+      }
       const resolvedContact=bestContact(proposal,o,offerRows,clientRows,contacts||[],companyRows);
       const unsafeStored=unsafeStoredDeliveryContact(proposal,o,companyDomainsFor(o,companyRows));
       const patch:any={minuba_status:status,minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:'active',minuba_raw:proposal,updated_at:now};
@@ -277,23 +297,23 @@ async function clientRunner(admin:any,clientId:string){
         if(!clean(o.contact_person,300)&&resolvedContact?.name)patch.contact_person=clean(resolvedContact.name,300);
         if(!firstEmail(o.contact_details)&&resolvedContact?.email)patch.contact_details=clean([resolvedContact.email,resolvedContact.phone].filter(Boolean).join(' · '),700);
       }
-      if(!o.manual_lock&&prev!=='VUNDET'){patch.status='VUNDET';patch.follow_up_date=null;patch.status_source='minuba';patch.status_updated_at=now;patch.status_reason=`Tilbuddet er blevet til ordre i Minuba${orderNo?' (ordre '+orderNo+')':''}.`;patch.current_comment=appendNote(o.current_comment,`${dkDate()}: Vundet automatisk – tilbuddet er blevet til ordre i Minuba${orderNo?' (ordre '+orderNo+')':''}.`)}
+      if(prev!=='VUNDET'){patch.status='VUNDET';patch.follow_up_date=null;patch.status_source='minuba';patch.status_updated_at=now;patch.status_reason=`Tilbuddet er blevet til ordre i Minuba${orderNo?' (ordre '+orderNo+')':''}.`;patch.current_comment=appendNote(o.current_comment,`${dkDate()}: Vundet automatisk – tilbuddet er blevet til ordre i Minuba${orderNo?' (ordre '+orderNo+')':''}.`)}
       const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;won++;
-      if(!o.manual_lock&&prev!=='VUNDET'){await closeTasks(admin,o,now);await log(admin,o,`Tilbud ${o.offer_ref} markeret VUNDET, fordi det er blevet til ordre i Minuba.`,{previous_status:prev,status:'VUNDET',order_number:orderNo,minuba_status:status})}else if(o.manual_lock)manual++;
+      if(prev!=='VUNDET'){await closeTasks(admin,o,now);if(o.manual_lock)manualOverrides++;await log(admin,o,`Tilbud ${o.offer_ref} markeret VUNDET, fordi det er blevet til ordre i Minuba.`,{previous_status:prev,status:'VUNDET',order_number:orderNo,minuba_status:status,manual_lock_overridden:!!o.manual_lock})}
       continue;
     }
     if(o.status==='LUKKET'&&o.status_source==='minuba'){await admin.from('crm_offers').update({minuba_last_checked_at:now,updated_at:now}).eq('id',o.id);continue}
     if(!o.minuba_last_seen_at){await admin.from('crm_offers').update({minuba_last_checked_at:now,minuba_sync_state:'unlinked',updated_at:now}).eq('id',o.id);unlinked++;continue}
-    const oldCheck=o.minuba_last_checked_at?new Date(o.minuba_last_checked_at).getTime():0,eligibleSecond=o.minuba_sync_state==='missing_once'&&(Date.now()-oldCheck)>=30*60*1000;
+    const oldCheck=o.minuba_last_checked_at?new Date(o.minuba_last_checked_at).getTime():0,eligibleSecond=o.minuba_sync_state==='missing_once'&&(Date.now()-oldCheck)>=10*60*1000;
     if(!eligibleSecond){await admin.from('crm_offers').update({minuba_last_checked_at:now,minuba_sync_state:'missing_once',updated_at:now}).eq('id',o.id);missingOnce++;continue}
     const prev=o.status,note=`${dkDate()}: Lukket automatisk i Lead Manager, fordi tilbuddet ikke længere er aktivt i Minuba efter to sikre statuskontroller.`;
     const patch:any={minuba_status:'closed',minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_sync_state:'closed',updated_at:now};
-    if(!o.manual_lock){patch.status='LUKKET';patch.follow_up_date=null;patch.status_source='minuba';patch.status_updated_at=now;patch.status_reason='Lukket i Lead Manager, fordi tilbuddet er lukket i Minuba.';patch.current_comment=appendNote(o.current_comment,note)}
+    patch.status='LUKKET';patch.follow_up_date=null;patch.status_source='minuba';patch.status_updated_at=now;patch.status_reason='Lukket i Lead Manager, fordi tilbuddet ikke længere er aktivt i Minuba.';patch.current_comment=appendNote(o.current_comment,note)
     const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;
-    if(!o.manual_lock){await closeTasks(admin,o,now);await log(admin,o,`Tilbud ${o.offer_ref} lukket efter to Minuba-kontroller uden aktivt tilbud eller ordre.`,{previous_status:prev,status:'LUKKET',reason:'minuba_missing_twice'});closed++}else manual++;
+    await closeTasks(admin,o,now);if(o.manual_lock)manualOverrides++;await log(admin,o,`Tilbud ${o.offer_ref} lukket efter to Minuba-kontroller uden aktivt tilbud eller ordre.`,{previous_status:prev,status:'LUKKET',reason:'minuba_missing_twice',manual_lock_overridden:!!o.manual_lock});closed++;
   }
   await admin.from('crm_integrations').update({status:'connected',last_error:null,last_sync_at:now,updated_at:now}).eq('client_id',clientId).eq('provider','minuba');
-  return {client_id:clientId,checked:candidates.length,total_offers:offerRows.length,created_missing:createdMissing,contact_backfilled:contactBackfilled,contact_unresolved:contactUnresolved,active,won,closed,reopened,missing_once:missingOnce,unlinked,manual_locked:manual};
+  return {client_id:clientId,checked:candidates.length,total_offers:offerRows.length,created_missing:createdMissing,contact_backfilled:contactBackfilled,contact_unresolved:contactUnresolved,active,won,closed,rejected,reopened,missing_once:missingOnce,unlinked,manual_locked:manual,manual_terminal_overrides:manualOverrides};
 }
 
 Deno.serve(async(req:Request)=>{
