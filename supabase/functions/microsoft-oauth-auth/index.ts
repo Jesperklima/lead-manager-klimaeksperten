@@ -9,7 +9,7 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const DEFAULT_APP_URL='https://lead-manager-klimaeksperten.vercel.app/';
 const REDIRECT_URI='https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/microsoft-oauth-callback';
 const BASE_SCOPE='openid profile email offline_access User.Read Mail.Send';
-const READ_SCOPE='Mail.ReadWrite';
+const READ_SCOPE='Mail.Read';
 const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const safeAppUrl=(v:unknown)=>{try{const u=new URL(String(v||DEFAULT_APP_URL));return u.protocol==='https:'?u.href:DEFAULT_APP_URL}catch{return DEFAULT_APP_URL}};
 const safeReturnUrl=(v:unknown,fallback:string)=>{try{const base=new URL(fallback),u=new URL(String(v||fallback));return u.protocol==='https:'&&u.origin===base.origin?u.href:fallback}catch{return fallback}};
