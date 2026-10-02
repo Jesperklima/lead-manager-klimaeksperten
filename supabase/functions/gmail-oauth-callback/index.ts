@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 const REDIRECT_URI='https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/gmail-oauth-callback';
 const DEFAULT_APP_URL='https://lead-manager-klimaeksperten.vercel.app/';
-const GMAIL_SCOPE='openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify';
+const GMAIL_SCOPE='openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly';
 const safe=(v:unknown)=>encodeURIComponent(String(v??'').slice(0,500));
 const safeReturn=(v:unknown)=>{try{const u=new URL(String(v||DEFAULT_APP_URL));return u.protocol==='https:'?u.href:DEFAULT_APP_URL}catch{return DEFAULT_APP_URL}};
 const back=(status:string,message:string,returnUrl=DEFAULT_APP_URL)=>{const u=new URL(safeReturn(returnUrl));u.searchParams.set('gmail',status);u.searchParams.set('gmail_message',message.slice(0,500));return new Response(null,{status:303,headers:{Location:u.href,'Cache-Control':'no-store'}})};

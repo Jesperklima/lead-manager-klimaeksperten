@@ -13,6 +13,10 @@ assert(auth.includes("prompt:'consent select_account'"),'Google account chooser 
 assert(!auth.includes("login_hint:account"),'Gmail OAuth must not pin the browser to the configured account with login_hint');
 assert(auth.includes("access_type:'offline'"),'offline access must remain enabled for refresh token issuance');
 assert(auth.includes("include_granted_scopes:'true'"),'incremental granted scopes handling missing');
+assert(auth.includes('https://www.googleapis.com/auth/gmail.readonly'),'Gmail OAuth must retain mailbox read access');
+assert(!auth.includes('https://www.googleapis.com/auth/gmail.modify'),'Gmail OAuth must not request gmail.modify');
+assert(callback.includes('https://www.googleapis.com/auth/gmail.readonly'),'Gmail callback must persist readonly scope');
+assert(!callback.includes('https://www.googleapis.com/auth/gmail.modify'),'Gmail callback must not persist modify scope');
 assert(auth.includes("state:stateToken"),'OAuth state token must be included');
 
 assert(callback.includes("set_gmail_refresh_token"),'callback must store the refresh token through the guarded RPC');

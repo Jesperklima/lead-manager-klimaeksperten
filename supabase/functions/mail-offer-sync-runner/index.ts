@@ -76,91 +76,6 @@ async function guardDraftApprovals(sb:any,baseUrl:string,secret:string,clientId:
 }
 
 
-const READ_CUTOVER='2026-09-28T00:00:00Z';
-function syncProcessed(meta:any){return meta?.offer_sync_processed===true||lower(meta?.offer_sync_processed)==='true'}
-function readEligible(row:any){
-  const meta=row?.metadata||{},result=clean(meta.offer_sync_result,160).toUpperCase(),state=lower(meta?.offer_read_sync?.state);
-  return row?.direction==='inbound'
-    && ['gmail','microsoft'].includes(clean(row?.provider,40))
-    && syncProcessed(meta)
-    && !!result
-    && result!=='PENDING_APPROVAL'
-    && result!=='IGNORED_CLOSED_STATUS_CONFLICT'
-    && state!=='done';
-}
-async function gmailReadToken(sb:any,clientId:string,intg:any){
-  const scope=clean(intg?.config?.direct_send?.scope,3000);
-  if(!scope.includes('https://www.googleapis.com/auth/gmail.modify'))return{scope_required:true,error:'Gmail skal genforbindes med gmail.modify for at markere mails som læst.'};
-  const{data:mat,error}=await sb.rpc('get_gmail_oauth_material',{p_client_id:clientId});if(error)throw error;
-  const appId=clean(mat?.client_id,500),secret=clean(mat?.client_secret,1000),refresh=clean(mat?.refresh_token,4000);
-  if(!appId||!secret||!refresh)throw new Error('Gmail OAuth-materiale mangler');
-  const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:appId,client_secret:secret,refresh_token:refresh,grant_type:'refresh_token'})});
-  const d=await r.json().catch(()=>({}));if(!r.ok||!d.access_token)throw new Error(clean(d?.error_description||d?.error||'Gmail tokenfejl',1000));
-  return{access:String(d.access_token)};
-}
-async function microsoftReadToken(sb:any,clientId:string,intg:any){
-  const configured=clean(intg?.config?.oauth?.scope,3000);
-  if(!/(^|\s)Mail\.ReadWrite(\s|$)/.test(configured))return{scope_required:true,error:'Microsoft skal genforbindes med Mail.ReadWrite for at markere mails som læst.'};
-  const{data:mat,error}=await sb.rpc('crm_get_microsoft_oauth_material',{p_client_id:clientId});if(error)throw error;
-  const appId=clean(mat?.client_id,500),secret=clean(mat?.client_secret,1000),refresh=clean(mat?.refresh_token,4000),scope=clean(mat?.scope,3000);
-  if(!appId||!secret||!refresh)throw new Error('Microsoft OAuth-materiale mangler');
-  const r=await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:appId,client_secret:secret,refresh_token:refresh,grant_type:'refresh_token',scope})});
-  const d=await r.json().catch(()=>({}));if(!r.ok||!d.access_token)throw new Error(clean(d?.error_description||d?.error||'Microsoft tokenfejl',1000));
-  if(d.refresh_token&&d.refresh_token!==refresh)await sb.rpc('crm_set_microsoft_refresh_token',{p_client_id:clientId,p_refresh_token:d.refresh_token,p_account:mat?.account,p_scope:d.scope||scope});
-  return{access:String(d.access_token)};
-}
-async function markProviderRead(provider:string,access:string,messageId:string){
-  if(provider==='gmail'){
-    const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+encodeURIComponent(messageId)+'/modify',{method:'POST',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:JSON.stringify({removeLabelIds:['UNREAD']})});
-    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(clean(d?.error?.message||('Gmail mark-read fejlede ('+r.status+')'),1000));return;
-  }
-  const r=await fetch('https://graph.microsoft.com/v1.0/me/messages/'+encodeURIComponent(messageId),{method:'PATCH',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:JSON.stringify({isRead:true})});
-  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(clean(d?.error?.message||('Microsoft mark-read fejlede ('+r.status+')'),1000));
-}
-async function markHandledRead(sb:any,requestedClientId:string,syncData:any){
-  let q=sb.from('crm_mail_messages').select('id,client_id,provider,external_message_id,direction,message_at,metadata').in('provider',['gmail','microsoft']).eq('direction','inbound').gte('message_at',READ_CUTOVER).order('message_at',{ascending:true}).limit(500);
-  if(requestedClientId)q=q.eq('client_id',requestedClientId);
-  const{data,error}=await q;if(error)throw error;
-  const rows=(data||[]).filter(readEligible),groups=new Map<string,any[]>();
-  for(const row of rows){const key=row.client_id+'|'+row.provider,a=groups.get(key)||[];a.push(row);groups.set(key,a)}
-  const results:any[]=[];
-  for(const[key,items]of groups){
-    const[clientId,provider]=key.split('|');
-    try{
-      const clientRun=(syncData?.results||[]).find((x:any)=>clean(x?.client_id,100)===clientId);
-      if(!clientRun||clientRun.error){results.push({client_id:clientId,provider,candidates:items.length,marked:0,blocked:'client_sync_failed'});continue}
-      const providerRun=(clientRun.providers||[]).find((x:any)=>x?.provider===provider);
-      if(!providerRun||providerRun.error){results.push({client_id:clientId,provider,candidates:items.length,marked:0,blocked:'mail_provider_sync_failed'});continue}
-      const{data:integrations,error:intError}=await sb.from('crm_integrations').select('provider,status,config').eq('client_id',clientId).in('provider',[provider,'minuba']);
-      if(intError)throw intError;
-      const intg=(integrations||[]).find((x:any)=>x.provider===provider);
-      if(!intg||intg.status!=='connected'){results.push({client_id:clientId,provider,candidates:items.length,marked:0,error:'Mailintegration er ikke forbundet'});continue}
-      const minubaConnected=(integrations||[]).some((x:any)=>x.provider==='minuba'&&x.status==='connected');
-      if(minubaConnected){
-        const minubaRun=(clientRun.providers||[]).find((x:any)=>x?.provider==='minuba_validation');
-        if(!minubaRun||minubaRun.error){results.push({client_id:clientId,provider,candidates:items.length,marked:0,blocked:'minuba_validation_failed'});continue}
-      }
-      const token=provider==='gmail'?await gmailReadToken(sb,clientId,intg):await microsoftReadToken(sb,clientId,intg);
-      if(token.scope_required){results.push({client_id:clientId,provider,candidates:items.length,marked:0,scope_required:true,error:token.error});continue}
-      let marked=0,failed=0;
-      for(const row of items){
-        try{
-          await markProviderRead(provider,token.access,row.external_message_id);
-          const now=new Date().toISOString(),meta=row.metadata||{};
-          const up=await sb.from('crm_mail_messages').update({metadata:{...meta,offer_read_sync:{state:'done',marked_read_at:now,provider}}}).eq('id',row.id);
-          if(up.error)throw up.error;
-          marked++;
-        }catch(e:any){
-          failed++;const now=new Date().toISOString(),meta=row.metadata||{};
-          await sb.from('crm_mail_messages').update({metadata:{...meta,offer_read_sync:{state:'error',checked_at:now,error:clean(e?.message||e,1000),provider}}}).eq('id',row.id);
-        }
-      }
-      results.push({client_id:clientId,provider,candidates:items.length,marked,failed});
-    }catch(e:any){results.push({client_id:clientId,provider,candidates:items.length,marked:0,error:clean(e?.message||e,1000)})}
-  }
-  return results;
-}
-
 Deno.serve(async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
   if(req.method!=='POST')return out({error:'Method not allowed'},405);
@@ -180,8 +95,7 @@ Deno.serve(async(req:Request)=>{
       if(duplicate){await wait(120);continue}if(transient&&attempt<3){await wait(300*(attempt+1));continue}
       const corrections=r.ok?await postflight(sb,clientId):[];
       const drafts=r.ok?await guardDraftApprovals(sb,url,secret,clientId,data):[];
-      const readSync=r.ok?await markHandledRead(sb,clientId,data):[];
-      return out({...data,runner_retries:attempt,postflight_corrections:corrections,draft_ignored:drafts,mail_mark_read:readSync},r.status);
+      return out({...data,runner_retries:attempt,postflight_corrections:corrections,draft_ignored:drafts,mailbox_state_preserved:true},r.status);
     }
     return out({ok:false,error:'Mail-sync kunne ikke blive idempotent efter gentagne sikre forsøg.',last:last?.data,runner_retries:12},500);
   }catch(e:any){return out({error:e instanceof Error?e.message:String(e)},500)}
