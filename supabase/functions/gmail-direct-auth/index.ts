@@ -3,7 +3,7 @@ const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'au
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
 const DEFAULT_APP_URL='https://lead-manager-klimaeksperten.vercel.app/';
 const REDIRECT_URI='https://ouqhostcsvdyrkjefiya.supabase.co/functions/v1/gmail-oauth-callback';
-const GMAIL_SCOPE='openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify';
+const GMAIL_SCOPE='openid email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly';
 const emailOk=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const safeAppUrl=(v:unknown)=>{try{const u=new URL(String(v||DEFAULT_APP_URL));return u.protocol==='https:'?u.href:DEFAULT_APP_URL}catch{return DEFAULT_APP_URL}};
 const safeReturnUrl=(v:unknown,fallback:string)=>{try{const base=new URL(fallback),u=new URL(String(v||fallback));return u.protocol==='https:'&&u.origin===base.origin?u.href:fallback}catch{return fallback}};
@@ -29,7 +29,7 @@ Deno.serve(async(req:Request)=>{if(req.method==='OPTIONS')return new Response('o
    const {data,error}=await admin.rpc('crm_set_gmail_platform_app',{p_client_id:googleClientId,p_client_secret:googleClientSecret});if(error)throw error;
    return json({...((data||{}) as object),validated_by_google:true});
  }
- if(action==='status'){const [{data,error},{data:integrations}]=await Promise.all([admin.rpc('get_gmail_direct_status',{p_client_id:clientId}),admin.from('crm_integrations').select('config').eq('client_id',clientId).eq('provider','gmail').limit(1)]);if(error)throw error;const scope=String(integrations?.[0]?.config?.direct_send?.scope||'');return json({...((data||{}) as object),history_scope:scope.includes('gmail.readonly')||scope.includes('gmail.modify'),mark_read_scope:scope.includes('gmail.modify'),required_scope:GMAIL_SCOPE,client_name:client.name,launch:launch?.google||{}})}
+ if(action==='status'){const [{data,error},{data:integrations}]=await Promise.all([admin.rpc('get_gmail_direct_status',{p_client_id:clientId}),admin.from('crm_integrations').select('config').eq('client_id',clientId).eq('provider','gmail').limit(1)]);if(error)throw error;const scope=String(integrations?.[0]?.config?.direct_send?.scope||'');return json({...((data||{}) as object),history_scope:scope.includes('gmail.readonly')||scope.includes('gmail.modify'),mailbox_state_preserved:true,required_scope:GMAIL_SCOPE,client_name:client.name,launch:launch?.google||{}})}
  if(action==='start'){
    const googleLaunch=launch?.google||{};if(plan!=='internal'&&googleLaunch.public_launch_ready!==true)return json({error:'Google/Gmail er endnu ikke åbnet til bred kundelancering. Vælg Microsoft, One.com/anden mail eller forbind senere.',code:'GOOGLE_LAUNCH_NOT_READY',launch:googleLaunch},423);
    const {data:platform,error:platformError}=await admin.rpc('crm_get_gmail_platform_app');if(platformError)throw platformError;const googleClientId=String(platform?.client_id||'').trim(),googleClientSecret=String(platform?.client_secret||'').trim();if(!googleClientId||!googleClientSecret)return json({error:'Google OAuth-platformappen er ikke konfigureret endnu',code:'GMAIL_PLATFORM_APP_MISSING'},412);
