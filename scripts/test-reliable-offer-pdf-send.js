@@ -82,7 +82,8 @@ for(const marker of [
   'minubaLiveRenderCandidate',
   'minuba_live_render',
   'gmailCachedPdfCandidate',
-  'createMimeUploadStream',
+  'createMimeUploadBody',
+  'new Blob(blobParts',
   'gmailSendMime',
   'upload/gmail/v1/users/me/messages/send?uploadType=media',
   "'Content-Type':'message/rfc822'",
@@ -115,7 +116,8 @@ must(!send.includes("for(const path of ['File?id='"),'offer PDF resolver still t
 must(!send.includes("err instanceof Error?err.message:'Ukendt fejl'"),'offer mail backend can still erase structured database errors as Ukendt fejl');
 must(!send.includes("JSON.stringify({raw:b64url(mime)})"),'offer PDF send still double-base64 encodes the entire MIME payload');
 must(!send.includes("wrap76(attachmentB64)"),'offer PDF send still expands a large attachment into one in-memory MIME string');
-must(!send.includes("await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{\n    method:'POST',\n    headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},\n    body:stream\n  });"),'Gmail upload regressed to an unbounded network wait');
+must(!send.includes('new ReadableStream<Uint8Array>'),'offer PDF send must not use an indefinite streaming upload');
+must(send.includes('new Blob(blobParts'),'offer PDF send must use a finite MIME body');
 
 must(!send.includes("admin.from('crm_mail_messages').insert"),'offer PDF send still writes mail history synchronously');
 must(send.indexOf('directCustomerRecipientPolicy(offer,to') < send.indexOf('resolveOfferPdf(admin,clientId,offer,offerRef,accessToken)'), 'recipient boundary must run before PDF resolution/send work');
