@@ -3,7 +3,7 @@ import { PDFDocument, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1?target
 
 const corsHeaders={
   'Access-Control-Allow-Origin':'*',
-  'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, x-mail-recovery-secret',
   'Access-Control-Allow-Methods':'POST, OPTIONS'
 };
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}});
@@ -401,11 +401,10 @@ async function resolveOfferPdf(admin:any,clientId:string,offer:any,offerRef:stri
   return null;
 }
 
-function createMimeUploadStream(parts:{
+function createMimeUploadBody(parts:{
   messageRfc822Id:string,fromHeader:string,to:string,subject:string,
   plain:string,htmlBody:string,pdfName:string,attachmentB64:string,mixed:string,alt:string
 }){
-  const enc=new TextEncoder();
   const prefix=[
     `Message-ID: ${parts.messageRfc822Id}`,`From: ${parts.fromHeader}`,`To: ${parts.to}`,`Subject: ${b64header(parts.subject)}`,
     'MIME-Version: 1.0',`Content-Type: multipart/mixed; boundary="${parts.mixed}"`,'',
@@ -417,35 +416,25 @@ function createMimeUploadStream(parts:{
   const suffix=`\r\n--${parts.mixed}--\r\n`;
   const b64=String(parts.attachmentB64||'').replace(/\s+/g,'');
   const lineWidth=76,linesPerChunk=512,chunkChars=lineWidth*linesPerChunk;
-  let phase=0,pos=0;
-  return new ReadableStream<Uint8Array>({
-    pull(controller){
-      if(phase===0){
-        controller.enqueue(enc.encode(prefix));phase=1;return;
-      }
-      if(phase===1){
-        if(pos>=b64.length){phase=2;return;}
-        const end=Math.min(b64.length,pos+chunkChars),slice=b64.slice(pos,end);
-        let out='';
-        for(let i=0;i<slice.length;i+=lineWidth)out+=slice.slice(i,i+lineWidth)+'\r\n';
-        pos=end;controller.enqueue(enc.encode(out));return;
-      }
-      if(phase===2){
-        controller.enqueue(enc.encode(suffix));phase=3;return;
-      }
-      controller.close();
-    }
-  });
+  const blobParts:(string|Uint8Array)[]=[prefix];
+  for(let pos=0;pos<b64.length;pos+=chunkChars){
+    const slice=b64.slice(pos,Math.min(b64.length,pos+chunkChars));
+    let wrapped='';
+    for(let i=0;i<slice.length;i+=lineWidth)wrapped+=slice.slice(i,i+lineWidth)+'\r\n';
+    blobParts.push(wrapped);
+  }
+  blobParts.push(suffix);
+  return new Blob(blobParts,{type:'message/rfc822'});
 }
 async function gmailSendMime(accessToken:string,parts:any){
-  const stream=createMimeUploadStream(parts);
+  const body=createMimeUploadBody(parts);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),90000);
   try{
     const r=await fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=media',{
       method:'POST',
       headers:{Authorization:'Bearer '+accessToken,'Content-Type':'message/rfc822',Accept:'application/json'},
-      body:stream,
+      body,
       signal:controller.signal
     });
     const data=await r.json().catch(()=>({}));
@@ -515,6 +504,110 @@ async function recoverProviderState(admin:any,job:any,mat:any,supabaseUrl:string
   return {state:'not_found'};
 }
 
+async function retryFailedOfferJob(admin:any,job:any,supabaseUrl:string,serviceKey:string){
+  if(!job?.id||!job?.offer_id)return{ok:false,job_id:job?.id||null,code:'RECOVERY_JOB_INVALID',error:'Send-jobbet mangler tilbud'};
+  const clientId=String(job.client_id||''),offerId=String(job.offer_id||''),to=trim(job.to_email,320).toLowerCase();
+  const {data:mat,error:matError}=await admin.rpc('get_gmail_oauth_material',{p_client_id:clientId});
+  if(matError)return{ok:false,job_id:job.id,code:'GMAIL_MATERIAL_ERROR',error:matError.message};
+
+  const recovered=await recoverProviderState(admin,job,mat,supabaseUrl,serviceKey);
+  if(recovered.state==='sent'){
+    if(job.approval_id){
+      const {data:a}=await admin.from('crm_approvals').select('payload').eq('id',job.approval_id).maybeSingle();
+      const payload={...(a?.payload||{})};delete payload.send_error;
+      await admin.from('crm_approvals').update({status:'approved',payload,decided_at:new Date().toISOString()}).eq('id',job.approval_id);
+    }
+    const {error:finalError}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
+    if(finalError)await kickPostprocess(supabaseUrl,serviceKey,job.id);
+    return{ok:true,job_id:job.id,status:finalError?'sent_pending_postprocess':'sent',gmail_message_id:recovered.job?.gmail_message_id,recovered:true};
+  }
+
+  const [clientR,offerR,companyR,contactsR,suppressionsR]=await Promise.all([
+    admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single(),
+    admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
+    admin.from('crm_companies').select('id,email,domain,website_url').eq('id',job.company_id).eq('client_id',clientId).maybeSingle(),
+    admin.from('crm_contacts').select('id,email,verified,source_type').eq('client_id',clientId).eq('company_id',job.company_id),
+    admin.from('crm_followup_suppressions').select('email,offer_ref,company_name_pattern,reason').eq('client_id',clientId).eq('active',true)
+  ]);
+  const client=clientR.data,offer=offerR.data,company=companyR.data,contacts=contactsR.data||[],suppressions=suppressionsR.data||[];
+  if(clientR.error||!client)return{ok:false,job_id:job.id,code:'RECOVERY_CLIENT_MISSING',error:'Kundeprofil blev ikke fundet'};
+  if(offerR.error||!offer)return{ok:false,job_id:job.id,code:'RECOVERY_OFFER_MISSING',error:'Tilbuddet blev ikke fundet'};
+  if(companyR.error||contactsR.error||suppressionsR.error)return{ok:false,job_id:job.id,code:'RECOVERY_LOOKUP_ERROR',error:String(companyR.error?.message||contactsR.error?.message||suppressionsR.error?.message||'Opslag fejlede')};
+
+  const policy=directCustomerRecipientPolicy(offer,to,company,contacts);
+  if(policy.blocked)return{ok:false,job_id:job.id,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',error:policy.reason||'Forkert modtager'};
+
+  const customerName=trim(offer.customer_name,500),offerRef=trim(offer.offer_ref,160);
+  const suppression=suppressions.find((s:any)=>{
+    const email=trim(s?.email,320).toLowerCase(),ref=trim(s?.offer_ref,160).toLowerCase(),pattern=trim(s?.company_name_pattern,500).toLowerCase();
+    return (email&&email===to)||(ref&&ref===offerRef.toLowerCase())||(pattern&&customerName.toLowerCase().includes(pattern));
+  });
+  if(suppression)return{ok:false,job_id:job.id,code:'FOLLOWUP_SUPPRESSED',error:trim(suppression.reason,1200)||'Opfølgning er blokeret'};
+
+  let accessToken='';
+  try{accessToken=await refreshAccessToken(mat)}catch(e:any){return{ok:false,job_id:job.id,code:String(e?.code||'GMAIL_TOKEN_ERROR'),error:e instanceof Error?e.message:String(e)}}
+  const connectedAccount=trim(mat?.account,320).toLowerCase(),from=trim(job.from_email||client.settings?.mail||connectedAccount,320).toLowerCase();
+  if(!emailOk(from)||!connectedAccount||from!==connectedAccount)return{ok:false,job_id:job.id,code:'FROM_ACCOUNT_MISMATCH',error:'Den forbundne Gmail-konto matcher ikke afsenderen'};
+
+  const resolvedPdf=await resolveOfferPdf(admin,clientId,offer,offerRef,accessToken);
+  if(!resolvedPdf||!pdfB64Valid(resolvedPdf.b64))return{ok:false,job_id:job.id,code:'OFFER_PDF_NOT_FOUND',error:'Den verificerede tilbuds-PDF kunne ikke hentes'};
+
+  const sigText=String(client.settings?.mail_signature_text||'').trim(),sigHtml=String(client.settings?.mail_signature_html||'').trim();
+  const plain=String(job.body_text||'')+(sigText?'\n\n'+sigText:'');
+  const htmlBody='<div style="font-family:Arial,sans-serif;font-size:10.5pt;line-height:1.5">'+escHtml(String(job.body_text||'')).replaceAll('\n','<br>')+'</div>'+(sigHtml?sigHtml:'');
+  const mixed='lm_mix_'+crypto.randomUUID().replaceAll('-',''),alt='lm_alt_'+crypto.randomUUID().replaceAll('-','');
+  const fromName=trim(job.sender_name,120)||senderName(client),fromHeader=fromName?`${b64header(fromName)} <${from}>`:from;
+  const now=new Date().toISOString();
+
+  if(job.approval_id){
+    const {data:a}=await admin.from('crm_approvals').select('payload').eq('id',job.approval_id).maybeSingle();
+    const payload={...(a?.payload||{})};delete payload.send_error;
+    await admin.from('crm_approvals').update({status:'approved',payload,decided_at:now}).eq('id',job.approval_id);
+  }
+  await admin.from('crm_mail_send_jobs').update({
+    status:'sending',attempt_count:Number(job.attempt_count||0)+1,updated_at:now,error_code:null,error_message:null,
+    attachment_filename:resolvedPdf.filename||job.attachment_filename,attachment_source:resolvedPdf.source||job.attachment_source,
+    source_message_id:resolvedPdf.messageId||job.source_message_id||''
+  }).eq('id',job.id);
+
+  const sentResult=await gmailSendMime(accessToken,{
+    messageRfc822Id:job.message_rfc822_id,fromHeader,to,subject:String(job.subject||''),plain,htmlBody,
+    pdfName:resolvedPdf.filename||job.attachment_filename||(`Tilbud ${offerRef}.pdf`),attachmentB64:resolvedPdf.b64,mixed,alt
+  });
+
+  if(sentResult.uncertain||!sentResult.response){
+    await new Promise(resolve=>setTimeout(resolve,2500));
+    const refreshed={...job,status:'sending',updated_at:new Date().toISOString()};
+    const check=await recoverProviderState(admin,refreshed,mat,supabaseUrl,serviceKey);
+    if(check.state==='sent'){
+      const {error:finalError}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
+      if(finalError)await kickPostprocess(supabaseUrl,serviceKey,job.id);
+      return{ok:true,job_id:job.id,status:finalError?'sent_pending_postprocess':'sent',gmail_message_id:check.job?.gmail_message_id,recovered:true};
+    }
+    await admin.from('crm_mail_send_jobs').update({
+      status:'unknown',error_code:'GMAIL_RETRY_UNCERTAIN',error_message:'Gmail gav ikke et sikkert svar ved genafsendelse. Jobbet må verificeres før nyt forsøg.',updated_at:new Date().toISOString()
+    }).eq('id',job.id);
+    return{ok:false,job_id:job.id,status:'unknown',code:'GMAIL_RETRY_UNCERTAIN',error:'Gmail gav ikke et sikkert svar'};
+  }
+
+  const sent=sentResult.data,sendResp=sentResult.response;
+  if(!sendResp.ok||!sent?.id){
+    const msg=String(sent?.error?.message||`Gmail send fejlede (${sendResp.status})`);
+    await admin.from('crm_mail_send_jobs').update({status:'failed',error_code:'GMAIL_SEND_ERROR',error_message:msg,updated_at:new Date().toISOString()}).eq('id',job.id);
+    return{ok:false,job_id:job.id,status:'failed',code:'GMAIL_SEND_ERROR',error:msg};
+  }
+
+  const sentAt=new Date().toISOString();
+  await admin.from('crm_mail_send_jobs').update({
+    status:'sent_pending_postprocess',gmail_message_id:String(sent.id),gmail_thread_id:String(sent.threadId||sent.id),
+    sent_at:sentAt,updated_at:sentAt,last_status_check_at:sentAt,error_code:null,error_message:null
+  }).eq('id',job.id);
+
+  const {error:finalError}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
+  if(finalError)await kickPostprocess(supabaseUrl,serviceKey,job.id);
+  return{ok:true,job_id:job.id,status:finalError?'sent_pending_postprocess':'sent',gmail_message_id:String(sent.id),thread_id:String(sent.threadId||sent.id)};
+}
+
 Deno.serve(async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});
   if(req.method!=='POST')return json({error:'Method not allowed'},405);
@@ -523,13 +616,37 @@ Deno.serve(async(req:Request)=>{
   const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
 
   try{
+    const body=await req.json().catch(()=>({}));
+    const action=trim(body.action,30)||'send';
+
+    if(action==='recover_failed'){
+      const recoverySecret=trim(req.headers.get('x-mail-recovery-secret'),500);
+      const {data:valid,error:validError}=await admin.rpc('verify_mail_recovery_secret',{p_secret:recoverySecret});
+      if(validError||valid!==true)return json({error:'Ugyldig recovery-adgang',code:'RECOVERY_UNAUTHORIZED'},401);
+      const jobIds=(Array.isArray(body.job_ids)?body.job_ids:[]).map((x:any)=>trim(x,80)).filter((x:string)=>uuidOk(x)).slice(0,5);
+      if(!jobIds.length)return json({error:'Mangler send-jobs til recovery',code:'RECOVERY_JOB_IDS_MISSING'},400);
+      const results:any[]=[];
+      for(const jobId of jobIds){
+        const {data:job,error:jobError}=await admin.from('crm_mail_send_jobs').select('*').eq('id',jobId).maybeSingle();
+        if(jobError){results.push({ok:false,job_id:jobId,code:'RECOVERY_JOB_LOOKUP_ERROR',error:jobError.message});continue}
+        if(!job){results.push({ok:false,job_id:jobId,code:'RECOVERY_JOB_NOT_FOUND'});continue}
+        if(['sent','sent_pending_postprocess','postprocessing'].includes(job.status)){
+          if(job.status!=='sent')await kickPostprocess(supabaseUrl,serviceKey,job.id);
+          results.push({ok:true,job_id:job.id,status:job.status,gmail_message_id:job.gmail_message_id,reused:true});continue;
+        }
+        if(job.status!=='failed'&&job.status!=='unknown'&&job.status!=='sending'){
+          results.push({ok:false,job_id:job.id,status:job.status,code:'RECOVERY_JOB_NOT_RETRYABLE'});continue;
+        }
+        try{results.push(await retryFailedOfferJob(admin,job,supabaseUrl,serviceKey))}
+        catch(e:any){results.push({ok:false,job_id:job.id,code:'RECOVERY_INTERNAL_ERROR',error:e instanceof Error?e.message:String(e)})}
+      }
+      return json({ok:results.every(x=>x.ok),results});
+    }
+
     const token=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'').trim();
     if(!token)return json({error:'Mangler login-token'},401);
     const {data:userData,error:userError}=await admin.auth.getUser(token),user=userData?.user;
     if(userError||!user?.id||!user?.email)return json({error:'Ugyldigt login'},401);
-
-    const body=await req.json().catch(()=>({}));
-    const action=trim(body.action,30)||'send';
     const clientId=trim(body.client_id,80);
     let requestId=trim(body.request_id,80);
     if(action==='send'&&!requestId)requestId=crypto.randomUUID();
