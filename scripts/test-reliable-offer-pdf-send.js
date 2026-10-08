@@ -125,6 +125,10 @@ must(send.includes("addAddress(delivery,raw?.deliveryAddress)"),'backend must id
 must(send.includes('domainTrusted(email)'),'backend may only promote a delivery contact when its mail domain matches trusted direct-customer evidence');
 must(send.includes("select('id,email,domain,website_url')"),'offer send must read the linked company domain before approving a recipient');
 must(send.includes("source_type:'verified_company_contact'"),'new recipient contacts must be created only after policy verification');
+must(!send.includes("email_verification_method:'company_record'"),'company contact creation uses an invalid email verification method');
+must(!send.includes("email_verification_method:'offer_recipient_policy'"),'offer recipient contact creation uses an invalid email verification method');
+must(send.includes("email_verification_method:'exact_source_text'"),'company standard email must use an allowed email verification method');
+must(send.includes("email_verification_method:'manual_user_confirmed'"),'explicitly sent offer contact must use an allowed email verification method');
 
 must(!send.includes("admin.from('crm_tasks').insert"),'offer PDF send still creates follow-up tasks synchronously');
 must(!send.includes("admin.from('crm_usage_events').insert"),'offer PDF send still writes usage synchronously');
