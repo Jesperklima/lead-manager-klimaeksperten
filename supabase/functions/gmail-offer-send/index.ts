@@ -850,7 +850,7 @@ Deno.serve(async(req:Request)=>{
       const {data:created,error:createContactError}=await admin.from('crm_contacts').insert({
         client_id:clientId,company_id:companyId,full_name:null,email:to,verified:true,verified_at:now,
         source_type:'company_standard_email',source_url:null,confidence:'high',email_is_inferred:false,
-        email_verification_method:'company_record',email_verified_at:now
+        email_verification_method:'exact_source_text',email_verified_at:now
       }).select('id,email,verified').single();
       if(createContactError)throw createContactError;contact=created;
     }
@@ -859,7 +859,7 @@ Deno.serve(async(req:Request)=>{
       const {data:created,error:createContactError}=await admin.from('crm_contacts').insert({
         client_id:clientId,company_id:companyId,full_name:trim(offer.contact_person,180)||null,email:to,
         verified:true,verified_at:now,source_type:'verified_company_contact',source_url:null,confidence:'high',
-        email_is_inferred:false,email_verification_method:'offer_recipient_policy',email_verified_at:now
+        email_is_inferred:false,email_verification_method:'manual_user_confirmed',email_verified_at:now
       }).select('id,email,verified').single();
       if(createContactError)throw createContactError;contact=created;
     }
