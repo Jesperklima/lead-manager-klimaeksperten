@@ -77,11 +77,23 @@
   function companyContacts(o){try{return typeof contactsFor==='function'?contactsFor(o.company_id):((state?.contacts||[]).filter(x=>x.company_id===o.company_id))}catch{return[]}}
   function bouncedContact(email,o){const e=lower(email);return companyContacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function usableContacts(o){return companyContacts(o).filter(x=>x?.email&&!String(x?.source_type||'').startsWith('smtp_bounced'))}
+  function preferredNamedOption(o,options,raw=o?.minuba_raw||{}){
+    const expected=[o?.contact_person,raw?.theirref,raw?.theirRef]
+      .map(v=>lower(String(v||'').replace(/\s+/g,' ')))
+      .filter(Boolean);
+    if(!expected.length)return null;
+    return (options||[]).find(x=>{
+      const name=lower(String(x?.name||'').replace(/\s+/g,' '));
+      return name&&expected.includes(name);
+    })||null;
+  }
   function recipientFor(o){
     const safe=rawAddressCandidates(o?.minuba_raw||{},o).filter(x=>x?.email&&!bouncedContact(x.email,o));
     const allowed=new Set(safe.map(x=>lower(x.email)));
     const direct=firstEmail(o?.contact_details);
     if(safe.length){
+      const named=preferredNamedOption(o,safe);
+      if(named?.email)return String(named.email).trim();
       if(direct&&allowed.has(lower(direct))&&!bouncedContact(direct,o))return direct;
       try{
         const matching=usableContacts(o).filter(x=>allowed.has(lower(x?.email)));
@@ -159,6 +171,8 @@
   function bestRawContact(raw,o=null){
     const options=rawAddressCandidates(raw,o);
     if(!options.length)return null;
+    const named=preferredNamedOption(o,options,raw);
+    if(named)return named;
     const current=lower(firstEmail(o?.contact_details));
     if(current){
       const matched=options.find(x=>lower(x.email)===current);
@@ -381,8 +395,11 @@
       const apiOptions=(Array.isArray(data.contact_options)?data.contact_options:[]).filter(x=>x?.safe_for_offer===true||(!String(x?.source||'').includes('delivery')&&x?.recipient_scope==='direct_customer'));
       minubaContactOptions=[...rawAddressCandidates(data.raw||o.minuba_raw||{},o),...apiOptions].filter((x,i,a)=>x?.email&&a.findIndex(y=>lower(y?.email)===lower(x?.email)&&lower(y?.name)===lower(x?.name))===i);
       const safeApiEmail=String(data.contact_email||'').trim();
-      const email=minubaContactOptions.some(x=>lower(x.email)===lower(safeApiEmail))?safeApiEmail:String(rawContact?.email||'').trim();
-      const selectedOption=minubaContactOptions.find(x=>lower(x.email)===lower(email));
+      const namedOption=preferredNamedOption(o,minubaContactOptions,data.raw||o.minuba_raw||{});
+      const email=String(namedOption?.email||(
+        minubaContactOptions.some(x=>lower(x.email)===lower(safeApiEmail))?safeApiEmail:String(rawContact?.email||'').trim()
+      )).trim();
+      const selectedOption=namedOption||minubaContactOptions.find(x=>lower(x.email)===lower(email));
       const person=String(selectedOption?.name||data.contact_person||rawContact?.name||'').trim(),phone=String(selectedOption?.phone||data.contact_phone||rawContact?.phone||'').trim();
       if(person)o.contact_person=person;
       o.minuba_raw=data.raw||o.minuba_raw||{};
