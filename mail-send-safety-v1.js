@@ -20,8 +20,9 @@
   const key='lm-send:'+hash;
   let state=read(key);
   if(!state)state={id:body.request_id||crypto.randomUUID(),status:'prepared'};
-  body.request_id=body.request_id||state.id;
-  body.purpose=purpose(body.purpose||document.getElementById('mPurpose')?.value||'');
+  const uncertain=['prepared','sending','unknown'].includes(state.status);
+  body.request_id=uncertain?state.id:(body.request_id||state.id);
+  body.purpose=purpose(body.purpose||(body.offer_id?'offer_followup':document.getElementById('mPurpose')?.value)||'');
   save(key,{...state,id:body.request_id,status:'sending'});
   let response;
   try{response=await previousFetch(input,{...init,body:JSON.stringify(body)})}

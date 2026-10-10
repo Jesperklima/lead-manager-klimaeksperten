@@ -66,8 +66,11 @@ test('browser retains send identity after uncertainty and does not call provider
  const url='https://test/functions/v1/microsoft-direct-send',init={method:'POST',body:JSON.stringify({client_id:cid,to:'customer@example.test',subject:'Hej',body:'Hej'})};
  assert.equal(sentBodies.length,0);
  assert.equal((await window.fetch(url,init)).status,409);
- assert.equal((await window.fetch(url,init)).status,409);
- assert.equal(sentBodies[0].request_id,sentBodies[1].request_id);assert.equal(sentBodies[0].purpose,'direct_marketing');
+ const retry={...init,body:JSON.stringify({...JSON.parse(init.body),request_id:rid})};
+ assert.equal((await window.fetch(url,retry)).status,409);
+ assert.equal(sentBodies[0].request_id,sentBodies[1].request_id);assert.notEqual(sentBodies[0].request_id,rid);assert.equal(sentBodies[0].purpose,'direct_marketing');
+ await window.fetch(url,{...init,body:JSON.stringify({...JSON.parse(init.body),offer_id:'offer'})});
+ assert.equal(sentBodies[2].purpose,'offer_followup');
  assert.equal(window.LMMailSendSafety.purpose('Tilbudsopfølgning'),'offer_followup');
 });
 
