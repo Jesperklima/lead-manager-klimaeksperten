@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors={
@@ -21,6 +22,9 @@ Deno.serve(async(req:Request)=>{
     const {data:ud,error:ue}=await admin.auth.getUser(token);
     const actor=ud?.user;
     if(ue||!actor?.id||!actor.email) return json({error:'Ugyldigt login'},401);
+    const _apiAccess=await apiSessionGuard(token,null,false,true);
+    if(!_apiAccess.allowed)return json({error:_apiAccess.error,code:_apiAccess.code},_apiAccess.status);
+
 
     // Platform admin is deliberately stricter than being owner/admin of a customer workspace.
     // A valid platform admin must have cross-client access to at least one INTERNAL workspace.
@@ -37,14 +41,11 @@ Deno.serve(async(req:Request)=>{
     const action=text(body.action||'list',40).toLowerCase();
 
     async function isPlatformAdminUser(authUserId:string|null){
-      if(!authUserId) return false;
-      const {data:a}=await admin.from('crm_admin_client_access').select('client_id').eq('auth_user_id',authUserId);
-      const ids=[...new Set((a||[]).map((x:any)=>x.client_id).filter(Boolean))];
-      if(!ids.length) return false;
-      const {data:l}=await admin.from('crm_usage_limits').select('client_id,plan_code').in('client_id',ids);
-      return !!(l||[]).some((x:any)=>x.plan_code==='internal');
+      if(!authUserId)return false;
+      const {data,error}=await admin.from('crm_platform_admins').select('auth_user_id').eq('auth_user_id',authUserId).eq('active',true).maybeSingle();
+      if(error)throw error;
+      return !!data;
     }
-
     async function listAll(){
       const [{data:clients,error:ce},{data:users,error:use},{data:limits,error:lie},{data:invites,error:ie}]=await Promise.all([
         admin.from('crm_clients').select('id,name,created_at,settings').order('created_at',{ascending:true}),

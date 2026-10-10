@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,apikey,content-type,x-mail-offer-sync-secret','Access-Control-Allow-Methods':'POST,OPTIONS'};
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
@@ -332,7 +333,7 @@ Deno.serve(async(req:Request)=>{
   try{
     const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
     const body=await req.json().catch(()=>({})),requested=clean(body.client_id,100),cronSecret=clean(req.headers.get('x-mail-offer-sync-secret'),500);const {data:expected}=await admin.rpc('crm_get_mail_offer_sync_secret');const cron=!!cronSecret&&!!expected&&safeEqual(cronSecret,String(expected));let user:any=null;
-    if(!cron){const token=clean((req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,''),5000);if(!token)return json({error:'Mangler login-token'},401);const a=await admin.auth.getUser(token);user=a.data?.user;if(a.error||!user?.id)return json({error:'Ugyldigt login'},401)}
+    if(!cron){const token=clean((req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,''),5000);if(!token)return json({error:'Mangler login-token'},401);const a=await admin.auth.getUser(token);user=a.data?.user;if(a.error||!user?.id)return json({error:'Ugyldigt login'},401);const _apiEntryAccess=await apiSessionGuard(token,null);if(!_apiEntryAccess.allowed)return json({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);}
     let clientIds:string[]=[];
     if(requested){if(user){const {data:m}=await admin.from('crm_users').select('id').eq('client_id',requested).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!m)return json({error:'Ingen adgang'},403)}clientIds=[requested]}
     else{if(!cron)return json({error:'client_id er påkrævet'},400);const {data:ints}=await admin.from('crm_integrations').select('client_id').eq('provider','minuba').eq('status','connected');clientIds=[...new Set((ints||[]).map((x:any)=>x.client_id).filter(Boolean))]}

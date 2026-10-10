@@ -72,7 +72,7 @@ for(const marker of [
   'Kræver handling',
   'Integrationsfejl',
   'Køproblemer',
-  'Cron-fejl 24t'
+  'Planlægningsfejl 24t'
 ]) assert(opsUi.includes(marker),'missing admin ops UI marker: '+marker);
 
 for(const marker of [

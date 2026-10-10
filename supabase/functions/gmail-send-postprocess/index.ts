@@ -1,3 +1,4 @@
+import { reconcileMailJob } from '../_shared/mail-reconciliation.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders={
@@ -45,12 +46,14 @@ Deno.serve(async(req:Request)=>{
 
   const serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
   const supplied=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'').trim();
-  if(!serviceKey||supplied!==serviceKey)return json({error:'Unauthorized'},401);
+  const recoverySecret=trim(req.headers.get('x-mail-recovery-secret'),500);
+  if(!serviceKey||(supplied!==serviceKey&&!recoverySecret))return json({error:'Unauthorized'},401);
 
   const supabaseUrl=Deno.env.get('SUPABASE_URL')!;
   const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
 
   try{
+    if(supplied!==serviceKey){const auth=await admin.rpc('verify_mail_recovery_secret',{p_secret:recoverySecret});if(auth.error||auth.data!==true)return json({error:'Unauthorized'},401);}
     const body=await req.json().catch(()=>({}));
     const jobId=trim(body.job_id,80);
     if(jobId){
@@ -75,7 +78,17 @@ Deno.serve(async(req:Request)=>{
         results.push({job_id:job.id,ok:false,error:e instanceof Error?e.message:String(e)});
       }
     }
-    return json({ok:true,processed:results.length,results});
+    const stale=await admin.from('crm_mail_send_jobs').select('*').in('status',['prepared','sending','unknown']).lt('updated_at',new Date(Date.now()-15*60000).toISOString()).order('updated_at',{ascending:true}).limit(limit);
+    if(stale.error)throw stale.error;
+    for(const job of stale.data||[]){
+      try{results.push({ok:true,...await reconcileMailJob(admin,job)});}
+      catch(e){
+        const message=e instanceof Error?e.message:String(e);
+        await admin.from('crm_mail_send_jobs').update({status:'unknown',error_code:'RECONCILIATION_REQUIRED',error_message:message,last_status_check_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',job.id).in('status',['prepared','sending','unknown']);
+        results.push({job_id:job.id,ok:false,error:message});
+      }
+    }
+    return json({ok:results.every(x=>x.ok),processed:results.length,results});
   }catch(err){
     console.error(err);
     return json({error:err instanceof Error?err.message:'Ukendt fejl',code:'MAIL_POSTPROCESS_ERROR'},500);

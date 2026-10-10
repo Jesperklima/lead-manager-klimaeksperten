@@ -11,7 +11,7 @@ must(new Set(views).size===views.length,'duplicate sidebar view button');
 for(const view of views)must(new RegExp('<section\\s+id="'+view+'"(?:\\s|>)').test(html),'missing target section: '+view);
 
 const start=access.indexOf('function activateNavView(button){');
-const end=access.indexOf('\n\nasync function hydrateNavView',start);
+const end=access.indexOf('async function hydrateNavView',start);
 must(start>=0&&end>start,'activateNavView implementation missing');
 const fnSource=access.slice(start,end);
 

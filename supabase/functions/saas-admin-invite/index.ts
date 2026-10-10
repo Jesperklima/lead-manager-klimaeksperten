@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors={
@@ -349,6 +350,9 @@ Deno.serve(async(req:Request)=>{
     const {data:ud,error:ue}=await admin.auth.getUser(token);
     const user=ud?.user;
     if(ue||!user?.id||!user.email)return json({error:'Ugyldigt login'},401);
+    const _apiAccess=await apiSessionGuard(token,null,false,true);
+    if(!_apiAccess.allowed)return json({error:_apiAccess.error,code:_apiAccess.code},_apiAccess.status);
+
 
     const internal=await getInternalAdmin(admin,user);
     if(!internal)return json({error:'Kun intern ejer/admin kan administrere kunde-onboarding',code:'ADMIN_ONLY'},403);

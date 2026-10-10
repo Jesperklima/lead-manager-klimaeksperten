@@ -23,6 +23,8 @@ fi
 node scripts/test-onboarding-routing.js
 node --test scripts/test-onboarding-chain.js
 node scripts/test-onboarding-v6.js
+node --test scripts/test-corrective-security.js scripts/test-corrective-mail.js
+node --check mail-send-safety-v1.js
 grep -q 'access-bootstrap-v1.js' api/app.js
 grep -q '/saas-onboarding-v6.js?v=' access-bootstrap-v1.js
 grep -q 'saas-mail-providers-v1.js' access-bootstrap-v1.js

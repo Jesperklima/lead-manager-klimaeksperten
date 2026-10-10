@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -169,7 +170,7 @@ Deno.serve(async(req:Request)=>{
     const url=Deno.env.get('SUPABASE_URL')!,sk=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,sb=createClient(url,sk,{auth:{persistSession:false,autoRefreshToken:false}});
     const token=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'').trim();
     const {data:ud,error:ue}=await sb.auth.getUser(token),user=ud?.user;
-    if(ue||!user?.id)return resp({error:'Ugyldigt login'},401);
+    if(ue||!user?.id)return resp({error:'Ugyldigt login'},401);const _apiEntryAccess=await apiSessionGuard(token,null);if(!_apiEntryAccess.allowed)return resp({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);
     const body=await req.json().catch(()=>({})),clientId=clean(body.client_id,100),ref=clean(body.offer_ref,160),target=norm(ref);
     if(!clientId||!target)return resp({error:'client_id og offer_ref er påkrævet'},400);
     const [{data:member,error:me},{data:limits},{data:storedOffer}]=await Promise.all([

@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { PDFDocument, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1?target=deno';
 
@@ -479,7 +480,7 @@ async function recoverProviderState(admin:any,job:any,mat:any,supabaseUrl:string
   if(!job?.message_rfc822_id)return {state:'unknown',reason:'missing_message_id'};
   let accessToken='';
   try{accessToken=await refreshAccessToken(mat)}catch(e){return {state:'unknown',reason:'token_error',error:e instanceof Error?e.message:String(e)}}
-  const q=new URLSearchParams({q:`rfc822msgid:${job.message_rfc822_id}`,maxResults:'1'});
+  const q=new URLSearchParams({q:`in:sent rfc822msgid:${job.message_rfc822_id}`,maxResults:'1'});
   const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?'+q.toString(),{headers:{Authorization:'Bearer '+accessToken}});
   const data=await r.json().catch(()=>({}));
   if(r.status===403)return {state:'unknown',reason:'gmail_search_scope'};
@@ -505,107 +506,16 @@ async function recoverProviderState(admin:any,job:any,mat:any,supabaseUrl:string
 }
 
 async function retryFailedOfferJob(admin:any,job:any,supabaseUrl:string,serviceKey:string){
-  if(!job?.id||!job?.offer_id)return{ok:false,job_id:job?.id||null,code:'RECOVERY_JOB_INVALID',error:'Send-jobbet mangler tilbud'};
-  const clientId=String(job.client_id||''),offerId=String(job.offer_id||''),to=trim(job.to_email,320).toLowerCase();
-  const {data:mat,error:matError}=await admin.rpc('get_gmail_oauth_material',{p_client_id:clientId});
-  if(matError)return{ok:false,job_id:job.id,code:'GMAIL_MATERIAL_ERROR',error:matError.message};
-
+  if(!job?.id||!job?.offer_id)return{ok:false,job_id:job?.id||null,code:'RECOVERY_JOB_INVALID'};
+  const {data:mat,error}=await admin.rpc('get_gmail_oauth_material',{p_client_id:job.client_id});
+  if(error)return{ok:false,job_id:job.id,code:'GMAIL_MATERIAL_ERROR'};
   const recovered=await recoverProviderState(admin,job,mat,supabaseUrl,serviceKey);
   if(recovered.state==='sent'){
-    if(job.approval_id){
-      const {data:a}=await admin.from('crm_approvals').select('payload').eq('id',job.approval_id).maybeSingle();
-      const payload={...(a?.payload||{})};delete payload.send_error;
-      await admin.from('crm_approvals').update({status:'approved',payload,decided_at:new Date().toISOString()}).eq('id',job.approval_id);
-    }
-    const {error:finalError}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
-    if(finalError)await kickPostprocess(supabaseUrl,serviceKey,job.id);
-    return{ok:true,job_id:job.id,status:finalError?'sent_pending_postprocess':'sent',gmail_message_id:recovered.job?.gmail_message_id,recovered:true};
+    const final=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
+    if(final.error)await kickPostprocess(supabaseUrl,serviceKey,job.id);
+    return{ok:true,job_id:job.id,status:final.error?'sent_pending_postprocess':'sent',recovered:true};
   }
-
-  const [clientR,offerR,companyR,contactsR,suppressionsR]=await Promise.all([
-    admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single(),
-    admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
-    admin.from('crm_companies').select('id,email,domain,website_url').eq('id',job.company_id).eq('client_id',clientId).maybeSingle(),
-    admin.from('crm_contacts').select('id,email,verified,source_type').eq('client_id',clientId).eq('company_id',job.company_id),
-    admin.from('crm_followup_suppressions').select('email,offer_ref,company_name_pattern,reason').eq('client_id',clientId).eq('active',true)
-  ]);
-  const client=clientR.data,offer=offerR.data,company=companyR.data,contacts=contactsR.data||[],suppressions=suppressionsR.data||[];
-  if(clientR.error||!client)return{ok:false,job_id:job.id,code:'RECOVERY_CLIENT_MISSING',error:'Kundeprofil blev ikke fundet'};
-  if(offerR.error||!offer)return{ok:false,job_id:job.id,code:'RECOVERY_OFFER_MISSING',error:'Tilbuddet blev ikke fundet'};
-  if(companyR.error||contactsR.error||suppressionsR.error)return{ok:false,job_id:job.id,code:'RECOVERY_LOOKUP_ERROR',error:String(companyR.error?.message||contactsR.error?.message||suppressionsR.error?.message||'Opslag fejlede')};
-
-  const policy=directCustomerRecipientPolicy(offer,to,company,contacts);
-  if(policy.blocked)return{ok:false,job_id:job.id,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',error:policy.reason||'Forkert modtager'};
-
-  const customerName=trim(offer.customer_name,500),offerRef=trim(offer.offer_ref,160);
-  const suppression=suppressions.find((s:any)=>{
-    const email=trim(s?.email,320).toLowerCase(),ref=trim(s?.offer_ref,160).toLowerCase(),pattern=trim(s?.company_name_pattern,500).toLowerCase();
-    return (email&&email===to)||(ref&&ref===offerRef.toLowerCase())||(pattern&&customerName.toLowerCase().includes(pattern));
-  });
-  if(suppression)return{ok:false,job_id:job.id,code:'FOLLOWUP_SUPPRESSED',error:trim(suppression.reason,1200)||'Opfølgning er blokeret'};
-
-  let accessToken='';
-  try{accessToken=await refreshAccessToken(mat)}catch(e:any){return{ok:false,job_id:job.id,code:String(e?.code||'GMAIL_TOKEN_ERROR'),error:e instanceof Error?e.message:String(e)}}
-  const connectedAccount=trim(mat?.account,320).toLowerCase(),from=trim(job.from_email||client.settings?.mail||connectedAccount,320).toLowerCase();
-  if(!emailOk(from)||!connectedAccount||from!==connectedAccount)return{ok:false,job_id:job.id,code:'FROM_ACCOUNT_MISMATCH',error:'Den forbundne Gmail-konto matcher ikke afsenderen'};
-
-  const resolvedPdf=await resolveOfferPdf(admin,clientId,offer,offerRef,accessToken);
-  if(!resolvedPdf||!pdfB64Valid(resolvedPdf.b64))return{ok:false,job_id:job.id,code:'OFFER_PDF_NOT_FOUND',error:'Den verificerede tilbuds-PDF kunne ikke hentes'};
-
-  const sigText=String(client.settings?.mail_signature_text||'').trim(),sigHtml=String(client.settings?.mail_signature_html||'').trim();
-  const plain=String(job.body_text||'')+(sigText?'\n\n'+sigText:'');
-  const htmlBody='<div style="font-family:Arial,sans-serif;font-size:10.5pt;line-height:1.5">'+escHtml(String(job.body_text||'')).replaceAll('\n','<br>')+'</div>'+(sigHtml?sigHtml:'');
-  const mixed='lm_mix_'+crypto.randomUUID().replaceAll('-',''),alt='lm_alt_'+crypto.randomUUID().replaceAll('-','');
-  const fromName=trim(job.sender_name,120)||senderName(client),fromHeader=fromName?`${b64header(fromName)} <${from}>`:from;
-  const now=new Date().toISOString();
-
-  if(job.approval_id){
-    const {data:a}=await admin.from('crm_approvals').select('payload').eq('id',job.approval_id).maybeSingle();
-    const payload={...(a?.payload||{})};delete payload.send_error;
-    await admin.from('crm_approvals').update({status:'approved',payload,decided_at:now}).eq('id',job.approval_id);
-  }
-  await admin.from('crm_mail_send_jobs').update({
-    status:'sending',attempt_count:Number(job.attempt_count||0)+1,updated_at:now,error_code:null,error_message:null,
-    attachment_filename:resolvedPdf.filename||job.attachment_filename,attachment_source:resolvedPdf.source||job.attachment_source,
-    source_message_id:resolvedPdf.messageId||job.source_message_id||''
-  }).eq('id',job.id);
-
-  const sentResult=await gmailSendMime(accessToken,{
-    messageRfc822Id:job.message_rfc822_id,fromHeader,to,subject:String(job.subject||''),plain,htmlBody,
-    pdfName:resolvedPdf.filename||job.attachment_filename||(`Tilbud ${offerRef}.pdf`),attachmentB64:resolvedPdf.b64,mixed,alt
-  });
-
-  if(sentResult.uncertain||!sentResult.response){
-    await new Promise(resolve=>setTimeout(resolve,2500));
-    const refreshed={...job,status:'sending',updated_at:new Date().toISOString()};
-    const check=await recoverProviderState(admin,refreshed,mat,supabaseUrl,serviceKey);
-    if(check.state==='sent'){
-      const {error:finalError}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
-      if(finalError)await kickPostprocess(supabaseUrl,serviceKey,job.id);
-      return{ok:true,job_id:job.id,status:finalError?'sent_pending_postprocess':'sent',gmail_message_id:check.job?.gmail_message_id,recovered:true};
-    }
-    await admin.from('crm_mail_send_jobs').update({
-      status:'unknown',error_code:'GMAIL_RETRY_UNCERTAIN',error_message:'Gmail gav ikke et sikkert svar ved genafsendelse. Jobbet må verificeres før nyt forsøg.',updated_at:new Date().toISOString()
-    }).eq('id',job.id);
-    return{ok:false,job_id:job.id,status:'unknown',code:'GMAIL_RETRY_UNCERTAIN',error:'Gmail gav ikke et sikkert svar'};
-  }
-
-  const sent=sentResult.data,sendResp=sentResult.response;
-  if(!sendResp.ok||!sent?.id){
-    const msg=String(sent?.error?.message||`Gmail send fejlede (${sendResp.status})`);
-    await admin.from('crm_mail_send_jobs').update({status:'failed',error_code:'GMAIL_SEND_ERROR',error_message:msg,updated_at:new Date().toISOString()}).eq('id',job.id);
-    return{ok:false,job_id:job.id,status:'failed',code:'GMAIL_SEND_ERROR',error:msg};
-  }
-
-  const sentAt=new Date().toISOString();
-  await admin.from('crm_mail_send_jobs').update({
-    status:'sent_pending_postprocess',gmail_message_id:String(sent.id),gmail_thread_id:String(sent.threadId||sent.id),
-    sent_at:sentAt,updated_at:sentAt,last_status_check_at:sentAt,error_code:null,error_message:null
-  }).eq('id',job.id);
-
-  const {error:finalError}=await admin.rpc('crm_finalize_mail_send_job',{p_job_id:job.id});
-  if(finalError)await kickPostprocess(supabaseUrl,serviceKey,job.id);
-  return{ok:true,job_id:job.id,status:finalError?'sent_pending_postprocess':'sent',gmail_message_id:String(sent.id),thread_id:String(sent.threadId||sent.id)};
+  return{ok:false,job_id:job.id,status:'unknown',code:'RECOVERY_REQUIRES_EXPLICIT_SEND',error:'Recovery kan kun kontrollere en eksisterende afsendelse. Et nyt sendeforsøg kræver brugerens udtrykkelige handling.'};
 }
 
 Deno.serve(async(req:Request)=>{
@@ -651,6 +561,9 @@ Deno.serve(async(req:Request)=>{
     let requestId=trim(body.request_id,80);
     if(action==='send'&&!requestId)requestId=crypto.randomUUID();
     if(!clientId)return json({error:'Mangler klient-id',code:'CLIENT_ID_MISSING'},400);
+    const _apiAccess=await apiSessionGuard(token,clientId);
+    if(!_apiAccess.allowed)return json({error:_apiAccess.error,code:_apiAccess.code},_apiAccess.status);
+
     if(['send','status'].includes(action)&&(!requestId||!uuidOk(requestId)))return json({error:'Mangler gyldigt send-id',code:'SEND_ID_INVALID'},400);
     if(!['send','status','resume','pdf_status','preflight'].includes(action))return json({error:'Ukendt handling',code:'ACTION_INVALID'},400);
 
@@ -701,7 +614,7 @@ Deno.serve(async(req:Request)=>{
         });
       }
       if(existing.status==='failed'){
-        return json({error:existing.error_message||'Det tidligere sendeforsøg fejlede',code:existing.error_code||'SEND_FAILED',status:'failed',send_id:requestId},409);
+        return json({error:existing.error_message||'Det tidligere sendeforsøg fejlede',code:existing.error_code||'SEND_FAILED',status:'unknown',send_id:requestId},409);
       }
 
       const ageMs=Date.now()-new Date(existing.updated_at||existing.created_at).getTime();
@@ -719,8 +632,8 @@ Deno.serve(async(req:Request)=>{
         if(recovered.state==='not_found'&&ageMs>=120000){
           const now=new Date().toISOString();
           await admin.from('crm_mail_send_jobs').update({
-            status:'failed',error_code:'SEND_INTERRUPTED_NOT_FOUND',
-            error_message:'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen efter 2 minutter.',
+            status:'unknown',error_code:'SEND_INTERRUPTED_NOT_FOUND',
+            error_message:'Gmail kunne ikke bekræfte mailen. Afsendelsesstatus er ukendt; mailen må ikke gensendes automatisk.',
             updated_at:now,last_status_check_at:now
           }).eq('id',existing.id);
           if(existing.approval_id){
@@ -729,7 +642,7 @@ Deno.serve(async(req:Request)=>{
               status:'rejected',payload:{...(oldApproval?.payload||{}),send_error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen.'}
             }).eq('id',existing.approval_id);
           }
-          return json({error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen. Du kan prøve igen.',code:'SEND_INTERRUPTED_NOT_FOUND',status:'failed',send_id:requestId},409);
+          return json({error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen. Kontrollér Sendt-mappen før du opretter en ny mail.',code:'SEND_INTERRUPTED_NOT_FOUND',status:'unknown',send_id:requestId},409);
         }
       }
       return json({ok:false,sent:false,pending:true,status:existing.status||'sending',send_id:requestId,job_id:existing.id,code:'SEND_IN_PROGRESS',follow_up_date:existing.follow_up_date,follow_up_at:existing.follow_up_at},202);
@@ -877,7 +790,7 @@ Deno.serve(async(req:Request)=>{
     if(approval?.status==='rejected')return json({error:approval.payload?.send_error||'Det tidligere sendeforsøg blev afvist',code:'SEND_APPROVAL_REJECTED'},409);
 
     if(!approval){
-      const approvalPayload={
+      const approvalPayload={purpose:'offer_followup',
         to,subject,body:mailBody,company_id:companyId,offer_id:offer.id,offer_ref:offerRef,
         customer_name:offer.customer_name||null,include_signature:true,signature_key:'client_default',
         approved_by:user.email,approval_method:'explicit_send_button',follow_up_date:followUpDate,
@@ -944,7 +857,10 @@ Deno.serve(async(req:Request)=>{
       status:'sent_pending_postprocess',gmail_message_id:String(sent.id),gmail_thread_id:String(sent.threadId||sent.id),
       sent_at:sentAt,updated_at:sentAt,error_code:null,error_message:null
     }).eq('id',job.id);
-    if(markError)throw markError;
+    if(markError){
+      console.error('Provider acknowledged mail; persistence requires recovery',job.id);
+      return json({ok:true,sent:true,status:'sending',provider_accepted:true,postprocess_pending:true,code:'SEND_PERSISTENCE_PENDING',send_id:requestId,job_id:job.id,id:String(sent.id),thread_id:String(sent.threadId||sent.id)});
+    }
 
     await kickPostprocess(supabaseUrl,serviceKey,job.id);
 

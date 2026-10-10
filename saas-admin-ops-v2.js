@@ -35,21 +35,28 @@ function row(w){
   <div class="lmops-name"><strong>${esc(w.name||'Workspace')}</strong><span>${Number(w.active_users||0)} bruger${Number(w.active_users||0)===1?'':'e'} · ${Number(w.lead_count||0)} leads · ${Number(w.open_offer_count||0)} åbne tilbud</span></div>
   <div><span class="sub">Login</span><br>${esc(age(w.last_login_at))}</div>
   <div><span class="sub">Aktivitet</span><br>${esc(age(w.last_activity_at))}</div>
-  <div class="${issues?'lmops-bad':'lmops-ok'}">${issues?issues+' fejl':'✓ Normal'}</div>
+  <div class="${issues?'lmops-bad':'lmops-ok'}">${issues?issues+' fejl':'✓ Ingen integrationsfejl'}</div>
   <div>${Number(w.queue_issues||0)} kø · ${Number(w.inbound_errors_24h||0)} inbound</div>
   <div>${Number(w.usage_30d||0)} / 30d</div>
  </div>`;
 }
 function render(d){
- last=d;const el=mount();if(!el)return;const s=d?.summary||{},ws=d?.workspaces||[];
+ last=d;const el=mount();if(!el)return;const s=d?.summary||{},ws=d?.workspaces||[],h=d?.delivery_health||{};
  el.innerHTML=`<div class="lmops-head"><div><h2 style="margin:0 0 4px">Driftsovervågning</h2><div class="sub">Workspace-status uden mailindhold eller unødige persondata · opdateret ${esc(fmt(d?.generated_at))}</div></div><button class="btn" id="lmOpsRefresh" type="button">Opdatér</button></div>
  <div class="lmops-metrics">
   ${metric(s.workspaces,'Workspaces')}
   ${metric(s.needs_attention,'Kræver handling')}
   ${metric(s.integration_issues,'Integrationsfejl')}
   ${metric(s.queue_issues,'Køproblemer')}
-  ${metric(s.cron_failures_24h,'Cron-fejl 24t')}
+  ${metric(s.cron_failures_24h,'Planlægningsfejl 24t')}
+  ${metric(h.contact_errors_24h,'Kontaktresearch-fejl 24t')}
+  ${metric(h.stale_mail_jobs,'Fastlåste mails')}
+  ${metric(h.unknown_mail_jobs,'Ukendt mailstatus')}
+  ${metric(h.http_failures_24h,'HTTP-fejl i tilgængelig log')}
+  ${metric(h.legal_blocked_workspaces,'Afventer aftale eller review')}
  </div>
+ <div class="sub" style="margin-top:10px">${h.billing_paused?'<strong class="lmops-bad">AI-research er sat på pause: betalingsgrundlaget skal afklares.</strong>':''} · ${Number(h.contact_completed_24h||0)} kontaktresearch-opgaver gennemført på 24 timer. En gennemført planlægning bekræfter, at et job er startet; resultatet vises særskilt.</div>
+ <div class="sub" style="margin-top:10px">${(h.schedules||[]).map(x=>esc(x.name)+': '+(x.active?'aktiv · '+esc(x.schedule):'sat på pause')).join('<br>')}</div>
  <div class="sub" style="margin-top:10px">30 dage: ${Number(s.usage_30d||0)} hændelser · AI ${Number(s.ai_usage_30d||0)} · mail ${Number(s.mail_usage_30d||0)} · ${Number(s.active_cron_jobs||0)} aktive cron-jobs</div>
  <div class="lmops-table"><div class="lmops-row head"><div>Workspace</div><div>Seneste login</div><div>Aktivitet</div><div>Status</div><div>Kø / inbound</div><div>Forbrug</div></div>${ws.map(row).join('')}</div>`;
  $('#lmOpsRefresh').onclick=()=>load(true);
