@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors = {
@@ -48,6 +49,9 @@ Deno.serve(async (req: Request) => {
     const action = text(body.action || 'list', 40).toLowerCase();
     const clientId = text(body.client_id, 100);
     if (!clientId) return json({ error: 'client_id mangler' }, 400);
+    const _apiAccess=await apiSessionGuard(token,clientId,action!=='list');
+    if(!_apiAccess.allowed)return json({error:_apiAccess.error,code:_apiAccess.code},_apiAccess.status);
+
 
     const { data: actorMemberships, error: actorMembershipError } = await admin
       .from('crm_users')
@@ -56,20 +60,7 @@ Deno.serve(async (req: Request) => {
       .eq('active', true);
     if (actorMembershipError) throw actorMembershipError;
 
-    let platformAdmin = false;
-    for (const membership of actorMemberships || []) {
-      if (!['owner', 'admin'].includes(String(membership.role || '').toLowerCase())) continue;
-      const { data: limit, error: limitError } = await admin
-        .from('crm_usage_limits')
-        .select('plan_code')
-        .eq('client_id', membership.client_id)
-        .maybeSingle();
-      if (limitError) throw limitError;
-      if (limit?.plan_code === 'internal') {
-        platformAdmin = true;
-        break;
-      }
-    }
+    const platformAdmin = _apiAccess.platform_admin===true;
 
     const directMembership = (actorMemberships || []).find(m => String(m.client_id) === clientId);
     const hasWorkspaceAccess = !!directMembership || platformAdmin;

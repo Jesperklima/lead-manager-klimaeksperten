@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors={
@@ -597,7 +598,7 @@ Deno.serve(async(req:Request)=>{
   try{
     const url=Deno.env.get('SUPABASE_URL')!,serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,admin=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
     const body=await req.json().catch(()=>({})),action=clean(body.action||'run',40),requestedClient=clean(body.client_id,100),cronSecret=clean(req.headers.get('x-mail-offer-sync-secret'),500),{data:expected}=await admin.rpc('crm_get_mail_offer_sync_secret'),cron=!!cronSecret&&!!expected&&safeEqual(cronSecret,String(expected));let user:any=null;
-    if(!cron){const token=clean((req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,''),5000);if(!token)return json({error:'Mangler login-token'},401);const auth=await admin.auth.getUser(token);user=auth.data?.user;if(auth.error||!user?.id)return json({error:'Ugyldigt login'},401)}
+    if(!cron){const token=clean((req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,''),5000);if(!token)return json({error:'Mangler login-token'},401);const auth=await admin.auth.getUser(token);user=auth.data?.user;if(auth.error||!user?.id)return json({error:'Ugyldigt login'},401);const _apiEntryAccess=await apiSessionGuard(token,null);if(!_apiEntryAccess.allowed)return json({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);}
     if(action==='apply_approval'){
       if(!user)return json({error:'Kun en bruger kan godkende ændringer'},403);const approvalId=clean(body.approval_id,100),{data:approval}=await admin.from('crm_approvals').select('*').eq('id',approvalId).eq('status','pending').eq('action_type','offer_mail_update').single();if(!approval)return json({error:'Godkendelsen blev ikke fundet'},404);
       const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',approval.client_id).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang'},403);const p=approval.payload||{};if(p.offer?.id){const{data:offer}=await admin.from('crm_offers').select('*').eq('id',p.offer.id).eq('client_id',approval.client_id).single();p.offer=offer}await applyProposal(admin,p,user.email||'Bruger');await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id);return json({ok:true});

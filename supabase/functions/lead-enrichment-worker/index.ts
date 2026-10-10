@@ -181,9 +181,11 @@ Deno.serve(async(req:Request)=>{
 
   try{
     const startedAt=new Date().toISOString();
-    await admin.from('crm_agent_requests').update({
+    const {data:claimed,error:claimError}=await admin.from('crm_agent_requests').update({
       status:'running',started_at:startedAt,error_text:null
-    }).eq('id',requestId).in('status',['queued','error']);
+    }).eq('id',requestId).in('status',['queued','error']).select('id').maybeSingle();
+    if(claimError)throw claimError;
+    if(!claimed)return json({ok:true,request_id:requestId,already_claimed:true});
 
     const {data:company}=await admin.from('crm_companies').select('*')
       .eq('id',companyId).eq('client_id',clientId).single();
@@ -210,6 +212,16 @@ Deno.serve(async(req:Request)=>{
     let aiUsed=false;
 
     if(needsResearch){
+      const {data:billingBlocked,error:billingError}=await admin.rpc('crm_openai_billing_circuit_active');
+      if(billingError)throw new Error('BILLING_CHECK_UNAVAILABLE');
+      if(billingBlocked){
+        const paused=await admin.from('crm_agent_requests').update({
+          status:'error',error_text:'OPENAI_BILLING_REQUIRED: kontaktresearch er sat på pause.',
+          completed_at:new Date().toISOString()
+        }).eq('id',requestId).eq('status','running');
+        if(paused.error)throw paused.error;
+        return json({ok:true,paused:true,code:'OPENAI_BILLING_REQUIRED',request_id:requestId});
+      }
       research=await researchContact(admin,clientId,company);
       aiUsed=true;
 
@@ -351,6 +363,7 @@ Deno.serve(async(req:Request)=>{
     });
   }catch(e){
     const msg=e instanceof Error?e.message:String(e);
+    if(/insufficient_quota|no credits remaining|credit balance|billing/i.test(msg))await admin.rpc('crm_record_openai_billing_failure');
     await admin.from('crm_agent_requests').update({
       status:'error',
       error_text:msg,

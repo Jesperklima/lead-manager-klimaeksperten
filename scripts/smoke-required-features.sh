@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-python3 - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 from html.parser import HTMLParser
 from pathlib import Path
 from collections import Counter
@@ -66,7 +67,7 @@ assert 'Godkendt – sendes automatisk' not in html, 'automatic-send wording ret
 print('PASS: DOM navigation, offer pipeline, activity report and manual-mail policy')
 PY
 
-python3 - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 import re
 from pathlib import Path
 s=Path('index.html').read_text(encoding='utf-8')
@@ -81,7 +82,7 @@ node --check lead-manager-theme-v2.js
 node --check api/app.js
 node --check saas-onboarding-v6.js
 node --check legal-agreement-v1.js
-python3 - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 import base64
 from pathlib import Path
 asset=Path('assets/lead-manager-logo-20260922.webp.b64')

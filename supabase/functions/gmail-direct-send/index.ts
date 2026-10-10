@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders={
@@ -90,7 +91,7 @@ async function recoverProviderState(admin:any,job:any,mat:any,supabaseUrl:string
   if(!job?.message_rfc822_id)return {state:'unknown',reason:'missing_message_id'};
   let accessToken='';
   try{accessToken=await refreshAccessToken(mat)}catch(e){return {state:'unknown',reason:'token_error',error:e instanceof Error?e.message:String(e)}}
-  const q=new URLSearchParams({q:`rfc822msgid:${job.message_rfc822_id}`,maxResults:'1'});
+  const q=new URLSearchParams({q:`in:sent rfc822msgid:${job.message_rfc822_id}`,maxResults:'1'});
   const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?'+q.toString(),{headers:{Authorization:'Bearer '+accessToken}});
   const data=await r.json().catch(()=>({}));
   if(r.status===403)return {state:'unknown',reason:'gmail_search_scope'};
@@ -132,6 +133,9 @@ Deno.serve(async(req:Request)=>{
     let requestId=trim(body.request_id,80);
     if(action==='send'&&!requestId)requestId=crypto.randomUUID();
     if(!clientId||!requestId||!uuidOk(requestId))return json({error:'Mangler gyldigt klient- eller send-id',code:'SEND_ID_INVALID'},400);
+    const _apiAccess=await apiSessionGuard(token,clientId);
+    if(!_apiAccess.allowed)return json({error:_apiAccess.error,code:_apiAccess.code},_apiAccess.status);
+
 
     const {data:membership,error:memberError}=await admin.from('crm_users')
       .select('email,client_id,role,auth_user_id')
@@ -149,7 +153,7 @@ Deno.serve(async(req:Request)=>{
         return json({ok:true,sent:true,status:existing.status,send_id:requestId,job_id:existing.id,id:existing.gmail_message_id,thread_id:existing.gmail_thread_id,reused:true});
       }
       if(existing.status==='failed'){
-        return json({error:existing.error_message||'Det tidligere sendeforsøg fejlede',code:existing.error_code||'SEND_FAILED',status:'failed',send_id:requestId},409);
+        return json({error:existing.error_message||'Det tidligere sendeforsøg fejlede',code:existing.error_code||'SEND_FAILED',status:'unknown',send_id:requestId},409);
       }
 
       const ageMs=Date.now()-new Date(existing.updated_at||existing.created_at).getTime();
@@ -162,11 +166,11 @@ Deno.serve(async(req:Request)=>{
         if(recovered.state==='not_found'&&ageMs>=120000){
           const now=new Date().toISOString();
           await admin.from('crm_mail_send_jobs').update({
-            status:'failed',error_code:'SEND_INTERRUPTED_NOT_FOUND',
-            error_message:'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen efter 2 minutter.',
+            status:'unknown',error_code:'SEND_INTERRUPTED_NOT_FOUND',
+            error_message:'Gmail kunne ikke bekræfte mailen. Afsendelsesstatus er ukendt; mailen må ikke gensendes automatisk.',
             updated_at:now,last_status_check_at:now
           }).eq('id',existing.id);
-          return json({error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen. Du kan prøve igen.',code:'SEND_INTERRUPTED_NOT_FOUND',status:'failed',send_id:requestId},409);
+          return json({error:'Afsendelsen blev afbrudt før Gmail kunne bekræfte mailen. Kontrollér Sendt-mappen før du opretter en ny mail.',code:'SEND_INTERRUPTED_NOT_FOUND',status:'unknown',send_id:requestId},409);
         }
       }
       return json({ok:false,sent:false,status:existing.status||'sending',send_id:requestId,job_id:existing.id,code:'SEND_IN_PROGRESS'},202);
@@ -238,7 +242,7 @@ Deno.serve(async(req:Request)=>{
     if(!contact)return json({error:'Modtageren matcher hverken en kontaktmail eller virksomhedens standardmail. Kontrollér adressen først.',code:'RECIPIENT_NOT_ON_CUSTOMER'},412);
 
     const approvalPayload={
-      to,subject,body:mailBody,company_id:companyId,offer_id:offer?.id||null,include_signature:true,
+      to,subject,body:mailBody,company_id:companyId,offer_id:offer?.id||null,include_signature:true,purpose:offer?'offer_followup':trim(body.purpose,50)||'direct_marketing',
       signature_key:'client_default',approved_by:user.email,approval_method:'explicit_send_button',
       follow_up_date:followUpDate,follow_up_at:followUpAt,sender_name:fromName,send_id:requestId
     };
@@ -259,9 +263,14 @@ Deno.serve(async(req:Request)=>{
       from_email:from,sender_name:fromName,ai_generated:aiGenerated,ai_model:aiModel,
       signature_appended:!!(sigText||sigHtml),message_rfc822_id:messageRfc822Id,status:'prepared'
     }).select('*').single();
-    if(jobError)throw jobError;
+    if(jobError){
+      if(jobError.code==='23505')return json({ok:false,sent:false,status:'sending',send_id:requestId,code:'SEND_IN_PROGRESS'},202);
+      throw jobError;
+    }
 
-    await admin.from('crm_mail_send_jobs').update({status:'sending',attempt_count:1,updated_at:new Date().toISOString()}).eq('id',job.id);
+    const claim=await admin.from('crm_mail_send_jobs').update({status:'sending',attempt_count:1,updated_at:new Date().toISOString()}).eq('id',job.id).eq('status','prepared').select('id').maybeSingle();
+    if(claim.error)throw claim.error;
+    if(!claim.data)return json({ok:false,sent:false,status:'sending',send_id:requestId,code:'SEND_IN_PROGRESS'},202);
 
     let accessToken='';
     try{accessToken=await refreshAccessToken(mat)}
@@ -307,7 +316,10 @@ Deno.serve(async(req:Request)=>{
       status:'sent_pending_postprocess',gmail_message_id:String(sent.id),gmail_thread_id:String(sent.threadId||sent.id),
       sent_at:sentAt,updated_at:sentAt,error_code:null,error_message:null
     }).eq('id',job.id);
-    if(markError)throw markError;
+    if(markError){
+      console.error('Provider acknowledged mail; persistence requires recovery',job.id);
+      return json({ok:true,sent:true,status:'sending',provider_accepted:true,postprocess_pending:true,code:'SEND_PERSISTENCE_PENDING',send_id:requestId,job_id:job.id,id:String(sent.id),thread_id:String(sent.threadId||sent.id)});
+    }
 
     await kickPostprocess(supabaseUrl,serviceKey,job.id);
     return json({

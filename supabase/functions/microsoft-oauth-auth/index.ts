@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors={
@@ -50,6 +51,9 @@ Deno.serve(async(req:Request)=>{
     if(!membership)return json({error:'Ingen adgang til denne klient'},403);
     const clientId=requestedClientId||membership.client_id;
     if(membership.client_id!==clientId)return json({error:'Ingen adgang til denne klient'},403);
+    const _apiAccess=await apiSessionGuard(token,clientId,['start','save_platform'].includes(action),action==='save_platform');
+    if(!_apiAccess.allowed)return json({error:_apiAccess.error,code:_apiAccess.code},_apiAccess.status);
+
     const [{data:client,error:clientError},{data:limits,error:limitsError}]=await Promise.all([
       admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single(),
       admin.from('crm_usage_limits').select('*').eq('client_id',clientId).maybeSingle()

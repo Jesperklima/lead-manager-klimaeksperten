@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors={
@@ -30,6 +31,8 @@ async function actor(admin:any,req:Request,requestedClient?:string){
   if(!token)throw Object.assign(new Error('Mangler login'),{status:401});
   const {data,error}=await admin.auth.getUser(token);const u=data?.user;
   if(error||!u?.id)throw Object.assign(new Error('Ugyldigt eller udløbet login'),{status:401});
+  const _apiAccess=await apiSessionGuard(token,requestedClient||null);
+  if(!_apiAccess.allowed)throw Object.assign(new Error(_apiAccess.error),{status:_apiAccess.status,code:_apiAccess.code});
   const {data:pa}=await admin.from('crm_platform_admins').select('auth_user_id').eq('auth_user_id',u.id).eq('active',true).maybeSingle();
   if(pa){
     if(!requestedClient)throw Object.assign(new Error('Workspace mangler'),{status:400});

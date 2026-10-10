@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const cors={
@@ -44,7 +45,7 @@ Deno.serve(async(req:Request)=>{
     const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
     const {data:ud,error:ue}=await admin.auth.getUser(token);
     const user=ud?.user;
-    if(ue||!user?.id||!user.email)return json({error:'Ugyldigt eller udløbet login',code:'INVALID_LOGIN'},401);
+    if(ue||!user?.id||!user.email)return json({error:'Ugyldigt eller udløbet login',code:'INVALID_LOGIN'},401);const _apiEntryAccess=await apiSessionGuard(token,null,false,['provider_identity_status','save_provider_identity'].includes(action));if(!_apiEntryAccess.allowed)return json({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);
 
     const {data:platformAdmin,error:pae}=await admin.from('crm_platform_admins')
       .select('auth_user_id').eq('auth_user_id',user.id).eq('active',true).maybeSingle();
@@ -130,9 +131,11 @@ Deno.serve(async(req:Request)=>{
       .select('client_id,email,role,active,auth_user_id')
       .eq('active',true).eq('auth_user_id',user.id);
     if(me)throw me;
-    const member=members?.[0];
+    const requestedClient=clean(body.client_id,100);
+    const member=requestedClient?members?.find((m:any)=>m.client_id===requestedClient):(members?.length===1?members[0]:null);
     if(!member)return json({error:'Brugeren er ikke knyttet til et Lead Manager-workspace',code:'NO_MEMBERSHIP'},403);
     const clientId=member.client_id;
+    const workspaceAccess=await apiSessionGuard(token,clientId,action==='accept');if(!workspaceAccess.allowed)return json({error:workspaceAccess.error,code:workspaceAccess.code},workspaceAccess.status);
 
     const [{data:client,error:ce},{data:profile,error:pe},{data:identity,error:ie},{data:subs,error:se}] = await Promise.all([
       admin.from('crm_clients').select('id,name,cvr,website,settings').eq('id',clientId).single(),
@@ -194,7 +197,8 @@ Deno.serve(async(req:Request)=>{
       role:member.role,
       platform_admin:isPlatformAdmin,
       legal_profile:profile||null,
-      agreement_required:agreementRequired,
+      agreement_required:agreementRequired&&!isPlatformAdmin,
+      provider_identity_setup_pending:isPlatformAdmin&&!identityComplete,
       provider_identity_complete:identityComplete,
       provider_identity_missing:identityMissing,
       provider_identity:identityComplete?{

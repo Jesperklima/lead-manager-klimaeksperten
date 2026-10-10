@@ -1,3 +1,4 @@
+import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 const corsHeaders={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}});
@@ -46,7 +47,7 @@ Deno.serve(async(req:Request)=>{
     const supabaseUrl=Deno.env.get('SUPABASE_URL')!,serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
     const {data:userData,error:userError}=await admin.auth.getUser(token),user=userData?.user;
-    if(userError||!user?.id||!user?.email)return json({error:'Ugyldigt login'},401);
+    if(userError||!user?.id||!user?.email)return json({error:'Ugyldigt login'},401);const _apiEntryAccess=await apiSessionGuard(token,null);if(!_apiEntryAccess.allowed)return json({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);
     const {data:members,error:memberError}=await admin.from('crm_users').select('email,client_id,role,auth_user_id,active').eq('active',true).ilike('email',user.email).limit(5);
     if(memberError)throw memberError;
     const membership=(members||[]).find((m:any)=>!m.auth_user_id||m.auth_user_id===user.id);
