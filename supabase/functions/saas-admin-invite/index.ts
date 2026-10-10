@@ -741,4 +741,3 @@ Deno.serve(async(req:Request)=>{
     return json({error:err instanceof Error?err.message:String(err),code},code==='EMAIL_EXISTS'?409:500);
   }
 });
-

@@ -9,4 +9,3 @@ export async function apiSessionGuard(token:string,clientId:string|null=null,man
   const messages:Record<string,string>={MFA_REQUIRED:'Bekræft din login-session med MFA før denne handling.',ADMIN_ONLY:'Kun aktiv platform-admin har adgang.',ROLE_FORBIDDEN:'Kun ejer/admin kan ændre denne integration.',SESSION_REVOKED:'Login-sessionen er udløbet eller tilbagekaldt.',WORKSPACE_FORBIDDEN:'Ingen adgang til denne kundekonto.'};
   return {...data,error:messages[data.code]||'Adgang nægtet.'};
 }
-

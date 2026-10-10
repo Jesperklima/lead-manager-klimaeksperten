@@ -28,4 +28,3 @@ This release is not a claim that every audit concern is resolved. Historical con
 A successful queue dispatch does not prove successful work, and provider acceptance does not prove delivery. Keep uncertain legacy mail jobs visible until checked in the provider mailbox.
 
 Rollback the website to its preceding Vercel deployment if necessary. Do not remove the database access/MFA guards or resume uncertain mail by deleting its send identity. Edge-function rollback must preserve the shared guard and consent protections.
-
