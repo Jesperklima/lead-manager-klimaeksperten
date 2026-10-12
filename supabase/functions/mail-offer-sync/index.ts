@@ -243,10 +243,11 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
       if(backfillDays>0&&meta.offer_sync_processed===true&&(!refs.length||syncResult==='PENDING_APPROVAL'))legacyReinspect.add(id);
     }
   }
-  const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id)).slice(0,300);
+  // Keep each sync well below Gmail's per-user/minute budget; unprocessed messages remain eligible next run.
+  const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id)).slice(0,40);
   const rows:any[]=[];
-  for(let i=0;i<pending.length;i+=5){
-    const batch=await Promise.all(pending.slice(i,i+5).map(async(id:string)=>{
+  for(let i=0;i<pending.length;i+=2){
+    const batch=await Promise.all(pending.slice(i,i+2).map(async(id:string)=>{
       const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,{headers:{Authorization:'Bearer '+access}});
       const m=await r.json().catch(()=>({}));
       if(!r.ok)return null;
