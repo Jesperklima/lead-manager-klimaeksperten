@@ -39,7 +39,7 @@ for(const marker of [
   "select('id,client_id,follow_up_date')",
   'Gmail har bekræftet afsendelsen',
   'synkroniseres i baggrunden',
-  'Mailen afsendes i baggrunden · du kan arbejde videre',
+  'Afventer Gmail-bekræftelse · behold mailvinduet åbent eller luk det manuelt',
   'waitForOfferFollowUp',
   'Promise.race',
   '__background:true',
