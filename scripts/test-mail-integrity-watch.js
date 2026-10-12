@@ -4,7 +4,7 @@ const src=fs.readFileSync('supabase/functions/_shared/mail-integrity-watch.ts','
 const runner=fs.readFileSync('supabase/functions/gmail-send-postprocess/index.ts','utf8');
 for(const marker of [
   "export async function watchMailIntegrity(",
-  "new Date(nowMs-7*86400000)",
+  "new Date(nowMs-30*86400000)",
   ".in('status',[...statuses])",
   "j.status==='unknown'?20:15",
   "'mail_send_job',j.id,key",
