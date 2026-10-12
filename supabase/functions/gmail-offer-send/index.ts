@@ -862,13 +862,13 @@ Deno.serve(async(req:Request)=>{
     }
     if(!sendResp.ok||!sent.id){
       const msg=String(sent?.error?.message||`Gmail send fejlede (${sendResp.status})`);
+      const quotaExceeded = /quota exceeded|rate limit exceeded|userRateLimitExceeded|rateLimitExceeded|Too Many Requests/i.test(msg) || sendResp.status===429;
       const failedAt=new Date().toISOString();
       await Promise.all([
         admin.from('crm_mail_send_jobs').update({status:'failed',error_code:quotaExceeded?'GMAIL_QUOTA_EXCEEDED':'GMAIL_SEND_ERROR',error_message:msg,updated_at:failedAt}).eq('id',job.id),
         admin.from('crm_approvals').update({status:'rejected',payload:{...(approval?.payload||{}),send_error:msg}}).eq('id',approval.id),
         admin.from('crm_integrations').update({last_error:msg,updated_at:failedAt}).eq('client_id',clientId).eq('provider','gmail')
       ]);
-      const quotaExceeded = /quota exceeded|rate limit exceeded|userRateLimitExceeded|rateLimitExceeded|Too Many Requests/i.test(msg) || sendResp.status===429;
       // A provider-rejected send is not a successful follow-up. Expose an actionable error
       // and keep the permanent record so a later deliberate retry cannot be mistaken for delivery.
       return json({
