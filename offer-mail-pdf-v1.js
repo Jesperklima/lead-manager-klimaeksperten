@@ -29,6 +29,7 @@
   function friendlyMailError(error){
     const status=Number(error?.status||0),code=String(error?.code||''),message=String(error?.message||'');
     if(status===546||/^546(?:\s|$)/.test(message))return 'Mailtjenesten blev afbrudt under afsendelsen. Lead Manager kontrollerer automatisk, om Gmail nåede at sende mailen.';
+    if(code==='GMAIL_QUOTA_EXCEEDED')return 'Google begrænser Gmail-forbruget midlertidigt. Mailen er ikke sendt. Åbn tilbuddet og prøv igen senere. Opfølgningsdatoen må ikke flyttes.';
     if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen. Du kan prøve at sende igen.';
     if(code==='DUPLICATE_BLOCKED')return message||'En anden afsendelse af den samme mail er allerede aktiv eller registreret som sendt.';
     if(code==='FOLLOWUP_SUPPRESSED'){
@@ -141,7 +142,7 @@
     const expected=normalizeFollowDate(expectedDate);
     if(!expected||!o?.id||!state?.client?.id||typeof supabase==='undefined')return true;
     const local=(state.offers||[]).find(x=>x.id===o.id);
-    if(normalizeFollowDate(local?.follow_up_date)===expected){o.follow_up_date=expected;return true}
+    // Local state is optimistic and cannot prove a database commit.
     const {data,error}=await supabase.from('crm_offers').select('id,client_id,follow_up_date').eq('id',o.id).eq('client_id',state.client.id).limit(1);
     if(error)throw new Error(error.message||'Kunne ikke bekræfte opfølgningsdatoen');
     const row=Array.isArray(data)?data[0]:data;
@@ -414,7 +415,7 @@
     if(!currentPdfSendId)currentPdfSendId=makeSendId();
     const requestId=currentPdfSendId,button=byId('sendOfferMail'),old='Send mail';
     savePendingSend(o,requestId,{to,subject,follow,name,created_at:Date.now()});
-    if(follow)applyFollowDateLocally(o,follow);
+    // Never publish a new follow-up date before provider-confirmed send and server postprocessing.
     renderSendStatus('checking','Forbereder og sender','Lead Manager bruger et unikt send-id og kontrollerer automatisk resultatet, hvis forbindelsen bliver afbrudt.');
     if(button){button.disabled=true;button.textContent='Forbereder PDF og sender…'}
     const attachment=byId('offerMailAttachment');
@@ -431,10 +432,10 @@
       ]);
       if(result?.__background){
         pdfSendState='uncertain';
-        renderSendStatus('checking','Afsendelsen kører i baggrunden',`Du kan arbejde videre. Næste opfølgning er sat til ${follow||"—"} og bekræftes automatisk fra send-jobbet.`);
+        renderSendStatus('checking','Afsendelsen kører i baggrunden',`Du kan arbejde videre. Næste opfølgning ændres først, når Gmail har bekræftet afsendelsen.`);
         byId('offerMailModal')?.classList.remove('open');
         window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
-        if(typeof toast==='function')toast('Mailen afsendes i baggrunden · opfølgningsdatoen opdateres automatisk');
+        if(typeof toast==='function')toast('Afsendelsen kontrolleres i baggrunden · datoen ændres efter bekræftelse');
         void sendRequest.then(r=>handleBackgroundSendResult(o,requestId,to,name,follow,r)).catch(error=>console.warn('[Offer mail] Baggrundsafsendelse mistede browserforbindelsen; statuskontrollen fortsætter',error));
         setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),900);
         return;
