@@ -58,8 +58,8 @@
       // Compare-and-swap guarantees a second concurrent mail update is never silently overwritten.
       let update=supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id).eq('client_id',clientId);
       update=persistedBeforeSave?update.eq('follow_up_date',persistedBeforeSave):update.is('follow_up_date',null);
-      const r=await update.select('id,client_id,status,follow_up_date,current_comment').maybeSingle();
-      if(!r.error&&!r.data)throw new Error('Tilbuddet blev opdateret imens du gemte. Åbn det igen, så den seneste opfølgningsdato ikke overskrives.');
+      const r=await update.select('id,client_id,status,follow_up_date,current_comment').single();
+      if(String(r.error?.code||'')==='PGRST116')throw new Error('Tilbuddet blev opdateret imens du gemte. Åbn det igen, så den seneste opfølgningsdato ikke overskrives.');
       if(r.error)throw new Error(r.error.message||'Tilbuddet kunne ikke gemmes');
       if(String(r.data?.client_id||'')!==String(clientId))throw new Error('Tilbuddet blev ikke bekræftet i det aktive workspace.');
 
