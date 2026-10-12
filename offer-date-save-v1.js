@@ -3,6 +3,7 @@
   const byId=id=>document.getElementById(id);
   let saving=false;
   let dateAtClick=null;
+  let dateEditedByUser=false;
 
   function current(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
   function normalizeDate(value){
@@ -41,12 +42,24 @@
     const btn=byId('saveOffer'),old=btn?.textContent||'Gem tilbud';
     const status=byId('oStatus')?.value||o.status;
     const rawDate=(dateAtClick!==null?dateAtClick:String(byId('oFollow')?.value||'').trim())||null;
-    const date=normalizeDate(rawDate);
+    const requestedDate=normalizeDate(rawDate);
     const comment=String(byId('oComment')?.value||'').trim()||null;
     const now=new Date().toISOString();
-    saving=true;if(btn){btn.disabled=true;btn.textContent='Gemmer…'};message('Gemmer '+formatDate(date)+'…');
+    saving=true;if(btn){btn.disabled=true;btn.textContent='Gemmer…'};message('Kontrollerer den seneste opfølgningsdato…');
     try{
-      const r=await supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id).eq('client_id',clientId).select('id,client_id,status,follow_up_date,current_comment').single();
+      // The offer card can stay open while a mail finishes in the background.
+      // Never blindly overwrite a newer confirmed server follow-up with an unchanged stale date input.
+      const persistedBeforeSave=await readSavedDate(o.id,clientId);
+      const date=(!dateEditedByUser&&persistedBeforeSave!==requestedDate)
+        ?persistedBeforeSave:requestedDate;
+      const savedNewerDate=!dateEditedByUser&&persistedBeforeSave!==requestedDate;
+      if(savedNewerDate&&byId('oFollow'))byId('oFollow').value=date||'';
+      message(savedNewerDate?'Mailen har allerede opdateret opfølgningsdatoen til '+formatDate(date)+'. Den bevares.':'Gemmer '+formatDate(date)+'…');
+      // Compare-and-swap guarantees a second concurrent mail update is never silently overwritten.
+      let update=supabase.from('crm_offers').update({status,follow_up_date:date,current_comment:comment,status_reason:o.status!==status?`Manuelt ændret fra ${o.status} til ${status}`:o.status_reason,manual_lock:true,status_source:'manual',status_updated_at:now,updated_at:now}).eq('id',o.id).eq('client_id',clientId);
+      update=persistedBeforeSave?update.eq('follow_up_date',persistedBeforeSave):update.is('follow_up_date',null);
+      const r=await update.select('id,client_id,status,follow_up_date,current_comment').single();
+      if(String(r.error?.code||'')==='PGRST116')throw new Error('Tilbuddet blev opdateret imens du gemte. Åbn det igen, så den seneste opfølgningsdato ikke overskrives.');
       if(r.error)throw new Error(r.error.message||'Tilbuddet kunne ikke gemmes');
       if(String(r.data?.client_id||'')!==String(clientId))throw new Error('Tilbuddet blev ikke bekræftet i det aktive workspace.');
 
@@ -78,11 +91,11 @@
     finally{dateAtClick=null;saving=false;if(btn){btn.disabled=false;btn.textContent=old}}
   }
 
-  function bind(){const input=byId('oFollow');if(input&&input.dataset.offerDateFix!=='1'){input.dataset.offerDateFix='1';const changed=()=>message('Valgt: '+formatDate(input.value||null)+' · gemmes med “Gem tilbud”');input.addEventListener('input',changed);input.addEventListener('change',changed);input.addEventListener('blur',changed)}}
+  function bind(){const input=byId('oFollow');if(input&&input.dataset.offerDateFix!=='1'){input.dataset.offerDateFix='1';const changed=()=>message('Valgt: '+formatDate(input.value||null)+' · gemmes med “Gem tilbud”');input.addEventListener('input',()=>{dateEditedByUser=true;changed()});input.addEventListener('change',()=>{dateEditedByUser=true;changed()});input.addEventListener('blur',changed)}}
   document.addEventListener('pointerdown',e=>{if(e.target?.closest?.('#saveOffer'))dateAtClick=String(byId('oFollow')?.value||'').trim()},true);
   document.addEventListener('click',e=>{if(!e.target?.closest?.('#saveOffer'))return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();void save()},true);
   bind();
   window.addEventListener('lm:client-data-ready',()=>setTimeout(bind,0));
   window.addEventListener('lm:data-refreshed',()=>setTimeout(bind,0));
-  document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-offer],.offer-pipe-card'))setTimeout(bind,0)},true);
+  document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-offer],.offer-pipe-card'))setTimeout(()=>{dateEditedByUser=false;bind()},0)},true);
 })();

@@ -9,12 +9,12 @@ const app=read('api/app.js');
 
 must(tenant.includes("Object.prototype.hasOwnProperty.call(row,'client_id')"), 'tenant guard contract changed unexpectedly');
 must(offer.includes("select('id,client_id,follow_up_date')"), 'follow-up readback must include client_id for tenant verification');
-must(offer.includes(".eq('client_id',clientId).select('id,client_id,status,follow_up_date,current_comment').single()"), 'offer update must return the persisted row in the active workspace');
+must(offer.includes("update.select('id,client_id,status,follow_up_date,current_comment').single()"), 'offer update must return the persisted row in the active workspace');
 must(offer.includes("const savedDate=normalizeDate(r.data?.follow_up_date||null)"), 'offer save must verify the returned persisted date');
 must(offer.includes("readSavedDate(o.id,clientId)"), 'fallback readback must be tenant scoped');
 must(!offer.includes("select('id,follow_up_date')"), 'unsafe projected offer read without client_id returned');
 must(!offer.includes("const savedDate=await readSavedDate(o.id);"), 'old false-negative save verification returned');
-must(app.includes('/offer-date-save-v1.js?v=20260925-1'), 'offer date asset cache version not bumped');
+must(app.includes('/offer-date-save-v1.js?v=20261012-stale-guard-1'), 'offer date asset cache version not bumped');
 
 const requested='2026-09-25';
 const persisted={id:'offer-1',client_id:'client-1',follow_up_date:'2026-09-25'};

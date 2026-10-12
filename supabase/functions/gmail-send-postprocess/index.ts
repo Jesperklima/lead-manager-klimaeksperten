@@ -1,5 +1,6 @@
 import { reconcileMailJob } from '../_shared/mail-reconciliation.ts';
 import { reconcileResolvedFailedJobs } from '../_shared/mail-status-recovery.ts';
+import { reconcileSentOfferFollowups } from '../_shared/reconcile-sent-offer-followups.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders={
@@ -100,6 +101,10 @@ Deno.serve(async(req:Request)=>{
     // This never sends a message. The original provider failure remains in the audit activity.
     const recovered=await reconcileResolvedFailedJobs(admin,Math.min(limit,10));
     for(const item of recovered)results.push({ok:!item.error,...item,reconciliation:'failed_send_status'});
+    // Safe, recent-only follow-up verification: fixes stale offer cards/tasks after
+    // Gmail has actually sent and finalized the offer, without re-sending anything.
+    const followupRepairs=await reconcileSentOfferFollowups(admin,Math.min(limit,10));
+    for(const item of followupRepairs)results.push({ok:item.status!=='error',...item,reconciliation:'sent_offer_followup'});
     return json({ok:results.every(x=>x.ok),processed:results.length,results});
   }catch(err){
     console.error(err);

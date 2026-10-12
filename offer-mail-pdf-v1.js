@@ -433,11 +433,11 @@
       if(result?.__background){
         pdfSendState='uncertain';
         renderSendStatus('checking','Afsendelsen kører i baggrunden','Du kan arbejde videre. Opfølgningsdatoen bliver først opdateret efter bekræftet afsendelse og lagring.');
-        byId('offerMailModal')?.classList.remove('open');
-        window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
-        if(typeof toast==='function')toast('Afsendelsen kontrolleres i baggrunden · datoen ændres efter bekræftelse');
-        void sendRequest.then(r=>handleBackgroundSendResult(o,requestId,to,name,follow,r)).catch(error=>console.warn('[Offer mail] Baggrundsafsendelse mistede browserforbindelsen; statuskontrollen fortsætter',error));
-        setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),900);
+        // Keep the composer and its chosen follow-up date visible until Gmail confirms the outcome.
+        // Closing after 1200ms looked like a reload and hid unconfirmed send state.
+        if(typeof toast==='function')toast('Afventer Gmail-bekræftelse · behold mailvinduet åbent eller luk det manuelt');
+        void sendRequest.then(r=>handleBackgroundSendResult(o,requestId,to,name,follow,r)).catch(error=>console.warn('[Offer mail] Browserforbindelsen blev afbrudt; samme send-id kontrolleres',error));
+        setTimeout(()=>{const pending=loadPendingSend(o);if(pending?.request_id===requestId&&currentPdfSendId===requestId&&pdfSendState==='uncertain')void resumePendingOfferSend(pending)},5000);
         return;
       }
       if(result?.error)throw mailErrorFrom(result);
@@ -447,9 +447,8 @@
       if(data?.status==='sending'||data?.status==='prepared'||isPostprocessPending(data)||data?.code==='SEND_IN_PROGRESS'){
         pdfSendState='uncertain';
         renderSendStatus('checking','Afsendelsen fortsætter i baggrunden','Lead Manager følger det samme send-id og beskytter mod dobbelt afsendelse. Du kan arbejde videre.');
-        byId('offerMailModal')?.classList.remove('open');
-        window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
-        if(typeof toast==='function')toast('Mailen afsendes i baggrunden · du kan arbejde videre');
+        // The send is not final yet. Leave the editor visible while status is checked.
+        if(typeof toast==='function')toast('Gmail har endnu ikke bekræftet afsendelsen');
         setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),0);
         return;
       }
@@ -462,9 +461,8 @@
       if(status===546||/^546(?:\s|$)/.test(raw)){
         pdfSendState='uncertain';
         renderSendStatus('checking','Afsendelsen kontrolleres i baggrunden','Lead Manager følger det samme send-id og beskytter mod dobbelt afsendelse. Du kan arbejde videre.');
-        byId('offerMailModal')?.classList.remove('open');
-        window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
-        if(typeof toast==='function')toast('Gmail svarede langsomt · Lead Manager kontrollerer afsendelsen i baggrunden');
+        // A slow Gmail response must not silently dismiss the composer.
+        if(typeof toast==='function')toast('Gmail svarede langsomt · afsendelsen kontrolleres med samme send-id');
         setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),0);
         return;
       }
