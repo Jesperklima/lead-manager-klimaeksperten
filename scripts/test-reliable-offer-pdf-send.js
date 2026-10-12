@@ -37,7 +37,7 @@ for(const marker of [
   'isPostprocessPending',
   "refreshKeys('offers','tasks','mail','activities')",
   "select('id,client_id,follow_up_date')",
-  'Gmail har bekræftet afsendelsen',
+  'Gmail har sendt mailen – kontrollerer opfølgningen',
   'Gmail har sendt mailen – kontrollerer opfølgningen',
   'Afventer Gmail-bekræftelse · behold mailvinduet åbent eller luk det manuelt',
   'waitForOfferFollowUp',
