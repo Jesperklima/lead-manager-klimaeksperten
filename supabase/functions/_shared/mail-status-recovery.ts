@@ -96,17 +96,21 @@ async function fixConfirmedJob(admin:any,job:any,evidence:Recovery){
     const {data:approval,error:approvalError}=await admin.from('crm_approvals')
       .select('id,status,payload').eq('id',job.approval_id).eq('client_id',job.client_id).maybeSingle();
     if(approvalError)throw approvalError;
-    if(approval?.status==='rejected'){
+    if(['rejected','blocked'].includes(approval?.status)){
+      // Approval records describe the original authorization attempt. Changing a rejected
+      // attempt back to "approved" would correctly trigger the duplicate-send safety guard.
+      // Preserve its historical status; annotate the resolved error instead. The send JOB,
+      // which is authoritative for delivery, has already been set to "sent".
       const payload={...(approval.payload||{})};
-      payload.original_send_error=payload.send_error||job.error_message||null;
+      payload.original_send_error=payload.original_send_error||payload.send_error||job.error_message||null;
       delete payload.send_error;
       payload.send_error_resolved=true;
       payload.corrected_at=now;
       payload.recovery_source=evidence.source;
       payload.verified_provider_message_id=evidence.provider_message_id;
       const {error:approveError}=await admin.from('crm_approvals')
-        .update({status:'approved',decided_at:now,payload})
-        .eq('id',approval.id).eq('client_id',job.client_id).eq('status','rejected');
+        .update({payload})
+        .eq('id',approval.id).eq('client_id',job.client_id);
       if(approveError)throw approveError;
     }
   }
