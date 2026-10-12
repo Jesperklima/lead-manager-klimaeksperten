@@ -36,7 +36,7 @@ async function resolved(admin:any,clientId:string,fingerprint:string){
 }
 export async function watchMailIntegrity(admin:any){
   const checkedAt=new Date().toISOString();
-  const nowMs=Date.now(),oldest=new Date(nowMs-7*86400000).toISOString();
+  const nowMs=Date.now(),oldest=new Date(nowMs-30*86400000).toISOString();
   const results:any[]=[];
   // Unknown outcomes are not auto-resent; pending jobs with no progress are an operational issue.
   const jobsR=await admin.from('crm_mail_send_jobs')
