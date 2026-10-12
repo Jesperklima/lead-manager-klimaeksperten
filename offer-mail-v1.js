@@ -241,7 +241,7 @@
   function friendlyMailError(error){
     const status=Number(error?.status||0),code=String(error?.code||''),message=String(error?.message||'');
     if(status===546||/^546(?:\s|$)/.test(message))return 'Mailtjenesten blev afbrudt under afsendelsen. Lead Manager kontrollerer automatisk, om Gmail nåede at sende mailen.';
-    if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Afsendelsen blev afbrudt, og Gmail kunne ikke finde mailen. Du kan prøve at sende igen.';
+    if(code==='SEND_INTERRUPTED_NOT_FOUND')return 'Gmail kunne ikke bekræfte, om mailen blev sendt. Kontrollér Sendt-mappen før en eventuel ny afsendelse.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
     return message||'Mailen kunne ikke sendes.';
   }
@@ -267,7 +267,7 @@
     const expected=normalizeFollowDate(expectedDate);
     if(!expected||!o?.id||!state?.client?.id||typeof supabase==='undefined')return true;
     const local=(state.offers||[]).find(x=>x.id===o.id);
-    if(normalizeFollowDate(local?.follow_up_date)===expected){o.follow_up_date=expected;return true}
+    // Never treat cached UI state as proof of a committed follow-up date.
     const {data,error}=await supabase.from('crm_offers').select('id,client_id,follow_up_date').eq('id',o.id).eq('client_id',state.client.id).limit(1);
     if(error)throw new Error(error.message||'Kunne ikke bekræfte opfølgningsdatoen');
     const row=Array.isArray(data)?data[0]:data;
