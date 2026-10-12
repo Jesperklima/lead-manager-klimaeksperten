@@ -12,6 +12,7 @@
   let suppressionReason='';
   let suppressionCode='';
   let sendWatchSeq=0;
+  const finishingSendIds=new Set();
   const pdfStatusCache=new Map();
   const suppressionCache=new Map();
 
@@ -23,7 +24,8 @@
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
   const finalizedStatuses=new Set(['sent']);
   const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing']);
-  function isSentResult(data){const status=String(data?.status||'');return finalizedStatuses.has(status)||postprocessStatuses.has(status)}
+  // Gmail acceptance is NOT the same as a completed CRM follow-up commit.
+  function isSentResult(data){return finalizedStatuses.has(String(data?.status||''))}
   function isPostprocessPending(data){return postprocessStatuses.has(String(data?.status||''))}
   function mailErrorFrom(result){const e=new Error(result?.error?.message||'Mailafsendelsen fejlede');Object.assign(e,result?.error||{});return e}
   function friendlyMailError(error){
@@ -103,7 +105,8 @@
       catch(error){check={error}}
       last=check;
       if(check?.data&&isSentResult(check.data))return {state:'sent',data:check.data};
-      if(check?.data?.status==='failed'||check?.error?.code==='SEND_INTERRUPTED_NOT_FOUND')return {state:'failed',error:check.error||check.data};
+      if(check?.data?.status==='unknown'||check?.error?.code==='SEND_INTERRUPTED_NOT_FOUND')return {state:'unknown',error:check.error||check.data};
+      if(check?.data?.status==='failed')return {state:'failed',error:check.error||check.data};
       const code=String(check?.error?.code||'');
       const status=Number(check?.error?.status||0);
       if(check?.error&&status!==546&&!['SEND_JOB_NOT_FOUND','SEND_IN_PROGRESS'].includes(code)&&!(status>=500&&status<600)){
@@ -169,27 +172,38 @@
     throw lastError||new Error('Opfølgningsdatoen blev ikke synkroniseret i tide');
   }
   async function finishPdfSend(o,to,data,name,follow){
-    const effectiveFollow=effectiveFollowDate(data,follow);
-    // Provider acceptance is not a database commit; the follow-up date is rendered only after verification.
-    const completedSendId=currentPdfSendId;
-    clearPendingSend(o,completedSendId);
-    renderSendStatus('success','Mailen er sendt – gemmer opfølgningen','Lead Manager kontrollerer automatisk opfølgningsdatoen, som synkroniseres i baggrunden. Gmail har bekræftet afsendelsen, så du kan arbejde videre.');
-    byId('offerMailModal')?.classList.remove('open');
-    window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
-    currentPdfSendId=null;pdfSendState='idle';
-    if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name}`);
-
-    setTimeout(()=>void (async()=>{
-      try{
-        await waitForOfferFollowUp(o,effectiveFollow,45000);
-        if(typeof openOffer==='function'&&offer()?.id===o.id)openOffer(o.id);
-        if(typeof toast==='function')toast(`Opfølgning opdateret til ${effectiveFollow||follow}`);
-      }catch(error){
-        console.error('[Offer mail] Mailen er sendt, men opfølgningsdatoen blev ikke synkroniseret',error);
-        if(typeof toast==='function')toast('Mailen er sendt · opfølgningsdatoen kunne ikke bekræftes automatisk');
-      }
-    })(),0);
-    return true;
+    // The server-side finalization must have committed before we report completion.
+    if(!isSentResult(data))return false;
+    const effectiveFollow=effectiveFollowDate(data,follow),completedSendId=currentPdfSendId;
+    if(!completedSendId||finishingSendIds.has(completedSendId))return true;
+    finishingSendIds.add(completedSendId);
+    pdfSendState='uncertain';
+    renderSendStatus('checking','Gmail har sendt mailen – kontrollerer opfølgningen',
+      'Mailen må ikke sendes igen. Lead Manager kontrollerer, at næste opfølgning faktisk er gemt i databasen.');
+    try{
+      await waitForOfferFollowUp(o,effectiveFollow,45000);
+      clearPendingSend(o,completedSendId);
+      renderSendStatus('success','Mail og opfølgning gennemført',
+        `Gmail og Lead Manager er afstemt. Næste opfølgning: ${effectiveFollow||'ingen dato'}.`);
+      byId('offerMailModal')?.classList.remove('open');
+      window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
+      currentPdfSendId=null;pdfSendState='idle';
+      if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name} · opfølgning gemt`);
+      return true;
+    }catch(error){
+      console.error('[Offer mail] Gmail send confirmed but CRM follow-up unverified',error);
+      renderSendStatus('error','Mailen er sendt – opfølgningsdatoen kræver kontrol',
+        'Send ikke mailen igen. Lead Manager beholder det samme send-id og forsøger at verificere datoen. '+String(error?.message||''));
+      if(typeof toast==='function')toast('Mailen er sendt, men opfølgningsdatoen skal kontrolleres');
+      const button=byId('sendOfferMail');
+      if(button){button.disabled=true;button.textContent='Kontrollerer opfølgningsdato…'}
+      setTimeout(()=>{
+        if(currentPdfSendId===completedSendId)void resumePendingOfferSend(loadPendingSend(o));
+      },12000);
+      return false;
+    }finally{
+      finishingSendIds.delete(completedSendId);
+    }
   }
 
   async function resumePendingOfferSend(saved=null){
@@ -239,6 +253,12 @@
       if(!done){
         setTimeout(()=>void resumePendingOfferSend(loadPendingSend(o)),2500);
       }
+      return true;
+    }
+    if(checked.state==='unknown'){
+      renderSendStatus('error','Afsendelsesstatus ukendt',
+        'Gmail kunne ikke bekræfte afsendelsen. Send ikke mailen igen, før Sendt-mappen er kontrolleret. Send-id bevares.');
+      if(button){button.disabled=true;button.textContent='Afventer manuel kontrol'}
       return true;
     }
     if(checked.state==='failed'){
@@ -443,7 +463,11 @@
       if(result?.error)throw mailErrorFrom(result);
       const data=result?.data??result;
       if(isSentResult(data)){await finishPdfSend(o,to,data,name,follow);return}
-      if(isPostprocessPending(data)&&button)button.textContent='Gemmer opfølgning…';
+      if(isPostprocessPending(data)){
+        renderSendStatus('checking','Gmail har sendt mailen – gemmer opfølgningen',
+          'Gmail har accepteret mailen. Lead Manager er ved at gemme opfølgningsdatoen. Send ikke igen.');
+        if(button)button.textContent='Gemmer opfølgning…';
+      }
       if(data?.status==='sending'||data?.status==='prepared'||isPostprocessPending(data)||data?.code==='SEND_IN_PROGRESS'){
         pdfSendState='uncertain';
         renderSendStatus('checking','Afsendelsen fortsætter i baggrunden','Lead Manager følger det samme send-id og beskytter mod dobbelt afsendelse. Du kan arbejde videre.');
