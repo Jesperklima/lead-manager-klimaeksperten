@@ -78,7 +78,14 @@ Deno.serve(async(req:Request)=>{
         results.push({job_id:job.id,ok:false,error:e instanceof Error?e.message:String(e)});
       }
     }
-    const stale=await admin.from('crm_mail_send_jobs').select('*').in('status',['prepared','sending','unknown']).lt('updated_at',new Date(Date.now()-15*60000).toISOString()).order('updated_at',{ascending:true}).limit(limit);
+    // Rechecking old uncertain jobs every quarter-hour cannot change an absent provider message.
+    // Check at most hourly, and never auto-send an uncertain message.
+    const checkBefore=new Date(Date.now()-60*60000).toISOString();
+    const stale=await admin.from('crm_mail_send_jobs').select('*')
+      .in('status',['prepared','sending','unknown'])
+      .lt('updated_at',new Date(Date.now()-15*60000).toISOString())
+      .or('last_status_check_at.is.null,last_status_check_at.lt.'+checkBefore)
+      .order('updated_at',{ascending:true}).limit(limit);
     if(stale.error)throw stale.error;
     for(const job of stale.data||[]){
       try{results.push({ok:true,...await reconcileMailJob(admin,job)});}

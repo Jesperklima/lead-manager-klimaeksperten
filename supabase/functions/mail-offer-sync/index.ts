@@ -243,13 +243,16 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
       if(backfillDays>0&&meta.offer_sync_processed===true&&(!refs.length||syncResult==='PENDING_APPROVAL'))legacyReinspect.add(id);
     }
   }
-  const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id)).slice(0,300);
+  // Limit provider quota usage, but report backlog so the integration checkpoint does NOT move past unseen mail.
+  const eligible=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id));
+  const hasMore=eligible.length>40||!!pageToken;
+  const pending=eligible.slice(0,40);
   const rows:any[]=[];
-  for(let i=0;i<pending.length;i+=5){
-    const batch=await Promise.all(pending.slice(i,i+5).map(async(id:string)=>{
+  for(let i=0;i<pending.length;i+=2){
+    const batch=await Promise.all(pending.slice(i,i+2).map(async(id:string)=>{
       const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,{headers:{Authorization:'Bearer '+access}});
       const m=await r.json().catch(()=>({}));
-      if(!r.ok)return null;
+      if(!r.ok)throw new Error(`Gmail message fetch failed (${r.status}) for ${id}`);
       const fromRaw=gmailHeader(m.payload,'From'),toRaw=gmailHeader(m.payload,'To'),ccRaw=gmailHeader(m.payload,'Cc');
       const from=lower((fromRaw.match(emailRe)||[fromRaw])[0]),to=(toRaw.match(emailRe)||[]).map(lower),cc=(ccRaw.match(emailRe)||[]).map(lower);
       const outbound=!!from&&(from===account||internalDomains.has(domainOf(from)));
@@ -259,7 +262,7 @@ async function fetchGmail(admin:any,clientId:string,lastSync:any,backfillDays:nu
     }));
     rows.push(...batch.filter(Boolean));
   }
-  return rows;
+  return {rows,hasMore,pendingTotal:eligible.length};
 }
 
 async function fetchMicrosoft(admin:any,clientId:string,lastSync:any,backfillDays:number,internalDomains:Set<string>){
@@ -470,9 +473,10 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
     for(const c of companies||[]){companyById.set(c.id,c);for(const d0 of[c.domain,c.website_url]){const d=normalizeDomain(d0);if(!d)continue;const a=companyByDomain.get(d)||[];if(!a.includes(c.id))a.push(c.id);companyByDomain.set(d,a)}}
   };rebuildMaps();
   const mailConnected=(integrations||[]).filter((i:any)=>['gmail','microsoft'].includes(i.provider)&&i.status==='connected'),providerResults:any[]=[],successfulProviders:string[]=[];
+  const providersWithBacklog=new Set<string>();
   let allMessages:any[]=await loadStoredPendingMessages(admin,clientId,integrations||[],backfillDays,internalDomains);
   providerResults.push({provider:'stored_mail',pending:allMessages.length});
-  for(const i of mailConnected){try{const rows=i.provider==='microsoft'?await fetchMicrosoft(admin,clientId,i.last_sync_at,backfillDays,internalDomains):await fetchGmail(admin,clientId,i.last_sync_at,backfillDays,internalDomains);allMessages.push(...rows);providerResults.push({provider:i.provider,new_messages:rows.length});successfulProviders.push(i.provider)}catch(e){const msg=errText(e);providerResults.push({provider:i.provider,error:msg});if(!dryRun)await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider',i.provider)}}
+  for(const i of mailConnected){try{const fetched=i.provider==='microsoft'?{rows:await fetchMicrosoft(admin,clientId,i.last_sync_at,backfillDays,internalDomains),hasMore:false,pendingTotal:0}:await fetchGmail(admin,clientId,i.last_sync_at,backfillDays,internalDomains);const rows=fetched.rows;allMessages.push(...rows);if(fetched.hasMore)providersWithBacklog.add(i.provider);providerResults.push({provider:i.provider,new_messages:rows.length,pending_total:fetched.pendingTotal,backlog:fetched.hasMore});successfulProviders.push(i.provider)}catch(e){const msg=errText(e);providerResults.push({provider:i.provider,error:msg});if(!dryRun)await admin.from('crm_integrations').update({last_error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('client_id',clientId).eq('provider',i.provider)}}
   allMessages=[...new Map(allMessages.map((m:any)=>[`${m.provider}:${m.id}`,m])).values()];
   let minuba:any={enabled:false,rows:[]};
   if((integrations||[]).some((i:any)=>i.provider==='minuba'&&i.status==='connected')){try{minuba=await loadMinubaProposals(admin,clientId);providerResults.push({provider:'minuba_validation',active_proposals:minuba.rows.length})}catch(e){minuba={enabled:true,rows:[],error:errText(e)};providerResults.push({provider:'minuba_validation',error:minuba.error})}}
@@ -587,7 +591,11 @@ async function runClient(admin:any,client:any,dryRun:boolean,backfillDays:number
   if(!dryRun){
     approvalCleanup=await reconcilePendingMailApprovals(admin,clientId);
     if(followUpNotices.length){try{await sendGmailFollowUpNotice(admin,clientId,owner,followUpNotices)}catch(e){providerResults.push({provider:'gmail_notification',error:errText(e)})}}
-    const now=new Date().toISOString();for(const p of successfulProviders)await admin.from('crm_integrations').update({last_sync_at:now,last_error:null,updated_at:now}).eq('client_id',clientId).eq('provider',p);
+    const now=new Date().toISOString();for(const p of successfulProviders){
+      const patch=providersWithBacklog.has(p)?{last_error:'GMAIL_SYNC_BACKLOG: Several messages remain to be processed in the next run',updated_at:now}:{last_sync_at:now,last_error:null,updated_at:now};
+      const {error:checkpointError}=await admin.from('crm_integrations').update(patch).eq('client_id',clientId).eq('provider',p);
+      if(checkpointError)throw new Error(errText(checkpointError));
+    }
     await admin.from('crm_usage_events').insert({client_id:clientId,event_type:'mail_offer_sync',quantity:1,metadata:{fetched:allMessages.length,expanded_candidates:expandedMessages.length,candidates:proposals.length,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,mode:'mail_decision_v3_paginated_multi_offer_v18_pending_retry'}});
   }
   return{client_id:clientId,dry_run:dryRun,providers:providerResults,fetched:allMessages.length,candidates:proposals.length,stored,processed,ignored,approvals,minuba_created:minubaCreated,approval_cleanup:approvalCleanup,proposals:proposals.slice(0,25)};

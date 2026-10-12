@@ -15,3 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify canonical bytes, policy markers and Vercel config
         run: bash scripts/verify-repository-baseline.sh
+      - name: Smoke-test Gmail quota and follow-up safeguards
+        run: |
+          node --check offer-mail-pdf-v1.js
+          node scripts/test-gmail-quota-and-followup-guardrails.js
