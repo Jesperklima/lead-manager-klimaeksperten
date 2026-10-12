@@ -1,6 +1,7 @@
 import { reconcileMailJob } from '../_shared/mail-reconciliation.ts';
 import { reconcileResolvedFailedJobs } from '../_shared/mail-status-recovery.ts';
 import { reconcileSentOfferFollowups } from '../_shared/reconcile-sent-offer-followups.ts';
+import { watchMailIntegrity } from '../_shared/mail-integrity-watch.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders={
@@ -105,6 +106,18 @@ Deno.serve(async(req:Request)=>{
     // Gmail has actually sent and finalized the offer, without re-sending anything.
     const followupRepairs=await reconcileSentOfferFollowups(admin,Math.min(limit,10));
     for(const item of followupRepairs)results.push({ok:item.status!=='error',...item,reconciliation:'sent_offer_followup'});
+    // Non-sending watchdog: expose unfinished jobs and inconsistent dates as
+    // persistent quality incidents. A monitoring fault must not stop mail postprocessing.
+    try{
+      const watch=await watchMailIntegrity(admin);
+      for(const finding of watch.findings)results.push({
+        ok:finding.type!=='monitor_error',reconciliation:'mail_integrity_watch',...finding
+      });
+    }catch(watchError){
+      console.error('[mail-integrity-watch] error',watchError);
+      results.push({ok:false,reconciliation:'mail_integrity_watch',
+        error:watchError instanceof Error?watchError.message:String(watchError)});
+    }
     return json({ok:results.every(x=>x.ok),processed:results.length,results});
   }catch(err){
     console.error(err);
