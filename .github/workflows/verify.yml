@@ -20,6 +20,7 @@ jobs:
           node --check offer-mail-pdf-v1.js
           node --check offer-mail-v1.js
           node scripts/test-mail-completion-behavior.js
+          node scripts/test-mail-integrity-watch.js
           node scripts/test-gmail-quota-and-followup-guardrails.js
           node scripts/test-confirmed-mail-status-recovery.js
           node scripts/test-offer-send-feedback-and-date-recovery.js
