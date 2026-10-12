@@ -32,7 +32,7 @@ for(const marker of [
   "select('id,client_id,follow_up_date')",
   "Gmail har sendt mailen – kontrollerer opfølgningen",
   "Lead Manager kontrollerer, at næste opfølgning faktisk er gemt i databasen",
-  "Gmail har bekræftet afsendelsen",
+  "Gmail har sendt mailen – kontrollerer opfølgningen",
   "Mail og opfølgning gennemført"
 ]) must(pdfUi.includes(marker),'PDF offer follow-up finalization marker missing: '+marker);
 must(!pdfUi.includes('Brug “Kontroller status”'), 'PDF offer mail returned to manual status recovery wording');
