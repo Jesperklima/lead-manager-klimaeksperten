@@ -39,8 +39,9 @@ export async function reconcileSentOfferFollowups(admin:any,limit=10){
       if(!o||!activeOfferStatuses.has(String(o.status||''))||!m||m.metadata?.provider_accepted!==true)continue;
       const expected=asDate(j.follow_up_date),actual=asDate(o.follow_up_date);
       if(actual===expected)continue;
-      // Never undo a newer explicit status change.
-      if(o.status_updated_at&&new Date(o.status_updated_at)>new Date(j.sent_at))continue;
+      // A stale editor save can update status_updated_at without changing the status
+      // or actually selecting a new follow-up. Use explicit manual planning evidence,
+      // not that timestamp alone, to distinguish a deliberate reschedule.
       // An explicit manually logged post-send reschedule takes priority over the send.
       const manualR=await admin.from('crm_activities')
         .select('id,metadata')
