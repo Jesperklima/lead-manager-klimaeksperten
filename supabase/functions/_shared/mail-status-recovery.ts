@@ -7,7 +7,7 @@ const text=(v:unknown,max=1000)=>String(v??'').slice(0,max);
 type Recovery = {provider_message_id:string;provider_thread_id:string;sent_at:string;source:string;later_job_id?:string};
 
 async function verifiedManualResend(admin:any,job:any,tokenCache:Map<string,string>):Promise<Recovery|null>{
-  if(job.provider!=='gmail')return null;
+  if(job.provider!=='gmail'||!job.offer_id)return null;
   const {data:rows,error}=await admin.from('crm_mail_messages')
     .select('id,client_id,offer_id,external_message_id,external_thread_id,to_emails,subject,message_at,metadata')
     .eq('client_id',job.client_id).eq('offer_id',job.offer_id).eq('provider','gmail').eq('direction','outbound')
@@ -133,6 +133,8 @@ export async function reconcileResolvedFailedJobs(admin:any,limit=10){
       }
     }catch(e){
       const msg=e instanceof Error?e.message:String(e);
+      await admin.from('crm_mail_send_jobs').update({last_status_check_at:new Date().toISOString()})
+        .eq('id',job.id).eq('client_id',job.client_id).eq('status','failed');
       results.push({job_id:job.id,status:'failed',error:msg});
     }
   }
