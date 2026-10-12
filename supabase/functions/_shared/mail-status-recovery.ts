@@ -4,7 +4,7 @@ const norm=(value:unknown)=>String(value??'').trim().toLowerCase();
 const uuid=(s:unknown)=>/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(String(s||''));
 const text=(v:unknown,max=1000)=>String(v??'').slice(0,max);
 
-type Recovery = {provider_message_id:string;provider_thread_id:string;sent_at:string;source:string;later_job_id?:string};
+type Recovery = {provider_message_id:string;provider_thread_id:string;sent_at:string;source:string};
 
 async function verifiedManualResend(admin:any,job:any,tokenCache:Map<string,string>):Promise<Recovery|null>{
   if(job.provider!=='gmail'||!job.offer_id)return null;
@@ -45,26 +45,8 @@ async function verifiedManualResend(admin:any,job:any,tokenCache:Map<string,stri
   return {provider_message_id:String(msg.id),provider_thread_id:String(msg.threadId||msg.id),sent_at:m.message_at,source:'verified_manual_gmail_resend'};
 }
 
-async function verifiedLaterSend(admin:any,job:any):Promise<Recovery|null>{
-  if(!job.offer_id&&!job.lead_id)return null;
-  const cutoff=new Date(new Date(job.created_at).getTime()+48*3600000).toISOString();
-  let q=admin.from('crm_mail_send_jobs')
-    .select('id,provider_message_id,provider_thread_id,gmail_message_id,gmail_thread_id,sent_at,postprocessed_at')
-    .eq('client_id',job.client_id).eq('provider',job.provider)
-    .eq('to_email',job.to_email).eq('subject',job.subject)
-    .eq('follow_up_date',job.follow_up_date).eq('status','sent')
-    .gt('created_at',job.created_at).lte('created_at',cutoff)
-    .not('sent_at','is',null).not('postprocessed_at','is',null)
-    .order('created_at',{ascending:true}).limit(1);
-  q=job.offer_id?q.eq('offer_id',job.offer_id):q.eq('lead_id',job.lead_id).is('offer_id',null);
-  const {data,error}=await q;
-  if(error)throw error;
-  const next=data?.[0];
-  const msg=String(next?.provider_message_id||next?.gmail_message_id||'');
-  if(!msg)return null;
-  return {provider_message_id:msg,provider_thread_id:String(next.provider_thread_id||next.gmail_thread_id||msg),sent_at:String(next.sent_at),source:'later_confirmed_crm_send',later_job_id:next.id};
-}
-
+// A later successful CRM job MUST NOT turn an earlier failed attempt into a second
+// "sent" job. Its own job is already sent, and the older failure remains audit history.
 async function fixConfirmedJob(admin:any,job:any,evidence:Recovery){
   const now=new Date().toISOString();
   // Atomic status guard prevents multiple cron workers from resolving the same attempt.
@@ -87,7 +69,7 @@ async function fixConfirmedJob(admin:any,job:any,evidence:Recovery){
     metadata:{source:'confirmed_send_status_recovery',status_recovery_job_id:job.id,
       previous_status:'failed',previous_error_code:job.error_code,previous_error_message:text(job.error_message),
       provider:job.provider,provider_message_id:evidence.provider_message_id,
-      evidence_source:evidence.source,later_sent_job_id:evidence.later_job_id||null,
+      evidence_source:evidence.source,
       corrected_at:now,recipient:job.to_email}
   });
   if(activityError)console.error('[mail-status-recovery] audit insert failed',job.id,activityError.message);
@@ -128,7 +110,7 @@ export async function reconcileResolvedFailedJobs(admin:any,limit=10){
   const results:any[]=[],tokens=new Map<string,string>();
   for(const job of jobs||[]){
     try{
-      const recovery=await verifiedLaterSend(admin,job)||await verifiedManualResend(admin,job,tokens);
+      const recovery=await verifiedManualResend(admin,job,tokens);
       if(recovery)results.push(await fixConfirmedJob(admin,job,recovery));
       else{
         await admin.from('crm_mail_send_jobs').update({last_status_check_at:new Date().toISOString()})
