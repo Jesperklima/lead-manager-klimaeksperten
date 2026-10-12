@@ -14,14 +14,12 @@ for(const marker of [
  "error_code:null,error_message:null",
  "payload.send_error_resolved=true",
  "payload.original_send_error=",
- "if(!job.offer_id&&!job.lead_id)return null",
- ".eq('to_email',job.to_email).eq('subject',job.subject)",
- ".eq('follow_up_date',job.follow_up_date).eq('status','sent')",
- ".not('sent_at','is',null).not('postprocessed_at','is',null)",
- "new Date(job.created_at).getTime()+48*3600000",
  "last_status_check_at.lt.",
  "return results;"
 ])assert(recovery.includes(marker),'Missing send-status recovery guard: '+marker);
+assert(!recovery.includes(".update({status:'approved'"),'A corrected send must not re-approve an already attempted mail');
+assert(recovery.includes(".update({payload})"),'Resolution is recorded as approval metadata only');
+assert(!recovery.includes('verifiedLaterSend('),'One sent CRM job must not repair multiple failed attempts as extra sends');
 assert(!recovery.includes('/messages/send'),'Recovery must not send mails');
 assert(!recovery.includes('gmailSendMime('),'Recovery must not send MIME');
 assert(!recovery.includes("status:'sent',sent_at:now"),'Recovery must use verified provider time');
