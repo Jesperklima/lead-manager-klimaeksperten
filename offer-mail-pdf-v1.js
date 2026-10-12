@@ -170,7 +170,7 @@
   }
   async function finishPdfSend(o,to,data,name,follow){
     const effectiveFollow=effectiveFollowDate(data,follow);
-    if(effectiveFollow)applyFollowDateLocally(o,effectiveFollow);
+    // Provider acceptance is not a database commit; the follow-up date is rendered only after verification.
     const completedSendId=currentPdfSendId;
     clearPendingSend(o,completedSendId);
     renderSendStatus('success','Mailen er sendt – gemmer opfølgningen','Lead Manager kontrollerer automatisk opfølgningsdatoen, som synkroniseres i baggrunden. Gmail har bekræftet afsendelsen, så du kan arbejde videre.');
@@ -432,7 +432,7 @@
       ]);
       if(result?.__background){
         pdfSendState='uncertain';
-        renderSendStatus('checking','Afsendelsen kører i baggrunden',`Du kan arbejde videre. Næste opfølgning ændres først, når Gmail har bekræftet afsendelsen.`);
+        renderSendStatus('checking','Afsendelsen kører i baggrunden','Du kan arbejde videre. Opfølgningsdatoen bliver først opdateret efter bekræftet afsendelse og lagring.');
         byId('offerMailModal')?.classList.remove('open');
         window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
         if(typeof toast==='function')toast('Afsendelsen kontrolleres i baggrunden · datoen ændres efter bekræftelse');
