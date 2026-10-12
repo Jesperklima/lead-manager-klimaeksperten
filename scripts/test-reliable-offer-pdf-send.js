@@ -38,7 +38,7 @@ for(const marker of [
   "refreshKeys('offers','tasks','mail','activities')",
   "select('id,client_id,follow_up_date')",
   'Gmail har bekræftet afsendelsen',
-  'synkroniseres i baggrunden',
+  'Gmail har sendt mailen – kontrollerer opfølgningen',
   'Afventer Gmail-bekræftelse · behold mailvinduet åbent eller luk det manuelt',
   'waitForOfferFollowUp',
   'Promise.race',
@@ -50,7 +50,8 @@ for(const marker of [
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
-must(ui.includes("finalizedStatuses.has(status)||postprocessStatuses.has(status)"),'offer PDF UI must treat Gmail-acknowledged post-processing states as delivery-confirmed without waiting on CRM refresh');
+must(ui.includes("return finalizedStatuses.has(String(data?.status||''))"),'offer PDF UI must require final CRM status before reporting complete');
+must(!ui.includes('finalizedStatuses.has(status)||postprocessStatuses.has(status)'), 'postprocessing must not be treated as completed send');
 must(!ui.includes('Brug “Kontroller status”'), 'offer PDF UI returned to manual status recovery wording');
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
