@@ -614,7 +614,26 @@ Deno.serve(async(req:Request)=>{
         });
       }
       if(existing.status==='failed'){
-        return json({error:existing.error_message||'Det tidligere sendeforsøg fejlede',code:existing.error_code||'SEND_FAILED',status:'unknown',send_id:requestId},409);
+        // An approved, later manual Gmail resend must resolve the customer's visible
+        // delivery status without rewriting the audit record of the original failure.
+        const {data:manualResend,error:manualLookupError}=await admin.from('crm_mail_messages')
+          .select('external_message_id,external_thread_id,message_at,metadata')
+          .eq('client_id',clientId).eq('provider','gmail').eq('offer_id',existing.offer_id)
+          .eq('direction','outbound')
+          .contains('metadata',{original_failed_send_job_id:existing.id,manual_resend_after_quota:true})
+          .order('message_at',{ascending:false}).limit(1).maybeSingle();
+        if(manualLookupError)throw manualLookupError;
+        if(manualResend?.external_message_id){
+          return json({
+            ok:true,sent:true,status:'sent',manual_recovery:true,
+            send_id:requestId,job_id:existing.id,
+            id:manualResend.external_message_id,
+            thread_id:manualResend.external_thread_id||manualResend.external_message_id,
+            follow_up_date:existing.follow_up_date,follow_up_at:existing.follow_up_at,
+            attachment:existing.attachment_filename?{filename:existing.attachment_filename,source:'manual_gmail_resend'}:null
+          });
+        }
+        return json({error:existing.error_message||'Det tidligere sendeforsøg fejlede',code:existing.error_code||'SEND_FAILED',status:'failed',sent:false,send_id:requestId},409);
       }
 
       const ageMs=Date.now()-new Date(existing.updated_at||existing.created_at).getTime();
@@ -845,7 +864,7 @@ Deno.serve(async(req:Request)=>{
       const msg=String(sent?.error?.message||`Gmail send fejlede (${sendResp.status})`);
       const failedAt=new Date().toISOString();
       await Promise.all([
-        admin.from('crm_mail_send_jobs').update({status:'failed',error_code:'GMAIL_SEND_ERROR',error_message:msg,updated_at:failedAt}).eq('id',job.id),
+        admin.from('crm_mail_send_jobs').update({status:'failed',error_code:quotaExceeded?'GMAIL_QUOTA_EXCEEDED':'GMAIL_SEND_ERROR',error_message:msg,updated_at:failedAt}).eq('id',job.id),
         admin.from('crm_approvals').update({status:'rejected',payload:{...(approval?.payload||{}),send_error:msg}}).eq('id',approval.id),
         admin.from('crm_integrations').update({last_error:msg,updated_at:failedAt}).eq('client_id',clientId).eq('provider','gmail')
       ]);
