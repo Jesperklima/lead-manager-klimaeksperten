@@ -1,4 +1,5 @@
 import { reconcileMailJob } from '../_shared/mail-reconciliation.ts';
+import { reconcileResolvedFailedJobs } from '../_shared/mail-status-recovery.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders={
@@ -95,6 +96,10 @@ Deno.serve(async(req:Request)=>{
         results.push({job_id:job.id,ok:false,error:message});
       }
     }
+    // Reconcile errors only after another provider-confirmed message has resolved them.
+    // This never sends a message. The original provider failure remains in the audit activity.
+    const recovered=await reconcileResolvedFailedJobs(admin,Math.min(limit,10));
+    for(const item of recovered)results.push({ok:!item.error,...item,reconciliation:'failed_send_status'});
     return json({ok:results.every(x=>x.ok),processed:results.length,results});
   }catch(err){
     console.error(err);

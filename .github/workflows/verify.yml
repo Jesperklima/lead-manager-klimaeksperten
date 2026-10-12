@@ -19,3 +19,4 @@ jobs:
         run: |
           node --check offer-mail-pdf-v1.js
           node scripts/test-gmail-quota-and-followup-guardrails.js
+          node scripts/test-confirmed-mail-status-recovery.js
