@@ -22,6 +22,8 @@ for(const marker of [
  "last_status_check_at.lt.",
  "return results;"
 ])assert(recovery.includes(marker),'Missing send-status recovery guard: '+marker);
+assert(!recovery.includes(".update({status:'approved'"),'A corrected send must not re-approve an already attempted mail');
+assert(recovery.includes(".update({payload})"),'Resolution is recorded as approval metadata only');
 assert(!recovery.includes('/messages/send'),'Recovery must not send mails');
 assert(!recovery.includes('gmailSendMime('),'Recovery must not send MIME');
 assert(!recovery.includes("status:'sent',sent_at:now"),'Recovery must use verified provider time');
