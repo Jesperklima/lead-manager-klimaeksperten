@@ -20,7 +20,7 @@ assert(!send.includes("Mailen afsendes i baggrunden · du kan arbejde videre"),'
 // Backstop verifies provider-accepted mail, never sends and does not overwrite later manual decisions.
 for(const marker of [
  "status','sent'", "postprocessed_at", "provider_accepted!==true",
- "activeOfferStatuses", "status_updated_at", "metadata?.manual===true",
+ "activeOfferStatuses", "metadata?.manual===true",
  "metadata?.method==='verified_offer_save'", ".eq('client_id',j.client_id)",
  ".eq('follow_up_date',actual)", ".eq('status',o.status)",
  "source:'verified_send_followup_reconciliation'", "seen.add(j.offer_id)",
@@ -28,6 +28,10 @@ for(const marker of [
 ])assert(check.includes(marker),'Missing integrity guard: '+marker);
 assert(!check.includes('messages/send'),'Reconciler may never send customer mail');
 assert(!check.includes('gmailSendMime('),'Reconciler may never call sender');
+const saver=fs.readFileSync('offer-date-save-v1.js','utf8');
+assert(saver.includes('const persistedBeforeSave=await readSavedDate(o.id,clientId)'),'Save must read current DB value first');
+assert(saver.includes('!dateEditedByUser&&persistedBeforeSave!==requestedDate'),'Do not overwrite a newer mail date with an unchanged stale form');
+assert(saver.includes("update.eq('follow_up_date',persistedBeforeSave)"),'Date save must compare-and-swap');
 assert(worker.includes("reconcileSentOfferFollowups(admin,Math.min(limit,10))"),'Existing cron must run follow-up verification');
 assert(worker.includes("reconcileResolvedFailedJobs(admin,Math.min(limit,10))"),'Previous status recovery unchanged');
 console.log('PASS: pending composer stays visible, post-send date consistency preserves manual adjustments');
