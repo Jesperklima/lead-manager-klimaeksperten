@@ -209,7 +209,7 @@
         if(!data?.send_id)return false;
         const backendFollow=effectiveFollowDate(data,'');
         pending={request_id:data.send_id,created_at:Date.now(),to:to||'',follow:backendFollow||String(byId('offerMailFollow')?.value||''),name:pdfName(o)};
-        if(pending.follow)applyFollowDateLocally(o,pending.follow);
+        // Resuming a provider send does not confirm a saved follow-up date.
         savePendingSend(o,data.send_id,pending);
         if(isSentResult(data)){
           currentPdfSendId=data.send_id;
