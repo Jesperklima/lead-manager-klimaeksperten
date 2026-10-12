@@ -3,9 +3,13 @@
 const normDate=(value:any)=>String(value||'').slice(0,10);
 const statuses=new Set(['unknown','prepared','sending','sent_pending_postprocess','postprocessing']);
 const liveOfferStatuses=new Set(['I GANG','AFVENTER','PÅ PAUSE','STATUS UKLAR']);
-const localDate=(value:string)=>new Intl.DateTimeFormat('en-CA',{
-  timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit'
-}).format(new Date(value));
+const localDate=(value:string)=>{
+  const parts=new Intl.DateTimeFormat('en-GB',{
+    timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(new Date(value));
+  const get=(type:string)=>parts.find(p=>p.type===type)?.value||'';
+  return get('year')+'-'+get('month')+'-'+get('day');
+};
 
 async function issue(admin:any,clientId:string,entityType:string,entityId:string,fingerprint:string,
   summary:string,evidence:Record<string,unknown>,requiredFix:string){
