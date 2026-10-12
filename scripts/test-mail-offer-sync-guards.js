@@ -7,7 +7,11 @@ const threadCandidates=fs.readFileSync('supabase/migrations/20260922094500_mail_
 
 for(const marker of [
   'loadStoredPendingMessages',
-  "const pending=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id))",
+  "const eligible=ids.filter((id:string)=>!known.has(id)||legacyReinspect.has(id))",
+  "const hasMore=eligible.length>40||!!pageToken",
+  "const pending=eligible.slice(0,40)",
+  "providersWithBacklog.add(i.provider)",
+  "const patch=providersWithBacklog.has(p)?{last_error:",
   'IGNORED_STALE_OFFER_STATUS',
   'IGNORED_CLOSED_OFFER_REOPEN',
   'IGNORED_CLOSED_STATUS_CONFLICT',
@@ -42,7 +46,9 @@ assert(src.includes('"takke ja" "takker ja"'),'Gmail candidate search does not i
 assert(src.includes("maxResults:'500'"),'Gmail search must request large pages');
 assert(src.includes("pageToken")&&src.includes("nextPageToken"),'Gmail search must follow pagination');
 assert(src.includes("pages<20")&&src.includes("ids.length<10000"),'Gmail pagination safety bounds missing');
-assert(src.includes(".slice(0,300)"),'Gmail detail processing must be bounded per run');
+assert(src.includes("eligible.slice(0,40)"),'Gmail detail processing must be bounded to 40 per run');
+assert(src.includes("pending.slice(i,i+2)"),'Gmail full-message concurrency must be bounded');
+assert(src.includes("if(!r.ok)throw new Error(`Gmail message fetch failed"),'Gmail detail failure must block cursor advancement');
 assert(src.includes("internalDomains.has(domainOf(from))"),'internal sender aliases must be classified as outbound');
 assert(src.includes("expandedMessages:any[]"),'multi-offer mail expansion missing');
 assert(src.includes("target_ref:ref")&&src.includes("target_count:messageRefs.length"),'multi-offer per-reference targets missing');
