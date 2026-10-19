@@ -24,11 +24,35 @@
     if (!Number.isFinite(t.getTime())) return String(value);
     return new Intl.DateTimeFormat('da-DK', { timeZone: zone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(t);
   }
+
+  function recipientIsCustomer(rawRecipients, sender, expected) {
+    const recipients = (Array.isArray(rawRecipients) ? rawRecipients : [rawRecipients])
+      .flatMap(function (v) { return String(v || '').toLowerCase().match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []; });
+    if (!recipients.length) return false;
+    const expectedDomains = new Set(expected.map(function (e) { return e.split('@')[1]; }));
+    const publicDomains = new Set(['gmail.com', 'outlook.com', 'hotmail.com', 'hotmail.dk', 'live.dk', 'yahoo.com', 'icloud.com', 'mail.dk', 'msn.com']);
+    if (expected.length) {
+      return recipients.some(function (recipient) {
+        if (expected.includes(recipient)) return true;
+        const domain = recipient.split('@')[1];
+        return !publicDomains.has(domain) && expectedDomains.has(domain);
+      });
+    }
+    const senderEmail = String(sender || '').toLowerCase();
+    const senderDomain = senderEmail.includes('@') ? senderEmail.split('@')[1] : '';
+    // Without a known customer address, do not count internal forwards to the
+    // sender's own company as customer contact.
+    return !!senderDomain && recipients.some(function (e) { return e.split('@')[1] !== senderDomain; });
+  }
   function buildHistory(offer, archive, messages, activities) {
+    const expected = ((String(offer && offer.contact_details || '') + ' ' + String(offer && offer.contact_person || '')).toLowerCase()
+      .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []);
+
     const records = [];
     (messages || []).forEach(function (m) {
       if (!allowedOutbound.has(String(m.direction || '').toLowerCase())) return;
       if (!m.message_at || !dateKey(m.message_at)) return;
+      if (!recipientIsCustomer(m.to_emails, m.from_email, expected)) return;
       records.push({
         id: String(m.external_message_id || ''),
         at: m.message_at, kind: 'mail', subject: String(m.subject || ''),
@@ -39,10 +63,12 @@
     (activities || []).forEach(function (a) {
       if (!contactActivity.test(String(a.type || '')) || !a.created_at) return;
       const m = a.metadata || {};
+      const isMail = /mail/i.test(String(a.type || ''));
+      if (isMail && !recipientIsCustomer(m.to || m.to_email, a.actor_name || '', expected)) return;
       records.push({
         id: String(m.external_message_id || m.provider_message_id || ''),
         at: a.created_at,
-        kind: /mail/i.test(String(a.type || '')) ? 'mail' : 'contact',
+        kind: isMail ? 'mail' : 'contact',
         subject: String(m.subject || (a.type === 'Udgående mail' ? a.summary || '' : a.type || '')),
         to: String(m.to || m.to_email || ''),
         source: String(a.type || 'Opfølgning')
@@ -159,7 +185,7 @@
     body.textContent = 'Henter afsendelser og opfølgninger…';
     const kinds = [
       ['crm_offer_history', 'id,sent_date,follow_up_date', 'imported_at'],
-      ['crm_mail_messages', 'id,direction,message_at,subject,to_emails,external_message_id', 'message_at'],
+      ['crm_mail_messages', 'id,direction,message_at,subject,to_emails,from_email,external_message_id', 'message_at'],
       ['crm_activities', 'id,type,created_at,metadata,summary', 'created_at']
     ];
     const output = await Promise.all(kinds.map(async function (kind) {
