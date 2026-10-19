@@ -182,11 +182,16 @@
     clearTimeout(timer);
     timer = setTimeout(function () { void load(); }, 50);
   }
-  const observer = new MutationObserver(function () {
-    if (modal.classList.contains('open')) scheduleLoad();
-    else { sequence++; currentId = ''; }
+  // The existing offer list opens a card from a click. Respond after its
+  // own handler completes, without perpetual polling or DOM observers.
+  document.addEventListener('click', function (event) {
+    if (event.target.closest && event.target.closest('[data-open-offer], .offer-pipe-card')) {
+      setTimeout(function () {
+        if (modal.classList.contains('open')) scheduleLoad();
+      }, 0);
+    }
   });
-  observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+  window.addEventListener('lm:offer-opened', scheduleLoad);
   window.addEventListener('lm:data-refreshed', function () {
     if (modal.classList.contains('open')) scheduleLoad();
   });
