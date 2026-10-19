@@ -24,3 +24,5 @@ jobs:
           node scripts/test-gmail-quota-and-followup-guardrails.js
           node scripts/test-confirmed-mail-status-recovery.js
           node scripts/test-offer-send-feedback-and-date-recovery.js
+          node --check offer-history-v1.js
+          node scripts/test-offer-history-v1.js
