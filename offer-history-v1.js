@@ -27,7 +27,7 @@
 
   function recipientIsCustomer(rawRecipients, sender, expected) {
     const recipients = (Array.isArray(rawRecipients) ? rawRecipients : [rawRecipients])
-      .flatMap(function (v) { return String(v || '').toLowerCase().match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/g) || []; });
+      .flatMap(function (v) { return String(v || '').toLowerCase().match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []; });
     if (!recipients.length) return false;
     const expectedDomains = new Set(expected.map(function (e) { return e.split('@')[1]; }));
     const publicDomains = new Set(['gmail.com', 'outlook.com', 'hotmail.com', 'hotmail.dk', 'live.dk', 'yahoo.com', 'icloud.com', 'mail.dk', 'msn.com']);
@@ -46,7 +46,7 @@
   }
   function buildHistory(offer, archive, messages, activities) {
     const expected = ((String(offer && offer.contact_details || '') + ' ' + String(offer && offer.contact_person || '')).toLowerCase()
-      .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}/g) || []);
+      .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []);
 
     const records = [];
     (messages || []).forEach(function (m) {
