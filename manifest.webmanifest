@@ -1,0 +1,20 @@
+{
+  "name": "Lead Manager",
+  "short_name": "Lead Manager",
+  "description": "Kunder, leads og tilbud samlet ét sted",
+  "lang": "da",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#102632",
+  "theme_color": "#102632",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
