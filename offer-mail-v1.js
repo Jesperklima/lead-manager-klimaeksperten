@@ -289,6 +289,7 @@
     closeOfferMailModal();
     currentSendId=null;sendState='idle';
     if(typeof openOffer==='function')openOffer(o.id);
+    window.dispatchEvent(new CustomEvent('lm:offer-mail-sent',{detail:{offer_id:o.id}}));
     if(typeof toast==='function')toast(`Mail sendt til ${name||to} · opfølgning gemt`);
     return true;
   }
