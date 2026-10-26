@@ -15,6 +15,11 @@
   const finishingSendIds=new Set();
   const pdfStatusCache=new Map();
   const suppressionCache=new Map();
+  // Mail preparation may be re-rendered many times during CRM refresh. Never
+  // start another identical Minuba/PDF/preflight call while one is running.
+  const pdfPreflights=new Map();
+  const recipientPreflights=new Map();
+  const activeSendPolls=new Map();
 
   function offer(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
@@ -161,9 +166,9 @@
       attempt++;
       try{
         if(await verifyOfferFollowUp(o,expectedDate)){
-          if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
-          else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
-          if(offer()?.id===o.id&&byId('oFollow'))byId('oFollow').value=normalizeFollowDate(expectedDate)||'';
+          // Database confirmation is authoritative. A slow full CRM reload
+          // must not keep the mail composer blocked after Gmail succeeded.
+          applyFollowDateLocally(o,expectedDate);
           return true;
         }
       }catch(error){lastError=error}
@@ -185,9 +190,16 @@
       clearPendingSend(o,completedSendId);
       renderSendStatus('success','Mail og opfølgning gennemført',
         `Gmail og Lead Manager er afstemt. Næste opfølgning: ${effectiveFollow||'ingen dato'}.`);
-      byId('offerMailModal')?.classList.remove('open');
+      if(typeof currentOffer==='undefined'||currentOffer?.id===o.id)byId('offerMailModal')?.classList.remove('open');
       window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
+      window.dispatchEvent(new CustomEvent('lm:offer-mail-sent',{detail:{offer_id:o.id}}));
       currentPdfSendId=null;pdfSendState='idle';
+      // Refresh only the changed offer/task lists in background, not the entire
+      // mail archive and activity log for every completed outbound message.
+      Promise.resolve().then(()=>{
+        if(window.__LM_PERF?.refreshKeys)return window.__LM_PERF.refreshKeys('offers','tasks');
+        if(typeof loadAll==='function')return loadAll({keys:['offers','tasks'],force:true});
+      }).catch(e=>console.warn('[Offer mail] Baggrundsopdatering fejlede',e));
       if(typeof toast==='function')toast(`Mail sendt til ${to} med ${data?.attachment?.filename||name} · opfølgning gemt`);
       return true;
     }catch(error){
@@ -207,6 +219,15 @@
   }
 
   async function resumePendingOfferSend(saved=null){
+    const o=offer();
+    if(!o?.id)return false;
+    const key=String(state?.client?.id||'')+'|'+o.id;
+    if(activeSendPolls.has(key))return activeSendPolls.get(key);
+    const job=resumePendingOfferSendInternal(saved);
+    activeSendPolls.set(key,job);
+    try{return await job}finally{if(activeSendPolls.get(key)===job)activeSendPolls.delete(key)}
+  }
+  async function resumePendingOfferSendInternal(saved=null){
     const o=offer();if(!o?.id||!state?.client?.id||typeof callProtectedEdge!=='function')return false;
     const button=byId('sendOfferMail');
     let pending=saved||loadPendingSend(o);
@@ -337,20 +358,29 @@
     if(!o?.id||typeof callProtectedEdge!=='function'||!state?.client?.id||!to){
       renderSuppressionStatus({blocked:false});return {blocked:false};
     }
-    const key=o.id+'|'+lower(to),cached=suppressionCache.get(key);
+    const key=state.client.id+'|'+o.id+'|'+lower(to),cached=suppressionCache.get(key);
     if(!force&&cached&&Date.now()-cached.at<30000){renderSuppressionStatus(cached.value);return cached.value}
-    const seq=++suppressionSeq;renderSuppressionStatus({loading:true});
-    try{
-      const result=await callProtectedEdge('gmail-offer-send',{action:'preflight',client_id:state.client.id,offer_id:o.id,to});
-      if(seq!==suppressionSeq||offer()?.id!==o.id)return;
-      if(result?.error)throw mailErrorFrom(result);
-      const value=result?.data??result;
-      suppressionCache.set(key,{at:Date.now(),value});renderSuppressionStatus(value);return value;
-    }catch(error){
-      if(seq!==suppressionSeq||offer()?.id!==o.id)return;
-      console.warn('[Offer mail] Kunne ikke kontrollere ingen-opfølgning-status',error);
-      renderSuppressionStatus({blocked:false});return {blocked:false,error};
-    }
+    if(recipientPreflights.has(key))return recipientPreflights.get(key);
+    const seq=++suppressionSeq;
+    renderSuppressionStatus({loading:true});
+    const job=(async()=>{
+      try{
+        const result=await callProtectedEdge('gmail-offer-send',{action:'preflight',client_id:state.client.id,offer_id:o.id,to});
+        if(result?.error)throw mailErrorFrom(result);
+        const value=result?.data??result;
+        suppressionCache.set(key,{at:Date.now(),value});
+        if(seq===suppressionSeq&&offer()?.id===o.id)renderSuppressionStatus(value);
+        return value;
+      }catch(error){
+        console.warn('[Offer mail] Modtagerkontrol kunne ikke gennemføres',error);
+        const value={blocked:true,code:'PREFLIGHT_UNAVAILABLE',reason:'Modtager og ingen-opfølgning kunne ikke kontrolleres. Prøv igen senere.'};
+        suppressionCache.set(key,{at:Date.now(),value});
+        if(seq===suppressionSeq&&offer()?.id===o.id)renderSuppressionStatus(value);
+        return value;
+      }
+    })();
+    recipientPreflights.set(key,job);
+    try{return await job}finally{if(recipientPreflights.get(key)===job)recipientPreflights.delete(key)}
   }
 
   function renderPdfStatus(status){
@@ -374,20 +404,27 @@
 
   async function checkPdfStatus(force=false){
     const o=offer();if(!o?.id||typeof callProtectedEdge!=='function'||!state?.client?.id)return;
-    const cached=pdfStatusCache.get(o.id);
+    const key=state.client.id+'|'+o.id,cached=pdfStatusCache.get(key);
     if(!force&&cached&&Date.now()-cached.at<60000){renderPdfStatus(cached.value);return cached.value}
+    if(pdfPreflights.has(key))return pdfPreflights.get(key);
     const seq=++pdfStatusSeq;renderPdfStatus({loading:true});
-    try{
-      const result=await callProtectedEdge('gmail-offer-send',{action:'pdf_status',client_id:state.client.id,offer_id:o.id});
-      if(seq!==pdfStatusSeq||offer()?.id!==o.id)return;
-      if(result?.error)throw mailErrorFrom(result);
-      const value=result?.data??result;
-      pdfStatusCache.set(o.id,{at:Date.now(),value});renderPdfStatus(value);return value;
-    }catch(error){
-      if(seq!==pdfStatusSeq||offer()?.id!==o.id)return;
-      const value={ready:false,error:friendlyMailError(error)};
-      pdfStatusCache.set(o.id,{at:Date.now(),value});renderPdfStatus(value);return value;
-    }
+    const job=(async()=>{
+      try{
+        const result=await callProtectedEdge('gmail-offer-send',{action:'pdf_status',client_id:state.client.id,offer_id:o.id});
+        if(result?.error)throw mailErrorFrom(result);
+        const value=result?.data??result;
+        pdfStatusCache.set(key,{at:Date.now(),value});
+        if(seq===pdfStatusSeq&&offer()?.id===o.id)renderPdfStatus(value);
+        return value;
+      }catch(error){
+        const value={ready:false,error:friendlyMailError(error)};
+        pdfStatusCache.set(key,{at:Date.now(),value});
+        if(seq===pdfStatusSeq&&offer()?.id===o.id)renderPdfStatus(value);
+        return value;
+      }
+    })();
+    pdfPreflights.set(key,job);
+    try{return await job}finally{if(pdfPreflights.get(key)===job)pdfPreflights.delete(key)}
   }
 
   async function handleBackgroundSendResult(o,requestId,to,name,follow,result){
@@ -512,6 +549,9 @@
   }
 
   function wire(){
+    // The composer exists in the DOM even while closed. Do not keep issuing
+    // PDF and recipient preflight requests for hidden modal content.
+    if(!byId('offerMailModal')?.classList.contains('open'))return;
     const button=byId('sendOfferMail');if(!button)return;
     ensureAttachmentRow();ensureSuppressionBanner();ensureSendStatusBanner();
     if(pdfSendState!=='idle'){button.disabled=true;button.textContent='Kontrollerer afsendelse…'}
@@ -529,7 +569,7 @@
 
   const schedule=()=>setTimeout(wire,0);
   window.addEventListener('lm:offer-mail-ready',schedule);
-  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';suppressionCode='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(o.id);for(const key of suppressionCache.keys())if(key.startsWith(o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
+  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';suppressionCode='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(String(state?.client?.id||'')+'|'+o.id);for(const key of suppressionCache.keys())if(key.startsWith(String(state?.client?.id||'')+'|'+o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
   window.addEventListener('lm:data-refreshed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
   setTimeout(wire,100);

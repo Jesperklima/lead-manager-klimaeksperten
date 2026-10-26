@@ -18,7 +18,7 @@ for(const marker of [
   "const finalizedStatuses=new Set(['sent'])",
   "const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing'])",
   "isPostprocessPending",
-  "refreshKeys('offers','tasks','mail','activities')",
+  "refreshKeys('offers','tasks')",
   "select('id,client_id,follow_up_date')",
   "opfølgning gemt"
 ]) must(ui.includes(marker),'UI reliability marker missing: '+marker);
@@ -28,7 +28,7 @@ for(const marker of [
   "const finalizedStatuses=new Set(['sent'])",
   "const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing'])",
   "isPostprocessPending",
-  "refreshKeys('offers','tasks','mail','activities')",
+  "refreshKeys('offers','tasks')",
   "select('id,client_id,follow_up_date')",
   "Gmail har sendt mailen – kontrollerer opfølgningen",
   "Lead Manager kontrollerer, at næste opfølgning faktisk er gemt i databasen",
