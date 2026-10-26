@@ -35,7 +35,7 @@ for(const marker of [
   "const finalizedStatuses=new Set(['sent'])",
   "const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing'])",
   'isPostprocessPending',
-  "refreshKeys('offers','tasks','mail','activities')",
+  "refreshKeys('offers','tasks')",
   "select('id,client_id,follow_up_date')",
   'Gmail har sendt mailen – kontrollerer opfølgningen',
   'Gmail har sendt mailen – kontrollerer opfølgningen',
