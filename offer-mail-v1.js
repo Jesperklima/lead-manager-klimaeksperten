@@ -278,8 +278,8 @@
   }
   async function finishSuccessfulSend(o,name,to,follow){
     try{
-      if(window.__LM_PERF?.refreshKeys)await window.__LM_PERF.refreshKeys('offers','tasks','mail','activities');
-      else if(typeof loadAll==='function')await loadAll({keys:['offers','tasks','mail','activities'],force:true});
+      // A confirmed database follow-up must not wait for a full 4-table CRM
+      // refresh (which previously stalled consecutive offer emails).
       await verifyOfferFollowUp(o,follow);
     }catch(error){
       sendState='uncertain';
@@ -290,6 +290,10 @@
     currentSendId=null;sendState='idle';
     if(typeof openOffer==='function')openOffer(o.id);
     window.dispatchEvent(new CustomEvent('lm:offer-mail-sent',{detail:{offer_id:o.id}}));
+    Promise.resolve().then(()=>{
+      if(window.__LM_PERF?.refreshKeys)return window.__LM_PERF.refreshKeys('offers','tasks');
+      if(typeof loadAll==='function')return loadAll({keys:['offers','tasks'],force:true});
+    }).catch(error=>console.warn('[Offer mail] Refresh efter send kunne ikke fuldføres',error));
     if(typeof toast==='function')toast(`Mail sendt til ${name||to} · opfølgning gemt`);
     return true;
   }
