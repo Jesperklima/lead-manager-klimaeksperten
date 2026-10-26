@@ -108,4 +108,17 @@ const h2638 = buildHistory({sent_date:'2026-07-16',contact_details:'cf@bokagroup
   })),[]);
 assert.equal(h2638.followups.length,4,'Offer 2638 must still show all four sends');
 
+const offerReply = buildHistory(
+  { sent_date:'2026-09-17', contact_details:'miban@semler.dk' }, [],
+  [
+    {direction:'outbound',message_at:'2026-10-06T13:29:09Z',external_message_id:'2933-sent',to_emails:['miban@semler.dk'],from_email:'js@klimaeksperten.dk',subject:'Tilbud 2933'},
+    {direction:'inbound',message_at:'2026-10-06T15:41:53Z',external_message_id:'2933-reaction',to_emails:['js@klimaeksperten.dk'],from_email:'miban@semler.dk',subject:'RE: Tilbud 2933',body_text:'[like] Michael reacted to your message:\n___ original mail'},
+  ],[]
+);
+assert.equal(offerReply.followups.length,1);
+assert.equal(offerReply.replies.length,1,'Inbound customer response is shown');
+assert.equal(offerReply.replies[0].reaction,true,'Mail reaction is classified as a reaction, not acceptance');
+assert.equal(buildHistory({sent_date:'2026-09-17',contact_details:'miban@semler.dk'},[],[{direction:'inbound',message_at:'2026-10-06T15:41:53Z',from_email:'outsider@example.com',body_text:'No'}],[]).replies.length,0);
+assert.ok(source.includes('external_message_id,body_text'), 'Linked replies must include body text for display');
+
 console.log('PASS: evidence-only offer send history, customer recipient validation and no internal forwards');
