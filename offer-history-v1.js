@@ -150,6 +150,25 @@
     parent.appendChild(el);
     return el;
   }
+  // Use cached provider evidence if per-offer queries lag behind, restricted to
+  // the current offer and tenant. An unrelated customer must never be included.
+  function cachedForOffer(key, offerId, clientId) {
+    const rows = typeof state !== 'undefined' && Array.isArray(state[key]) ? state[key] : [];
+    return rows.filter(function (row) {
+      return row && row.offer_id === offerId && (!row.client_id || row.client_id === clientId);
+    });
+  }
+  function mergeEvidence(primary, cached) {
+    const merged = (primary || []).slice();
+    const seen = new Set(merged.map(function (row) { return String(row.id || row.external_message_id || ''); }));
+    (cached || []).forEach(function (row) {
+      const id = String(row.id || row.external_message_id || '');
+      if (id && seen.has(id)) return;
+      merged.push(row);
+      if (id) seen.add(id);
+    });
+    return merged;
+  }
   function render(result, errors, offer) {
     body.replaceChildren();
     const top = line(body, 'lm-oh-first', '');
@@ -201,7 +220,9 @@
       }
     }));
     if (mySequence !== sequence || !modal.classList.contains('open') || currentId !== o.id) return;
-    const result = buildHistory(o, output[0].data, output[1].data, output[2].data);
+    const messages = mergeEvidence(output[1].data, cachedForOffer('mail', o.id, clientId));
+    const activities = mergeEvidence(output[2].data, cachedForOffer('activities', o.id, clientId));
+    const result = buildHistory(o, output[0].data, messages, activities);
     render(result, output.map(function (x) { return x.error; }).filter(Boolean), o);
   }
   function scheduleLoad() {
@@ -218,6 +239,16 @@
     }
   });
   window.addEventListener('lm:offer-opened', scheduleLoad);
+  window.addEventListener('lm:offer-mail-sent', scheduleLoad);
+  window.addEventListener('lm:offer-mail-closed', function () {
+    if (modal.classList.contains('open')) scheduleLoad();
+  });
+  window.addEventListener('lm:client-switched', function () {
+    clearTimeout(timer);
+    sequence += 1;
+    currentId = '';
+    body.textContent = '';
+  });
   window.addEventListener('lm:data-refreshed', function () {
     if (modal.classList.contains('open')) scheduleLoad();
   });
