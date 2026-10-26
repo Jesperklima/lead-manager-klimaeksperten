@@ -8,7 +8,7 @@ const app = fs.readFileSync('api/app.js','utf8');
 const sandbox = { window: {}, Intl, Date, Set };
 vm.runInNewContext(source, sandbox, { filename: 'offer-history-v1.js' });
 const { buildHistory, dateKey } = sandbox.window.LMOfferHistoryV1;
-assert.ok(app.includes('/offer-history-v1.js?v=20261026-tenant-projection-2'), 'versioned offer history asset must be loaded');
+assert.ok(app.includes('/offer-history-v1.js?v=20261026-inbound-replies-1'), 'versioned offer history asset must be loaded');
 assert.ok(source.includes(".eq('client_id', clientId).eq('offer_id', o.id)"), 'history queries must enforce tenant and offer');
 assert.ok(!source.includes("crm_mail_send_jobs"), 'private send job table is never queried in browser');
 assert.equal(dateKey('2026-10-19T07:11:01Z'), '2026-10-19');
