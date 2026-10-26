@@ -381,15 +381,34 @@
     const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
   }
 
+  // Contact enrichment is optional, unlike the mandatory pre-send status check.
+  // Minuba OAuth 500s must not trigger one slow enrichment on every next email.
+  const minubaContactInFlight=new Map();
+  let minubaContactPauseUntil=0;
   async function enrichFromMinuba(o){
     const ref=String(o?.offer_ref||'').trim();
     if(!ref||!state?.client?.id)return;
     await loadStoredMinubaContact(o);
+    if(Date.now()<minubaContactPauseUntil){
+      if(offer()?.id===o.id&&byId('offerMailContactSource'))byId('offerMailContactSource').textContent='Minuba-kontaktopslag er midlertidigt sat på pause. Gemte oplysninger vises.';
+      return;
+    }
+    const key=state.client.id+'|'+ref;
+    if(minubaContactInFlight.has(key))return minubaContactInFlight.get(key);
+    const job=fetchMinubaContact(o,ref);
+    minubaContactInFlight.set(key,job);
+    try{return await job}finally{if(minubaContactInFlight.get(key)===job)minubaContactInFlight.delete(key)}
+  }
+  async function fetchMinubaContact(o,ref){
     if(typeof callProtectedEdge!=='function')return;
     if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=`Kontrollerer de aktuelle kontaktoplysninger i Minuba på tilbud ${ref}…`;
     try{
-      const response=await callProtectedEdge('minuba-offer-lookup',{client_id:state.client.id,offer_ref:ref});
+      const response=await Promise.race([
+        callProtectedEdge('minuba-offer-lookup',{client_id:state.client.id,offer_ref:ref}),
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error('Minuba-kontaktopslag overskred tidsgrænsen')),9000))
+      ]);
       if(response?.error)throw new Error(response.error.message||String(response.error));
+      if(offer()?.id!==o.id)return; // A slow lookup must never overwrite the next customer's composer.
       const data=response?.data??response;
       if(!data?.found){if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:`Ingen kontaktinformation fundet i Minuba på tilbud ${ref}.`;return}
       const rawContact=applyRawMinubaContact(o,data.raw||o.minuba_raw||{},'Kontakt fundet direkte på Minuba-tilbuddet');
@@ -415,7 +434,7 @@
       else source='Minuba fandt tilbuddet, men ingen navngiven kontakt var angivet.';
       updateComposerFromOffer(o,source);
       refreshGreeting(o);
-    }catch(error){console.warn('Minuba kontaktopslag fejlede',error);if(byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:'Minuba kunne ikke hente kontaktoplysningerne lige nu.'}
+    }catch(error){minubaContactPauseUntil=Date.now()+90000;console.warn('Minuba kontaktopslag fejlede',error);if(offer()?.id===o.id&&byId('offerMailContactSource'))byId('offerMailContactSource').textContent=o.contact_person?`Kontaktperson: ${o.contact_person}`:'Minuba kunne ikke hente kontaktoplysningerne lige nu.'}
   }
 
   async function verifyMinubaStillActiveForFollowUp(o){
