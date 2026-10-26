@@ -190,7 +190,7 @@
       clearPendingSend(o,completedSendId);
       renderSendStatus('success','Mail og opfølgning gennemført',
         `Gmail og Lead Manager er afstemt. Næste opfølgning: ${effectiveFollow||'ingen dato'}.`);
-      if(offer()?.id===o.id)byId('offerMailModal')?.classList.remove('open');
+      if(typeof currentOffer==='undefined'||currentOffer?.id===o.id)byId('offerMailModal')?.classList.remove('open');
       window.dispatchEvent(new CustomEvent('lm:offer-mail-closed',{detail:{offer_id:o.id}}));
       window.dispatchEvent(new CustomEvent('lm:offer-mail-sent',{detail:{offer_id:o.id}}));
       currentPdfSendId=null;pdfSendState='idle';
