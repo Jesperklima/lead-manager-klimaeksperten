@@ -155,7 +155,7 @@
   function cachedForOffer(key, offerId, clientId) {
     const rows = typeof state !== 'undefined' && Array.isArray(state[key]) ? state[key] : [];
     return rows.filter(function (row) {
-      return row && row.offer_id === offerId && (!row.client_id || row.client_id === clientId);
+      return row && row.offer_id === offerId && String(row.client_id || '') === String(clientId);
     });
   }
   function mergeEvidence(primary, cached) {
@@ -202,10 +202,13 @@
     currentId = o.id;
     const mySequence = ++sequence;
     body.textContent = 'Henter afsendelser og opfølgninger…';
+    // The tenant guard validates client_id on returned rows. Every projected
+    // tenant table MUST select client_id, even when the query already filters it.
+    // Omitting it silently turns genuine outbound mails into an empty history.
     const kinds = [
-      ['crm_offer_history', 'id,sent_date,follow_up_date', 'imported_at'],
-      ['crm_mail_messages', 'id,direction,message_at,subject,to_emails,from_email,external_message_id', 'message_at'],
-      ['crm_activities', 'id,type,created_at,metadata,summary', 'created_at']
+      ['crm_offer_history', 'id,client_id,sent_date,follow_up_date', 'imported_at'],
+      ['crm_mail_messages', 'id,client_id,direction,message_at,subject,to_emails,from_email,external_message_id', 'message_at'],
+      ['crm_activities', 'id,client_id,type,created_at,metadata,summary', 'created_at']
     ];
     const output = await Promise.all(kinds.map(async function (kind) {
       try {
