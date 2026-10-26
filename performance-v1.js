@@ -59,7 +59,7 @@ function queryFor(key,cid,{light=false}={}){
     case 'leads': return supabase.from('crm_leads').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
     case 'activities': {
       const q=supabase.from('crm_activities')
-        .select(light?'id,type,summary,metadata,lead_id,company_id,created_at':'*')
+        .select(light?'id,client_id,offer_id,type,summary,metadata,lead_id,company_id,created_at':'*')
         .eq('client_id',cid);
       if(light)q.gte('created_at',new Date(Date.now()-45*86400000).toISOString());
       return q.order('created_at',{ascending:false}).limit(500);
