@@ -72,4 +72,8 @@ assert.equal(draft.first, null, 'draft is not evidence of sending');
 assert.equal(draft.followups.length, 0);
 const unlinked = buildHistory({ sent_date: '2026-10-14' }, [], [internalForward, followup], []);
 assert.equal(unlinked.followups.length, 1, 'current outbound customer email still found when activity is missing');
+assert.ok(fs.readFileSync('index.html','utf8').includes("window.dispatchEvent(new CustomEvent('lm:offer-opened'"), 'opening an offer must refresh history');
+assert.ok(source.includes("window.addEventListener('lm:offer-mail-sent', scheduleLoad)"), 'confirmed mail send must refresh history');
+assert.ok(source.includes("cachedForOffer('activities', o.id, clientId)"), 'per-offer history reads tenant-scoped cached evidence');
+assert.ok(fs.readFileSync('offer-mail-v1.js','utf8').includes("window.dispatchEvent(new CustomEvent('lm:offer-mail-sent'"), 'composer notifies history of confirmed send');
 console.log('PASS: evidence-only offer send history, customer recipient validation and no internal forwards');
