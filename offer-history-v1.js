@@ -44,10 +44,42 @@
     // sender's own company as customer contact.
     return !!senderDomain && recipients.some(function (e) { return e.split('@')[1] !== senderDomain; });
   }
+  const publicDomains = new Set(['gmail.com','outlook.com','outlook.dk','hotmail.com','hotmail.dk','live.dk','yahoo.com','icloud.com','mail.dk','msn.com']);
+  function senderIsCustomer(rawFrom, expected) {
+    const from = (String(rawFrom || '').toLowerCase().match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/) || [])[0] || '';
+    if (!from) return false;
+    if (expected.length) {
+      const domain = from.split('@')[1];
+      return expected.includes(from) || (!publicDomains.has(domain) && expected.some(function (mail) { return mail.split('@')[1] === domain; }));
+    }
+    // Without a customer address, only a linked offer mail from outside the
+    // internal domain is plausible; never use mail direction alone as proof.
+    return from.split('@')[1] !== 'klimaeksperten.dk';
+  }
+  function replyText(value) {
+    const raw = String(value || '').replace(/\r\n?/g, '\n').trim();
+    // Keep what the customer wrote, without quoted history and signatures
+    // swallowing the whole offer panel. The full stored mail is not changed.
+    const meaningful = raw.split(/\n\s*(?:_{12,}|-{3,}\s*Original Message\s*-{3,}|Fra:\s|From:\s|Den .{5,100} skrev:|On .{5,100} wrote:)/i)[0].trim();
+    return (meaningful || raw).slice(0, 2400);
+  }
   function buildHistory(offer, archive, messages, activities) {
     const expected = ((String(offer && offer.contact_details || '') + ' ' + String(offer && offer.contact_person || '')).toLowerCase()
       .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []);
 
+    const replies = [];
+    const seenReplies = new Set();
+    (messages || []).forEach(function (m) {
+      if (!['inbound','incoming','received'].includes(String(m.direction || '').toLowerCase())) return;
+      if (!dateKey(m.message_at) || !senderIsCustomer(m.from_email, expected)) return;
+      const id = String(m.external_message_id || m.id || '');
+      if (id && seenReplies.has(id)) return;
+      if (id) seenReplies.add(id);
+      const text = replyText(m.body_text);
+      const reaction = /^\[(?:like|heart|laugh|wow|sad|angry)\]/i.test(text) || /reacted to your message|reagerede på din besked/i.test(text);
+      replies.push({ id: id, at: m.message_at, from: String(m.from_email || ''), subject: String(m.subject || ''), text: text, reaction: reaction });
+    });
+    replies.sort(function (a,b) { return new Date(a.at) - new Date(b.at); });
     const records = [];
     (messages || []).forEach(function (m) {
       if (!allowedOutbound.has(String(m.direction || '').toLowerCase())) return;
@@ -108,7 +140,7 @@
       if (first && dateKey(e.at) < dateKey(first.at)) return false;
       return true;
     });
-    return { first: first, followups: followups, mailEvents: unique.length };
+    return { first: first, followups: followups, replies: replies, mailEvents: unique.length };
   }
 
   if (typeof window !== 'undefined') window.LMOfferHistoryV1 = { buildHistory: buildHistory, dateKey: dateKey };
@@ -129,7 +161,9 @@
     '#lmOfferHistory .lm-oh-row{padding:9px 0;border-bottom:1px solid #1e3c4a;font-size:13px}' +
     '#lmOfferHistory .lm-oh-row:last-child{border-bottom:0;padding-bottom:0}' +
     '#lmOfferHistory .lm-oh-head{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;font-weight:600}' +
-    '#lmOfferHistory .lm-oh-empty{padding-top:8px;font-size:13px;color:#9db6c5}';
+    '#lmOfferHistory .lm-oh-empty{padding-top:8px;font-size:13px;color:#9db6c5}' +
+    '#lmOfferHistory .lm-oh-reply{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:7px;line-height:1.55;color:#d7e8ee}' +
+    '#lmOfferHistory .lm-oh-reply-heading{margin:12px 0 0;border-top:1px solid #234252;padding-top:13px}';
   document.head.appendChild(css);
 
   const section = document.createElement('section');
@@ -189,6 +223,20 @@
       if (event.subject) line(row, 'lm-oh-muted', event.subject.slice(0, 200));
     });
     line(body, 'lm-oh-muted', 'Kun gennemførte kontakter med registreret dokumentation. Planlagte datoer og usendte mails tælles ikke.');
+    const replyTitle = document.createElement('h3');
+    replyTitle.className = 'lm-oh-reply-heading';
+    replyTitle.textContent = 'Svar fra kunden (' + result.replies.length + ')';
+    body.appendChild(replyTitle);
+    if (!result.replies.length) line(body, 'lm-oh-empty', 'Ingen dokumenterede kundesvar er tilknyttet tilbuddet.');
+    result.replies.forEach(function (reply) {
+      const row = line(body, 'lm-oh-row', '');
+      const header = line(row, 'lm-oh-head', '');
+      line(header, '', reply.reaction ? 'Reaktion fra kunden' : 'Modtaget svar');
+      line(header, '', stamp(reply.at, true));
+      line(row, 'lm-oh-muted', 'Fra: ' + reply.from);
+      if (reply.subject) line(row, 'lm-oh-muted', reply.subject.slice(0, 200));
+      if (reply.text) line(row, 'lm-oh-reply', reply.text);
+    });
     if (errors.length) line(body, 'lm-oh-muted', '⚠ Ikke alle kilder kunne læses: ' + errors.join(', ') + '. Historikken kan være ufuldstændig.');
     if (result.mailEvents === 0 && offer && offer.sent_date) {
       line(body, 'lm-oh-muted', 'Afsendelsesdatoen stammer fra tilbudsposten; den er ikke en bekræftelse fra mailudbyderen.');
@@ -207,7 +255,7 @@
     // Omitting it silently turns genuine outbound mails into an empty history.
     const kinds = [
       ['crm_offer_history', 'id,client_id,sent_date,follow_up_date', 'imported_at'],
-      ['crm_mail_messages', 'id,client_id,direction,message_at,subject,to_emails,from_email,external_message_id', 'message_at'],
+      ['crm_mail_messages', 'id,client_id,direction,message_at,subject,to_emails,from_email,external_message_id,body_text', 'message_at'],
       ['crm_activities', 'id,client_id,type,created_at,metadata,summary', 'created_at']
     ];
     const output = await Promise.all(kinds.map(async function (kind) {
