@@ -299,19 +299,31 @@ async function minubaLiveRenderCandidate(admin:any,clientId:string,offer:any,off
     return null;
   }
 }
+async function gmailReadJson(response:Response){
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+    const detail=String(data?.error?.message||'');
+    const reasons=(data?.error?.errors||[]).map((e:any)=>String(e?.reason||''));
+    if(response.status===429||/quota exceeded|rate limit exceeded|Too Many Requests/i.test(detail)||reasons.some((r:string)=>/rateLimitExceeded|userRateLimitExceeded/i.test(r))){
+      const error:any=new Error('Google begrænser Gmail-forbruget midlertidigt. Vent mindst ét minut før et nyt sendeforsøg. Mailen er ikke sendt.');
+      error.code='GMAIL_QUOTA_EXCEEDED';error.status=429;error.retry_after_seconds=60;throw error;
+    }
+    return null;
+  }
+  return data;
+}
 async function gmailAttachmentB64(accessToken:string,messageId:string,part:any){
   if(part?.body?.data)return fromB64Url(part.body.data);
   const aid=trim(part?.body?.attachmentId,1000);if(!aid)return'';
   const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(aid)}`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-  if(!r.ok)return'';const d=await r.json().catch(()=>({}));return d?.data?fromB64Url(d.data):'';
+  const d=await gmailReadJson(r);return d?.data?fromB64Url(d.data):'';
 }
 async function gmailCachedPdfCandidate(offer:any,offerRef:string,accessToken:string){
   const mid=trim(offer?.pdf_source_message_id,1000);
   if(!mid)return null;
   const expected=trim(offer?.pdf_source_filename,1000)||`Tilbud ${offerRef}.pdf`,target=refNorm(offerRef);
   const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mid)}?format=full`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-  if(!r.ok)return null;
-  const msg=await r.json().catch(()=>({}));
+  const msg=await gmailReadJson(r);if(!msg)return null;
   const parts=collectPdfParts(msg?.payload)
     .map(({part,filename})=>{
       const nf=refNorm(filename);let score=0;
@@ -343,13 +355,14 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
   for(const row of linked||[])add(row.external_message_id);
   const queries=[`filename:"${expected.replaceAll('\\','').replaceAll('"','')}"`,`"${offerRef.replaceAll('"','')}" has:attachment`];
   for(const q of queries){
-    const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=100&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-    if(!r.ok)continue;const d=await r.json().catch(()=>({}));for(const m of d.messages||[])add(m.id);
+    const r=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
+    const d=await gmailReadJson(r);if(!d)continue;for(const m of d.messages||[])add(m.id);
   }
   const linkedIds=new Set((linked||[]).map((x:any)=>String(x.external_message_id||''))),candidates:any[]=[];
-  for(const mid of ids.slice(0,140)){
+  // Bound full-message reads to reserve Gmail quota for sending and background sync.
+  for(const mid of ids.slice(0,20)){
     const r=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mid)}?format=full`,{headers:{Authorization:'Bearer '+accessToken,Accept:'application/json'}});
-    if(!r.ok)continue;const msg=await r.json().catch(()=>({})),subject=headerValue(msg.payload,'Subject'),from=headerValue(msg.payload,'From'),evidence=refNorm(subject+' '+String(msg.snippet||''));
+    const msg=await gmailReadJson(r);if(!msg)continue;const subject=headerValue(msg.payload,'Subject'),from=headerValue(msg.payload,'From'),evidence=refNorm(subject+' '+String(msg.snippet||''));
     for(const {part,filename} of collectPdfParts(msg.payload)){
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=120;
@@ -364,6 +377,7 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
       if(score<80)continue;
       const b64=await gmailAttachmentB64(accessToken,mid,part);if(!pdfB64Valid(b64))continue;
       candidates.push({b64,filename,source:String(offer?.pdf_source_message_id||'')===mid?'gmail_cache':linkedIds.has(mid)?'gmail_linked':'gmail_search',messageId:mid,attachmentId:trim(part?.body?.attachmentId,1000),score,date:Number(msg.internalDate||0)});
+      if(nf===refNorm(expected))return candidates[candidates.length-1];
     }
   }
   candidates.sort((a,b)=>b.score-a.score||b.date-a.date);
@@ -873,6 +887,7 @@ Deno.serve(async(req:Request)=>{
         error: msg,
         code: quotaExceeded ? 'GMAIL_QUOTA_EXCEEDED' : 'GMAIL_SEND_ERROR',
         retryable: quotaExceeded,
+        retry_after_seconds:quotaExceeded?60:null,
         sent: false,
         follow_up_applied: false
       }, quotaExceeded ? 429 : 502);
@@ -903,6 +918,6 @@ Deno.serve(async(req:Request)=>{
       2000
     )||'Ukendt fejl';
     const code=trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR';
-    return json({error:message,code},500);
+    return json({error:message,code,retry_after_seconds:err?.retry_after_seconds||null},err?.status===429?429:500);
   }
 });
