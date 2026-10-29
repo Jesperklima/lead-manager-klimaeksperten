@@ -1,3 +1,4 @@
+import { refreshMinubaAccess } from '../_shared/minuba-oauth.ts';
 import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { PDFDocument, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1?target=deno';
@@ -218,7 +219,7 @@ async function renderOfferPdf(raw:any,offerRef:string,customerName:string){
 }
 async function minubaAccessToken(admin:any,clientId:string){
   const {data:intg}=await admin.from('crm_integrations').select('status').eq('client_id',clientId).eq('provider','minuba').maybeSingle();
-  if(intg?.status!=='connected')return null;
+  if(!intg||['not_connected','needs_reconnect','oauth_credentials_rejected'].includes(intg.status))return null;
   const tenantSecret=async(kind:string)=>{const {data,error}=await admin.rpc('get_minuba_oauth_secret_for_service',{p_client_id:clientId,p_kind:kind});if(error)throw error;return String(data||'')};
   let access=await tenantSecret('access_token'),refresh=await tenantSecret('refresh_token');
   if(!access||!refresh)return null;
@@ -230,15 +231,9 @@ async function minubaAccessToken(admin:any,clientId:string){
   ]);
   if(!cid||!secret)return null;
   const {data:conn}=await admin.from('crm_oauth_connections').select('token_expires_at,scope').eq('client_id',clientId).eq('provider','minuba').maybeSingle();
-  async function refreshAccess(){
-    const r=await fetch(String((platform.config||{}).oauth_token_url||'https://auth.minuba.dk/oauth2/token'),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json','Authorization':'Basic '+btoa(String(cid)+':'+String(secret))},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refresh})});
-    const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token)return false;
-    access=String(j.access_token);refresh=String(j.refresh_token||refresh);
-    await admin.rpc('set_minuba_oauth_tokens',{p_client_id:clientId,p_access_token:access,p_refresh_token:refresh,p_expires_at:new Date(Date.now()+Number(j.expires_in||3599)*1000).toISOString(),p_scope:String(j.scope||conn?.scope||'Administrator')});
-    return true;
-  }
+  async function refreshAccess(){access=await refreshMinubaAccess(admin,clientId,String(cid),String(secret),conn?.scope);return true;}
   if(conn?.token_expires_at&&new Date(conn.token_expires_at).getTime()<=Date.now()+60000){if(!await refreshAccess())return null}
-  return{token:access,refresh:refreshAccess};
+  return{get token(){return access},refresh:refreshAccess};
 }
 async function minubaPdfCandidate(admin:any,clientId:string,offer:any,offerRef:string){
   const stableId=minubaOfferId(offer);if(!stableId)return null;

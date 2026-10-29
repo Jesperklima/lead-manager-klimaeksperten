@@ -2,6 +2,7 @@
   'use strict';
 
   const byId=id=>document.getElementById(id);
+  const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const firstEmail=value=>(String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
   const lower=v=>String(v||'').trim().toLowerCase();
   let currentPdfSendId=null;
@@ -45,6 +46,8 @@
     }
     if(code==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER')return message||'Tilbud og priser må kun sendes til den direkte kunde. Den valgte modtager er ikke godkendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
+    if(code==='MINUBA_RECONNECT_REQUIRED')return 'Minuba kræver ny godkendelse under Integrationer. Mailen er ikke sendt.';
+    if(code==='MINUBA_REFRESH_UNAVAILABLE')return 'Minuba svarer ikke på tokenfornyelse. Prøv igen senere; mailen er ikke sendt.';
     if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke hente eller generere en verificeret tilbuds-PDF. Mailen blev ikke sendt.';
     if(code==='OFFER_PDF_INVALID')return message||'PDF-kilden blev fundet, men filen kunne ikke valideres som en rigtig PDF. Mailen blev ikke sendt.';
     return message||'Mailen kunne ikke sendes.';
@@ -95,7 +98,7 @@
         ?{border:'#ef4444',bg:'rgba(127,29,29,.32)',fg:'#fee2e2',icon:'⚠'}
         :{border:'#38bdf8',bg:'rgba(7,89,133,.28)',fg:'#e0f2fe',icon:'⏳'};
     field.hidden=false;
-    box.innerHTML=`<div style="border:2px solid ${palette.border};border-radius:12px;padding:14px 16px;background:${palette.bg};color:${palette.fg}"><div style="font-size:16px;font-weight:900">${palette.icon} ${title}</div>${detail?`<div style="margin-top:6px;line-height:1.45">${detail}</div>`:''}</div>`;
+    box.innerHTML=`<div style="border:2px solid ${palette.border};border-radius:12px;padding:14px 16px;background:${palette.bg};color:${palette.fg}"><div style="font-size:16px;font-weight:900">${palette.icon} ${escapeHtml(title)}</div>${detail?`<div style="margin-top:6px;line-height:1.45">${escapeHtml(detail)}</div>`:''}</div>`;
   }
   async function pollOfferSendStatus(requestId,maxMs=135000,onProgress=null){
     const started=Date.now();let attempt=0,last=null;
@@ -344,7 +347,7 @@
       const lead=wrongRecipient?'Den valgte modtager er ikke bekræftet som kontakt hos den direkte kunde.':'Denne mail må ikke sendes til den valgte modtager.';
       box.dataset.guardCode=suppressionCode;
       field.hidden=false;
-      box.innerHTML=`<div style="border:2px solid #ef4444;border-radius:12px;padding:16px 18px;background:rgba(127,29,29,.32);color:#fee2e2;box-shadow:0 0 0 1px rgba(239,68,68,.18) inset"><div style="font-size:17px;font-weight:900;letter-spacing:.02em">${title}</div><div style="margin-top:8px;font-weight:700">${lead}</div><div style="margin-top:8px;line-height:1.45"><strong>Årsag:</strong> ${reason}</div><div style="margin-top:10px;font-weight:800">Mailen er ikke sendt.</div></div>`;
+      box.innerHTML=`<div style="border:2px solid #ef4444;border-radius:12px;padding:16px 18px;background:rgba(127,29,29,.32);color:#fee2e2;box-shadow:0 0 0 1px rgba(239,68,68,.18) inset"><div style="font-size:17px;font-weight:900;letter-spacing:.02em">${title}</div><div style="margin-top:8px;font-weight:700">${lead}</div><div style="margin-top:8px;line-height:1.45"><strong>Årsag:</strong> ${escapeHtml(reason)}</div><div style="margin-top:10px;font-weight:800">Mailen er ikke sendt.</div></div>`;
       if(button&&pdfSendState==='idle'){button.disabled=true;button.textContent=blockedButtonText()}
       return;
     }
@@ -386,18 +389,18 @@
   function renderPdfStatus(status){
     const box=byId('offerMailAttachment');if(!box)return;
     const o=offer(),expected=pdfName(o);
-    if(status?.loading){box.innerHTML=`⏳ Forbereder verificeret PDF for <strong>${expected||'tilbuddet'}</strong>…`;return}
+    if(status?.loading){box.innerHTML=`⏳ Forbereder verificeret PDF for <strong>${escapeHtml(expected||'tilbuddet')}</strong>…`;return}
     if(status?.ready){
       const actual=String(status?.attachment?.filename||expected||'Tilbuds-PDF');
       const generated=status?.generated===true||String(status?.attachment?.source||'')==='minuba_live_render';
       const detail=generated
         ?'Den oprindelige fil var ikke tilgængelig via Minuba API/mailkilden, så Lead Manager har dannet PDF’en direkte af de aktuelle tilbudsdata i Minuba. Den valideres igen ved afsendelse.'
         :'Kilden er verificeret. Ved afsendelse kontrolleres PDF’en igen, så der ikke kan vedhæftes en forkert fil.';
-      box.innerHTML=`✅ <strong>PDF klar · ${actual}</strong><div class="sub" style="margin-top:4px">${detail}</div>`;
+      box.innerHTML=`✅ <strong>PDF klar · ${escapeHtml(actual)}</strong><div class="sub" style="margin-top:4px">${detail}</div>`;
       return;
     }
     if(status?.error){
-      box.innerHTML=`⚠️ <strong>PDF kunne ikke kontrolleres</strong><div class="sub" style="margin-top:4px">${String(status.error)}</div>`;return;
+      box.innerHTML=`⚠️ <strong>PDF kunne ikke kontrolleres</strong><div class="sub" style="margin-top:4px">${escapeHtml(status.error)}</div>`;return;
     }
     box.innerHTML=`⚠️ <strong>Tilbuds-PDF er ikke klar endnu</strong><div class="sub" style="margin-top:4px">Tilbuddet findes i Minuba. Lead Manager prøver både eksisterende PDF-kilder og en sikker PDF-generering fra Minuba-data. Der sendes aldrig uden en valideret PDF.</div>`;
   }

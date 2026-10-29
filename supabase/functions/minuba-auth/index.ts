@@ -1,0 +1,3 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+const cors={'Access-Control-Allow-Origin':'https://lead-manager-klimaeksperten.vercel.app','Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST,OPTIONS','Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'};
+Deno.serve((req:Request)=>req.method==='OPTIONS'?new Response(null,{status:204,headers:cors}):new Response(JSON.stringify({error:'Legacy Minuba-auth er lukket. Brug OAuth-forbindelsen i Lead Manager.',code:'LEGACY_MINUBA_AUTH_DISABLED'}),{status:410,headers:cors}));

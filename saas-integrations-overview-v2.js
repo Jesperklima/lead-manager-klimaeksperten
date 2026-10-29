@@ -37,7 +37,7 @@ function render(data){
   const attention=[mail,minuba,crm,website,social].filter(x=>x.state==='bad'||x.state==='warn').length;
   c.innerHTML='<div class="lm-int-head"><div><h2 style="margin:0 0 4px">Integrationer · overblik</h2><div class="lm-int-summary">'+(attention?attention+' område'+(attention===1?'':'r')+' kræver opmærksomhed':'Alle aktive integrationer ser normale ud')+'</div></div><button class="btn" id="lmIntegrationRefresh">Opdatér status</button></div><div class="lm-int-grid">'+
     tile('Mail',mail.state,mail.connected?mail.connected+' konto'+(mail.connected===1?'':'i'):'Ingen aktiv mail','#lmMailProviderCard')+
-    tile('Minuba',minuba.state,minuba.connected?'Automatisk sync aktiv':'Ikke aktiv','#minubaStatus')+
+    tile('Minuba',minuba.state,minuba.broken?'Kontrollér forbindelse':minuba.connected?'Seneste status uden registreret fejl':'Ikke aktiv','#minubaStatus')+
     tile('Website',website.state,website.connected?'Webhook aktiv':'Ingen website-forbindelse','#lmWebsiteIntakeCard')+
     tile('CRM',crm.state,crm.connected?crm.connected+' aktiv forbindelse':'Intet eksternt CRM','#lmCrmIntegrationCard')+
     tile('Marketing',social.state,social.connected?social.connected+' aktiv forbindelse':'Ingen social/marketing-feed','#mkConnectionsCard')+

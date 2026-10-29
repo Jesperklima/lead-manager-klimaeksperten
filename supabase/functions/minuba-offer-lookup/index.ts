@@ -1,3 +1,4 @@
+import { refreshMinubaAccess } from '../_shared/minuba-oauth.ts';
 import { apiSessionGuard } from '../_shared/api-session.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -195,14 +196,7 @@ Deno.serve(async(req:Request)=>{
     if(!accessToken||!refreshToken)return resp({found:false,skipped:true,code:'MINUBA_OAUTH_MISSING'});
     if(!oauthClientId||!oauthClientSecret)return resp({found:false,skipped:true,code:'PLATFORM_CREDENTIALS_MISSING'});
     const {data:conn}=await sb.from('crm_oauth_connections').select('token_expires_at,scope').eq('client_id',clientId).eq('provider','minuba').maybeSingle();
-    async function refreshAccess(){
-      const r=await fetch(String((platform.config||{}).oauth_token_url||TOKEN_URL),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json','Authorization':'Basic '+btoa(`${String(oauthClientId)}:${String(oauthClientSecret)}`)},body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refreshToken})});
-      const raw=await r.text();let j:any={};try{j=JSON.parse(raw)}catch{}
-      if(!r.ok||!j.access_token){const e:any=new Error('Minuba OAuth refresh fejlede: HTTP '+r.status);e.httpStatus=r.status;throw e}
-      accessToken=String(j.access_token);refreshToken=String(j.refresh_token||refreshToken);
-      const exp=new Date(Date.now()+Number(j.expires_in||3599)*1000).toISOString();
-      const {error}=await sb.rpc('set_minuba_oauth_tokens',{p_client_id:clientId,p_access_token:accessToken,p_refresh_token:refreshToken,p_expires_at:exp,p_scope:String(j.scope||conn?.scope||'Administrator')});if(error)throw error;
-    }
+    async function refreshAccess(){accessToken=await refreshMinubaAccess(sb,clientId,String(oauthClientId),String(oauthClientSecret),conn?.scope)}
     if(conn?.token_expires_at&&new Date(conn.token_expires_at).getTime()<=Date.now()+60000)await refreshAccess();
     async function mg(path:string,params:Record<string,string>={}){
       const q=new URLSearchParams(params);
@@ -280,6 +274,6 @@ Deno.serve(async(req:Request)=>{
     return resp({found:false,active:false,terminal:false,offer_ref:ref,attempts});
   }catch(e:any){
     console.error(e);
-    return resp({error:e instanceof Error?e.message:String(e),code:'MINUBA_OFFER_LOOKUP_ERROR'},e?.httpStatus===401?401:500);
+    return resp({error:e instanceof Error?e.message:String(e),code:e?.code||'MINUBA_OFFER_LOOKUP_ERROR'},e?.httpStatus||500);
   }
 });
