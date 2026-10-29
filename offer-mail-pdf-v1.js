@@ -16,6 +16,9 @@
   const finishingSendIds=new Set();
   const pdfStatusCache=new Map();
   const suppressionCache=new Map();
+  const manualRecipients=new Set();
+  const recipientKey=(o,to)=>String(state?.client?.id||'')+'|'+String(o?.id||'')+'|'+lower(to);
+  function recipientConfirmation(o,to){return manualRecipients.has(recipientKey(o,to))?{confirmed:true,offer_id:o.id,email:lower(to)}:null}
   // Mail preparation may be re-rendered many times during CRM refresh. Never
   // start another identical Minuba/PDF/preflight call while one is running.
   const pdfPreflights=new Map();
@@ -340,6 +343,18 @@
       box.innerHTML='<div style="border:2px solid rgba(148,163,184,.45);border-radius:12px;padding:14px 16px;background:rgba(15,23,42,.72);color:#cbd5e1;font-weight:700">Kontrollerer modtager og opfølgningsregler…</div>';
       return;
     }
+    if(suppressionBlocked&&suppressionCode==='OFFER_RECIPIENT_CONFIRMATION_REQUIRED'){
+      const o=offer(),to=String(byId('offerMailTo')?.value||'').trim();
+      field.hidden=false;
+      box.innerHTML='<div role="alert">Mailadressen er indtastet manuelt og findes ikke i kundedata. Bekræft, at '+escapeHtml(to)+' er modtager hos '+escapeHtml(o?.customer_name||'kunden')+'.<br><button type="button" class="btn" id="confirmOfferRecipient">Bekræft modtager</button></div>';
+      byId('confirmOfferRecipient').onclick=async()=>{
+        if(!o?.id||offer()?.id!==o.id||recipientKey(o,to)!==recipientKey(offer(),byId('offerMailTo')?.value))return;
+        if(!window.confirm('Bekræft, at '+to+' er den korrekte modtager hos '+(o.customer_name||'kunden')+' for tilbud '+o.offer_ref+'. Der sendes ingen mail ved denne bekræftelse.'))return;
+        manualRecipients.add(recipientKey(o,to));suppressionCache.delete(recipientKey(o,to));await checkSuppressionStatus(true);
+      };
+      if(button){button.disabled=true;button.textContent='Bekræft modtager først'}
+      return;
+    }
     if(suppressionBlocked){
       const wrongRecipient=suppressionCode==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
       const reason=suppressionReason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Kunden eller modtageren er markeret som “ingen opfølgning”.');
@@ -368,7 +383,7 @@
     renderSuppressionStatus({loading:true});
     const job=(async()=>{
       try{
-        const result=await callProtectedEdge('gmail-offer-send',{action:'preflight',client_id:state.client.id,offer_id:o.id,to});
+        const result=await callProtectedEdge('gmail-offer-send',{action:'preflight',client_id:state.client.id,offer_id:o.id,to,recipient_confirmation:recipientConfirmation(o,to)});
         if(result?.error)throw mailErrorFrom(result);
         const value=result?.data??result;
         suppressionCache.set(key,{at:Date.now(),value});
@@ -484,7 +499,7 @@
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const sendRequest=callProtectedEdge('gmail-offer-send',{
         client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,
-        follow_up_date:follow||null,request_id:requestId
+        follow_up_date:follow||null,request_id:requestId,recipient_confirmation:recipientConfirmation(o,to)
       });
       const result=await Promise.race([
         sendRequest,
@@ -572,7 +587,7 @@
 
   const schedule=()=>setTimeout(wire,0);
   window.addEventListener('lm:offer-mail-ready',schedule);
-  window.addEventListener('lm:offer-mail-opened',()=>{currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';suppressionCode='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(String(state?.client?.id||'')+'|'+o.id);for(const key of suppressionCache.keys())if(key.startsWith(String(state?.client?.id||'')+'|'+o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
+  window.addEventListener('lm:offer-mail-opened',()=>{manualRecipients.clear();currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';suppressionCode='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(String(state?.client?.id||'')+'|'+o.id);for(const key of suppressionCache.keys())if(key.startsWith(String(state?.client?.id||'')+'|'+o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
   window.addEventListener('lm:data-refreshed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
   setTimeout(wire,100);

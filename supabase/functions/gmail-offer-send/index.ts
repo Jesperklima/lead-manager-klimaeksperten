@@ -43,7 +43,7 @@ function arrayFrom(value:any){
   return[];
 }
 function minubaOfferId(offer:any){return trim(offer?.minuba_offer_id||offer?.minuba_raw?.id||offer?.minuba_raw?.orderId,200)}
-function directCustomerRecipientPolicy(offer:any,to:string,company:any,contacts:any[]){
+function directCustomerRecipientPolicy(offer:any,to:string,company:any,contacts:any[],manualConfirmed=false){
   const raw=offer?.minuba_raw||{},direct=new Set<string>(),delivery=new Set<string>();
   const add=(set:Set<string>,value:any)=>{for(const email of emailList(value))set.add(email)};
   const addAddress=(set:Set<string>,a:any)=>{if(a&&typeof a==='object')add(set,a?.email||a?.mail||a?.emailAddress)};
@@ -97,11 +97,12 @@ function directCustomerRecipientPolicy(offer:any,to:string,company:any,contacts:
   if(companyEmail&&companyEmail===recipient){
     return{...resultBase,blocked:false,verified:true,recipient_scope:'company_standard_email'};
   }
-  if(!minubaLinked&&contactMatch?.verified===true&&['company_standard_email','verified_company_contact'].includes(String(contactMatch?.source_type||''))){
+  if(contactMatch?.verified===true&&(contactMatch?.email_verification_method==='manual_user_confirmed'||(!minubaLinked&&['company_standard_email','verified_company_contact'].includes(String(contactMatch?.source_type||''))))){
     return{...resultBase,blocked:false,verified:true,recipient_scope:'verified_crm_contact'};
   }
+  if(manualConfirmed)return{...resultBase,blocked:false,verified:true,recipient_scope:'manual_user_confirmed'};
   return{
-    ...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',
+    ...resultBase,blocked:true,verified:false,code:'OFFER_RECIPIENT_CONFIRMATION_REQUIRED',
     reason:`Lead Manager kunne ikke bekræfte ${recipient} som kontakt hos den direkte kunde ${customerName}. Mailen er blokeret, indtil modtagerens virksomhedsrelation er bekræftet.`
   };
 }
@@ -666,6 +667,7 @@ Deno.serve(async(req:Request)=>{
     if(action==='resume')return json({ok:true,pending:false,status:'none'});
 
     const offerId=trim(body.offer_id,80),leadId=trim(body.lead_id,80),to=trim(body.to,320).toLowerCase(),subject=trim(body.subject,700),mailBody=trim(body.body,12000);
+    const manualRecipientConfirmed=body.recipient_confirmation?.confirmed===true&&body.recipient_confirmation?.offer_id===offerId&&String(body.recipient_confirmation?.email||'').trim().toLowerCase()===to;
     let followUpDate=trim(body.follow_up_date,10),followUpAt=trim(body.follow_up_at,60);
     if(!offerId)return json({error:'Mangler gyldigt tilbud',code:'OFFER_ID_MISSING'},400);
     if(action==='send'){
@@ -695,16 +697,16 @@ Deno.serve(async(req:Request)=>{
     let contactRows:any[]=[],companyRow:any=null;
     if(action==='send'||action==='preflight'){
       const [{data:recipientContacts,error:contactFindError},{data:recipientCompany,error:companyFindError}]=await Promise.all([
-        admin.from('crm_contacts').select('id,email,verified,source_type').eq('client_id',clientId).eq('company_id',companyId),
+        admin.from('crm_contacts').select('id,email,verified,source_type,email_verification_method').eq('client_id',clientId).eq('company_id',companyId),
         admin.from('crm_companies').select('id,email,domain,website_url').eq('id',companyId).eq('client_id',clientId).maybeSingle()
       ]);
       if(contactFindError)throw contactFindError;if(companyFindError)throw companyFindError;
       contactRows=recipientContacts||[];companyRow=recipientCompany||null;
-      const recipientPolicy=directCustomerRecipientPolicy(offer,to,companyRow,contactRows);
+      const recipientPolicy=directCustomerRecipientPolicy(offer,to,companyRow,contactRows,manualRecipientConfirmed);
       if(recipientPolicy.blocked){
         const reason=trim(recipientPolicy.reason,1500)||'Tilbud og priser må kun sendes til den direkte kunde.';
         const payload={
-          ok:false,blocked:true,code:'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason,
+          ok:false,blocked:true,code:recipientPolicy.code||'OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER',reason,
           message:'TILBUD BLOKERET – FORKERT MODTAGER',
           customer_name:recipientPolicy.customer_name,
           allowed_recipients:recipientPolicy.allowed_recipients||[]
@@ -808,6 +810,7 @@ Deno.serve(async(req:Request)=>{
         to,subject,body:mailBody,company_id:companyId,offer_id:offer.id,offer_ref:offerRef,
         customer_name:offer.customer_name||null,include_signature:true,signature_key:'client_default',
         approved_by:user.email,approval_method:'explicit_send_button',follow_up_date:followUpDate,
+        recipient_confirmation:manualRecipientConfirmed?{email:to,offer_id:offer.id,confirmed_by:user.id,confirmed_at:new Date().toISOString()}:null,
         follow_up_at:followUpAt,sender_name:fromName,send_id:requestId,
         attachment:{filename:pdfName,source:resolvedPdf.source,source_message_id:sourceMessageId}
       };
