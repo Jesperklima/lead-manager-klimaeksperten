@@ -1,3 +1,4 @@
+import { renderMinubaOfferPdf } from '../_shared/minuba-offer-layout.ts';
 import { refreshMinubaAccess } from '../_shared/minuba-oauth.ts';
 import { apiSessionGuard } from '../_shared/api-session.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
@@ -112,7 +113,7 @@ function minubaPdfScore(item:any,offerRef:string,minubaId:string){
   const mime=trim(item?.mimeType||item?.contentType||item?.type,200).toLowerCase();
   if(!(mime.includes('pdf')||/\.pdf$/i.test(name)))return -999;
   let score=0;
-  if(target&&n.includes(target))score+=90;
+  if((name.match(/\d+/g)||[]).includes(String(offerRef)))score+=90;
   if(/tilbud|offer|quote|quotation|proposal/i.test(name))score+=20;
   const relation=trim(item?.orderId||item?.parentId||item?.entityId||item?.relationId,200);
   if(minubaId&&relation&&relation.toLowerCase()===minubaId.toLowerCase())score+=50;
@@ -174,49 +175,20 @@ function wrapPdfText(text:string,font:any,size:number,maxWidth:number){
   return lines.length?lines:[''];
 }
 async function renderOfferPdf(raw:any,offerRef:string,customerName:string){
-  const pdf=await PDFDocument.create();
-  pdf.setTitle('Tilbud '+offerRef);
-  pdf.setSubject(trim(raw?.name,1000)||'Tilbud');
-  pdf.setCreator('Lead Manager · Minuba live data');
-  const normal=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
-  const W=595.28,H=841.89,margin=46,contentW=W-margin*2;
-  const pages:any[]=[];
-  let page=pdf.addPage([W,H]);pages.push(page);let y=H-50;
-  const newPage=()=>{page=pdf.addPage([W,H]);pages.push(page);y=H-50};
-  const need=(h:number)=>{if(y-h<52)newPage()};
-  const drawWrapped=(text:string,size=9.5,isBold=false,gap=4)=>{
-    const font=isBold?bold:normal,lines=wrapPdfText(text,font,size,contentW),lh=size+3;
-    need(lines.length*lh+gap);
-    for(const line of lines){page.drawText(line,{x:margin,y,size,font});y-=lh}
-    y-=gap;
-  };
-  page.drawText('Klimaeksperten ApS',{x:margin,y,size:18,font:bold});y-=28;
-  page.drawText('Tilbud '+pdfTextSafe(offerRef),{x:margin,y,size:15,font:bold});y-=22;
-  if(customerName)drawWrapped('Kunde: '+customerName,10,true,1);
-  if(raw?.name)drawWrapped('Vedr.: '+trim(raw.name,1000),10,true,1);
-  const address=raw?.contactAddress;
-  const addr=[address?.streetAddress,address?.postCode,address?.city].filter(Boolean).join(' ');
-  if(addr)drawWrapped(addr,9.5,false,1);
-  const price=Number(raw?.price??raw?.calculationPrice);
-  if(Number.isFinite(price)){
-    const p=price.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
-    drawWrapped('Tilbudssum: '+p+' kr.',10,true,1);
-  }
-  const expiration=trim(raw?.expirationDate||raw?.expiration,100);
-  if(expiration)drawWrapped('Tilbuddets udløbsdato: '+expiration,9.5,false,2);
-  y-=8;
-  const body=minubaProposalPlainText(raw);
-  for(const rawLine of body.split('\n')){
-    const line=rawLine.trim();
-    if(!line){y-=5;continue}
-    const heading=/^(Arbejdsbeskrivelse|Dimensioneringsgrundlag|Løsningsbeskrivelse|Indeholdt i tilbud|Uden for tilbud|Levering|Særlig bemærkninger|Tilbudssum|Med Venlig Hilsen)\s*:?$/i.test(line);
-    drawWrapped(line,heading?10:9.5,heading,heading?4:2);
-  }
-  pages.forEach((p:any,i:number)=>{
-    p.drawText('Tilbud '+pdfTextSafe(offerRef)+' · Klimaeksperten ApS',{x:margin,y:24,size:8,font:normal});
-    p.drawText(String(i+1)+' / '+String(pages.length),{x:W-margin-28,y:24,size:8,font:normal});
-  });
-  return new Uint8Array(await pdf.save());
+  const signer=trim(raw?.responsibleUser?.name||raw?.responsibleEmployee?.name,200)
+    ||(String(raw?.responsibleEmployeeId||'').toUpperCase()==='B7CB39C1-5B82-4A9E-8B69-77615CA66A1A'?'Thomas Hansen':'');
+  // This VAT code is the 25% code in the supplied, verified Minuba exports.
+  const vatPercentage=raw?.vatPercentage??raw?.client?.vatPercentage
+    ??(String(raw?.vatCodeId||'').toUpperCase()==='37A8FB8A-580F-4AF2-BC59-851B045D17FC'?25:null);
+  if(vatPercentage===null)throw new Error('Minubas momssats kunne ikke bekræftes');
+  return renderMinubaOfferPdf({...raw,vatPercentage},offerRef,customerName,signer);
+}
+async function originalPdfValid(value:string){
+  if(!pdfB64Valid(value))return false;
+  try{
+    const doc=await PDFDocument.load(Uint8Array.from(atob(fromB64Url(value)),c=>c.charCodeAt(0)));
+    return doc.getPageCount()>0&&!/Lead Manager/i.test(doc.getCreator()||'');
+  }catch{return false;}
 }
 async function minubaAccessToken(admin:any,clientId:string){
   const {data:intg}=await admin.from('crm_integrations').select('status').eq('client_id',clientId).eq('provider','minuba').maybeSingle();
@@ -256,24 +228,25 @@ async function minubaPdfCandidate(admin:any,clientId:string,offer:any,offerRef:s
   for(const {item} of ranked.slice(0,5)){
     const filename=trim(item?.filename||item?.fileName||item?.name||item?.title,1000)||`Tilbud ${offerRef}.pdf`;
     const embedded=trim(item?.data||item?.content||item?.base64,20_000_000).replace(/^data:application\/pdf;base64,/i,'');
-    if(pdfB64Valid(embedded))return{b64:embedded,filename,source:'minuba_file',messageId:'',attachmentId:trim(item?.id,500),minubaOfferId:stableId};
+    if(await originalPdfValid(embedded))return{b64:embedded,filename,source:'minuba_file',messageId:'',attachmentId:trim(item?.id,500),minubaOfferId:stableId};
     const direct=trim(item?.downloadUrl||item?.downloadURL||item?.url||item?.href,5000);
-    if(/^https:\/\//i.test(direct)){
+    if(/^https:\/\//i.test(direct)&&new URL(direct).hostname==='app.minuba.dk'){
       const r=await fetch(direct,{headers:{Accept:'application/pdf,*/*',Authorization:'Bearer '+auth.token}});
-      if(r.ok){const bytes=new Uint8Array(await r.arrayBuffer()),b64=bytesToB64(bytes);if(pdfB64Valid(b64))return{b64,filename,source:'minuba_file',messageId:'',attachmentId:trim(item?.id,500),minubaOfferId:stableId}}
+      if(r.ok){const bytes=new Uint8Array(await r.arrayBuffer()),b64=bytesToB64(bytes);if(await originalPdfValid(b64))return{b64,filename,source:'minuba_file',messageId:'',attachmentId:trim(item?.id,500),minubaOfferId:stableId}}
     }
     const fileId=trim(item?.id,500);
     if(fileId){
       const r=await get('File/Download?'+new URLSearchParams({id:fileId}).toString());
       if(r.ok){
         const bytes=new Uint8Array(await r.arrayBuffer()),b64=bytesToB64(bytes);
-        if(pdfB64Valid(b64))return{b64,filename,source:'minuba_file',messageId:'',attachmentId:fileId,minubaOfferId:stableId};
+        if(await originalPdfValid(b64))return{b64,filename,source:'minuba_file',messageId:'',attachmentId:fileId,minubaOfferId:stableId};
       }
     }
   }
   return null;
 }
 async function minubaLiveRenderCandidate(admin:any,clientId:string,offer:any,offerRef:string){
+  if(clientId!=='9b6b08bd-e9ce-40c3-8ffa-aa18e859d3af')return null;
   const stableId=minubaOfferId(offer);if(!stableId)return null;
   let auth:any=null;try{auth=await minubaAccessToken(admin,clientId)}catch(e){console.error('[gmail-offer-send] Minuba live render token lookup failed',e)}
   if(!auth?.token)return null;
@@ -284,7 +257,7 @@ async function minubaLiveRenderCandidate(admin:any,clientId:string,offer:any,off
   const data=await r.json().catch(()=>null);
   const orders=Array.isArray(data)?data:Array.isArray(data?.orders)?data.orders:Array.isArray(data?.Orders)?data.Orders:Array.isArray(data?.data)?data.data:(data?.id?[data]:[]);
   const live=orders.find((x:any)=>String(x?.id||'').toLowerCase()===stableId.toLowerCase())||orders[0];
-  if(!live)return null;
+  if(!live||String(live.id||'').toLowerCase()!==stableId.toLowerCase())return null;
   if(refNorm(live?.orderNumber)!==refNorm(offerRef))return null;
   const state=trim(live?.state,100).toUpperCase();
   if(!(live?.proposal===true||live?.quote===true||state.includes('PROPOSAL')))return null;
@@ -328,15 +301,16 @@ async function gmailCachedPdfCandidate(offer:any,offerRef:string,accessToken:str
     .map(({part,filename})=>{
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=160;
-      else if(target&&nf.includes(target))score+=120;
+      else if((filename.match(/\d+/g)||[]).includes(String(offerRef)))score+=120;
       if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=20;
       return{part,filename,score};
     })
     .filter(x=>x.score>=120)
     .sort((a,b)=>b.score-a.score);
   for(const {part,filename} of parts.slice(0,3)){
+    if(!(filename.match(/\d+/g)||[]).includes(String(offerRef)))continue;
     const b64=await gmailAttachmentB64(accessToken,mid,part);
-    if(!pdfB64Valid(b64))continue;
+    if(!await originalPdfValid(b64))continue;
     return{
       b64,filename,
       source:'gmail_cache',
@@ -366,16 +340,17 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
     for(const {part,filename} of collectPdfParts(msg.payload)){
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=120;
-      else if(target&&nf.includes(target))score+=80;
+      else if((filename.match(/\d+/g)||[]).includes(String(offerRef)))score+=80;
       if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=15;
       if(target&&evidence.includes(target))score+=40;
       if(/@minuba\.dk/i.test(from)||/minuba/i.test(from))score+=20;
       if(linkedIds.has(mid))score+=100;
       if(String(offer?.pdf_source_message_id||'')===mid)score+=150;
       const numbered=filename.match(/(?:tilbud|offer|quote|quotation|proposal)[ _-]*(\d{3,8})/i);
-      if(numbered&&refNorm(numbered[1])!==target)score-=180;
+      if(numbered&&refNorm(numbered[1])!==target)continue;
+      if(!(filename.match(/\d+/g)||[]).includes(String(offerRef)))continue;
       if(score<80)continue;
-      const b64=await gmailAttachmentB64(accessToken,mid,part);if(!pdfB64Valid(b64))continue;
+      const b64=await gmailAttachmentB64(accessToken,mid,part);if(!await originalPdfValid(b64))continue;
       candidates.push({b64,filename,source:String(offer?.pdf_source_message_id||'')===mid?'gmail_cache':linkedIds.has(mid)?'gmail_linked':'gmail_search',messageId:mid,attachmentId:trim(part?.body?.attachmentId,1000),score,date:Number(msg.internalDate||0)});
       if(nf===refNorm(expected))return candidates[candidates.length-1];
     }
@@ -386,12 +361,17 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
 async function resolveOfferPdf(admin:any,clientId:string,offer:any,offerRef:string,gmailToken:string){
   const stableId=minubaOfferId(offer),cachedKind=trim(offer?.pdf_source_kind,120);
   let found:any=null;
-  if(cachedKind.startsWith('gmail')&&offer?.pdf_source_message_id){
-    found=await gmailCachedPdfCandidate(offer,offerRef,gmailToken);
+  // Source order: Minuba original, cached original, mail archive original, then layout reconstruction.
+  // An unavailable source must not prevent trying the remaining sources.
+  let sourceError:any=null;
+  const attempt=async(fn:()=>Promise<any>)=>{try{return await fn()}catch(e){sourceError=e;return null;}};
+  found=await attempt(()=>minubaPdfCandidate(admin,clientId,offer,offerRef));
+  if(!found&&cachedKind.startsWith('gmail')&&offer?.pdf_source_message_id){
+    found=await attempt(()=>gmailCachedPdfCandidate(offer,offerRef,gmailToken));
   }
-  if(!found)found=await minubaPdfCandidate(admin,clientId,offer,offerRef);
-  if(!found&&stableId)found=await minubaLiveRenderCandidate(admin,clientId,offer,offerRef);
-  if(!found)found=await gmailPdfCandidate(admin,clientId,offer,offerRef,gmailToken);
+  if(!found)found=await attempt(()=>gmailPdfCandidate(admin,clientId,offer,offerRef,gmailToken));
+  if(!found&&stableId)found=await attempt(()=>minubaLiveRenderCandidate(admin,clientId,offer,offerRef));
+  if(!found&&sourceError?.code==='GMAIL_QUOTA_EXCEEDED')throw sourceError;
   if(found){
     const now=new Date().toISOString();
     await admin.from('crm_offers').update({
