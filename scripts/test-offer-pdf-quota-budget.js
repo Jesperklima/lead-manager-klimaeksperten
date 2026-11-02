@@ -9,7 +9,7 @@ trim:(v,max=10000)=>String(v??'').trim().slice(0,max),
 refNorm:v=>String(v??'').toLowerCase().replace(/[^a-z0-9]/g,''),
 headerValue:(p,name)=>(p?.headers||[]).find(h=>h.name===name)?.value||'',
 collectPdfParts:p=>(p?.parts||[]).map(part=>({part,filename:part.filename})),
-pdfB64Valid:v=>v==='validated-pdf',fromB64Url:v=>v,
+pdfB64Valid:v=>v==='validated-pdf',originalPdfValid:async v=>v==='validated-pdf',fromB64Url:v=>v,
 fetch:async url=>{
 requests.push(url);
 if(quota)return new Response(JSON.stringify({error:{message:'Quota exceeded',errors:[{reason:'userRateLimitExceeded'}]}}),{status:403});
