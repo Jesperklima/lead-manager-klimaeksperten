@@ -1,0 +1,17 @@
+name: Minuba PDF layout
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-save --package-lock=false pdf-lib@1.17.1
+      - run: node scripts/test-minuba-layout.cjs
+      - run: node scripts/test-minuba-pdf-resolution.cjs
+      - run: node scripts/test-offer-pdf-quota-budget.js
+      - run: node scripts/test-reliable-offer-pdf-send.js
