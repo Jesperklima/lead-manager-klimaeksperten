@@ -488,6 +488,16 @@
       alert((wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(suppression.reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
       return;
     }
+    // Verify the attachment BEFORE asking for final approval or creating a send job.
+    // The send endpoint verifies again to protect against changes after this check.
+    const pdfCheck=await checkPdfStatus(true);
+    if(!pdfCheck?.ready){
+      const detail=String(pdfCheck?.message||pdfCheck?.error||'En verificeret tilbuds-PDF kunne ikke hentes.').trim();
+      renderPdfStatus(pdfCheck||{error:detail});
+      renderSendStatus('error','Afsendelse blokeret – PDF ikke klar',detail);
+      alert('MAILEN ER IKKE SENDT\\n\\n'+detail+'\\n\\nKontrollér den originale PDF fra Minuba, før du prøver igen.');
+      return;
+    }
     if(pdfSendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${to} med ${name} vedhæftet?`))return;
     if(!currentPdfSendId)currentPdfSendId=makeSendId();
     const requestId=currentPdfSendId,button=byId('sendOfferMail'),old='Send mail';
