@@ -116,7 +116,9 @@
       const wrap=document.createElement('div');wrap.className='field';
       wrap.innerHTML='<label>Mail-skabelon</label><div class="split"><select id="offerTemplateSelect" style="min-width:220px;flex:1"></select><button type="button" class="btn small" id="manageOfferTemplates">Administrér skabeloner</button></div>';
       field?.insertAdjacentElement('beforebegin',wrap);
-      byId('offerTemplateSelect').onchange=e=>applyTemplate('offer',e.target.value);
+      byId('offerTemplateSelect').onchange=e=>{e.target.dataset.userSelected='1';applyTemplate('offer',e.target.value)};
+      const note=document.createElement('div');note.id='offerFollowupTemplateStatus';note.className='sub';note.style.marginTop='6px';note.textContent='Du kan vælge enhver skabelon, også efter flere opfølgninger.';wrap.appendChild(note);
+
       byId('manageOfferTemplates').onclick=()=>openManager('offer');
     }
     refreshSelectors();
@@ -210,12 +212,58 @@
     await loadTemplates(true);renderList();refreshSelectors();resetForm();if(typeof toast==='function')toast('Mail-skabelon fjernet');
   }
 
+  let offerAutoToken=0;
+  let lastOfferAutoKey='';
+  function confirmedPriorFollowup(message){
+    if(message?.direction!=='outbound'||!message.external_message_id)return false;
+    const combined=String(message.subject||'')+' '+String(message.body_text||'');
+    // Count only sent offer follow-ups, not the original offer, drafts, or failed sends.
+    return /opfølg|følg.{0,15}op|follow.up|gensend(?:er|t)?|tidligere fremsendt/i.test(combined);
+  }
+  async function autoSelectOfferTemplate(){
+    const modal=byId('offerMailModal'),select=byId('offerTemplateSelect'),offer=currentOfferValue();
+    if(!modal?.classList.contains('open')||!select||!offer?.id||!currentClientId()){
+      if(select){select.dataset.defaultApplied='';select.dataset.userSelected='';}
+      lastOfferAutoKey='';offerAutoToken++;
+      return;
+    }
+    const key=currentClientId()+'|'+offer.id;
+    if(key===lastOfferAutoKey)return;
+    lastOfferAutoKey=key;
+    const token=++offerAutoToken;
+    select.dataset.defaultApplied='';select.dataset.userSelected='';
+    const previousDefault=templates.find(t=>t.is_default&&(t.scope==='offer'||t.scope==='both'));
+    const second=templates.find(t=>t.scope==='offer'&&t.is_active&&t.name==='Opfølgning 2 – genoptag dialog');
+    // Preserve the existing standard while historical messages are checked.
+    if(previousDefault&&!String(byId('offerMailBody')?.value||'').trim()){
+      select.value=previousDefault.id;applyTemplate('offer',previousDefault.id);
+    }
+    try{
+      const {data,error}=await supabase.from('crm_mail_messages')
+        .select('direction,external_message_id,subject,body_text')
+        .eq('client_id',currentClientId()).eq('offer_id',offer.id)
+        .eq('direction','outbound').not('external_message_id','is',null).limit(1000);
+      if(error)throw error;
+      if(token!==offerAutoToken||!modal.classList.contains('open')||currentOfferValue()?.id!==offer.id||select.dataset.userSelected==='1')return;
+      const count=(data||[]).filter(confirmedPriorFollowup).length;
+      const chosen=count>=1?second:previousDefault;
+      if(!chosen)return;
+      select.value=chosen.id;
+      applyTemplate('offer',chosen.id);
+      select.dataset.defaultApplied='1';
+      const status=byId('offerFollowupTemplateStatus');
+      if(status)status.textContent=count>=1
+        ?count+' tidligere afsendte opfølgning(er). Skabelon 2 valgt automatisk – du kan altid skifte eller redigere.'
+        :'Ingen tidligere afsendt opfølgning fundet. Første skabelon valgt – du kan altid skifte.';
+    }catch(e){
+      console.warn('Kunne ikke kontrollere opfølgningshistorik:',e);
+      const status=byId('offerFollowupTemplateStatus');
+      if(status)status.textContent='Kunne ikke kontrollere historikken. Vælg skabelon manuelt.';
+    }
+  }
   async function applyDefaultWhenOpened(){
     await loadTemplates();
-    if(byId('offerMailModal')?.classList.contains('open')&&byId('offerTemplateSelect')){
-      const t=templates.find(x=>x.is_default&&(x.scope==='offer'||x.scope==='both'));
-      if(t&&!byId('offerTemplateSelect').dataset.defaultApplied){byId('offerTemplateSelect').dataset.defaultApplied='1';byId('offerTemplateSelect').value=t.id;applyTemplate('offer',t.id)}
-    }else if(byId('offerTemplateSelect'))byId('offerTemplateSelect').dataset.defaultApplied='';
+    await autoSelectOfferTemplate();
     if(byId('mailModal')?.classList.contains('open')&&byId('leadTemplateSelect')){
       const t=templates.find(x=>x.is_default&&(x.scope==='lead'||x.scope==='both'));
       if(t&&!byId('leadTemplateSelect').dataset.defaultApplied){byId('leadTemplateSelect').dataset.defaultApplied='1';byId('leadTemplateSelect').value=t.id;applyTemplate('lead',t.id)}
