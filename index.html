@@ -418,7 +418,17 @@ html,body{background:var(--bg)!important;color:var(--text)!important}body{font:1
     <div class="mail-compose-pane">
       <div class="field"><label>Til</label><input id="mTo" type="email" placeholder="Verificeret modtager"><div id="mToSource" class="sub" style="margin-top:5px">Modtager vælges fra verificeret kontakt eller virksomhedens standardmail.</div></div>
       <div class="field"><label>Emne</label><input id="mSubject" placeholder="AI kan foreslå emnet"></div><div class="field" id="lmFollowUpField"><label>Opfølgning i pipeline</label><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="mFollowUpDate" type="date" style="min-width:180px;flex:1"><div class="split"><button type="button" class="btn small" data-lm-follow-days="3">+3 dage</button><button type="button" class="btn small" data-lm-follow-days="7">+7 dage</button><button type="button" class="btn small" data-lm-follow-days="14">+14 dage</button></div></div><div class="sub" style="margin-top:5px">Standard er 7 dage. Datoen bliver næste opfølgning på leadet og vises i pipeline og kalender.</div></div>
-      <div class="field"><label>Mailtekst</label><textarea id="mBody" rows="15" placeholder="Skriv selv – eller fortæl AI'en til højre hvad mailen skal sige…"></textarea><div class="sub" style="margin-top:5px">Din faste signatur tilføjes automatisk ved afsendelse.</div></div>
+      <div class="field" id="lmOfferFollowupTemplates" style="display:none;padding:12px;border:1px solid #dbe3e8;background:#edf3f6;border-radius:9px">
+<label for="lmOfferFuMode">Opfølgningsskabelon for tilbud</label>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<select id="lmOfferFuOffer" style="flex:1;min-width:130px" aria-label="Vælg tilbud"></select>
+<select id="lmOfferFuMode" style="flex:1;min-width:190px" aria-label="Vælg opfølgningsskabelon">
+<option value="auto">Automatisk ud fra historik</option>
+<option value="first">1. opfølgning (eksisterende)</option>
+<option value="second">2. opfølgning</option>
+<option value="none">Skriv selv – ingen skabelon</option>
+</select></div><div id="lmOfferFuStatus" class="sub" aria-live="polite" style="margin-top:6px">Du kan altid redigere teksten, inden du sender.</div></div>
+<div class="field"><label>Mailtekst</label><textarea id="mBody" rows="15" placeholder="Skriv selv – eller fortæl AI'en til højre hvad mailen skal sige…"></textarea><div class="sub" style="margin-top:5px">Din faste signatur tilføjes automatisk ved afsendelse.</div></div>
       <div class="ai-rewrite-bar">
         <button class="btn small" data-ai-command="Gør mailen kortere uden at miste budskabet.">Kortere</button>
         <button class="btn small" data-ai-command="Gør mailen mere direkte og skarp, men stadig professionel.">Mere direkte</button>
@@ -1654,4 +1664,102 @@ $('checkOpenAIStatus').onclick=checkOpenAIAuthStatus;
 })();
 </script>
 <script src="/executive-dashboard-v1.js?v=20260925-contact-name-1"></script>
+<script id="lm-offer-followup-template-v2-20261111">(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+let cycle=0, userEdited=false, generated=false, previous={body:'',subject:''}, chosen='', internalWrite=false;
+function leadsOffers(){
+  try{
+    if(!currentLead?.id||!state?.client?.id)return [];
+    const list=state.offers||[];
+    return list.filter(o=>o.client_id===state.client.id&&(o.lead_id===currentLead.id||o.company_id===currentLead.company_id)&&o.offer_ref)
+      .sort((a,b)=>Number(b.status==='I GANG')-Number(a.status==='I GANG')||String(b.sent_date||'').localeCompare(String(a.sent_date||'')));
+  }catch{return [];}
+}
+function currentOfferChoice(){return leadsOffers().find(o=>o.id===$('lmOfferFuOffer')?.value)||null;}
+function firstName(o){
+  let name=String(o.contact_person||'').trim();
+  try{
+    const selected=bestEmailContact(contactsFor(o.company_id));
+    if(selected?.email?.toLowerCase()===$('mTo')?.value?.toLowerCase()&&selected?.full_name)name=selected.full_name;
+    if(!name)name=selected?.full_name||'';
+  }catch{}
+  return name.split(/\s+/)[0]||'';
+}
+function secondBody(o){
+  return 'Hej '+firstName(o)+'\n\n'
+  +'Vi har tidligere forsøgt at følge op på vores tilbud nr. '+o.offer_ref+', men har desværre endnu ikke hørt fra dig.\n\n'
+  +'Jeg tillader mig derfor at følge op endnu en gang i håb om, at vi kan genoptage dialogen.\n\n'
+  +'Har du spørgsmål til tilbuddet eller ønsker at drøfte det nærmere, er du naturligvis altid velkommen til at kontakte mig, Thomas eller Per.\n\n'
+  +'Jeg ser frem til at høre fra dig.';
+}
+function fill(){
+  const mode=$('lmOfferFuMode')?.value,o=currentOfferChoice(),body=$('mBody'),subject=$('mSubject');
+  if(!o||!body||!subject)return;
+  internalWrite=true;
+  if(mode==='second'){
+    if(!generated)previous={body:body.value,subject:subject.value};
+    body.value=secondBody(o);
+    if(!subject.value.trim()||generated)subject.value='Opfølgning på tilbud nr. '+o.offer_ref;
+    generated=true;
+  }else if(mode==='none'){
+    if(generated){body.value='';subject.value='';}
+    generated=false;
+  }else if(mode==='first'){
+    if(generated){body.value=previous.body;subject.value=previous.subject;}
+    generated=false;
+  }
+  internalWrite=false;
+}
+function isConfirmedFollowup(mail){
+  if(mail?.direction!=='outbound'||!mail.external_message_id)return false;
+  const text=String(mail.subject||'')+' '+String(mail.body_text||'');
+  return /opfølg|følg.{0,15}op|follow.up/i.test(text);
+}
+async function updateHistory(auto=true){
+  const o=currentOfferChoice(),step=cycle,info=$('lmOfferFuStatus');if(!o||!info)return;
+  info.textContent='Kontrollerer tidligere afsendte opfølgningsmails…';
+  try{
+    const {data,error}=await supabase.from('crm_mail_messages')
+      .select('direction,external_message_id,subject,body_text')
+      .eq('client_id',state.client.id).eq('offer_id',o.id)
+      .eq('direction','outbound').not('external_message_id','is',null).limit(1000);
+    if(error)throw error;
+    if(step!==cycle||!$('mailModal')?.open)return;
+    const count=(data||[]).filter(isConfirmedFollowup).length;
+    info.textContent=count+' registrerede afsendte opfølgninger på tilbud nr. '+o.offer_ref+'. Skabelonen kan ændres frit.';
+    if(auto&&!userEdited){
+      $('lmOfferFuMode').value=count>0?'second':'first';
+      if(count>0&&!$('mBody').value.trim())fill();
+    }
+  }catch(err){if(step===cycle)info.textContent='Historikken kunne ikke indlæses. Vælg skabelon manuelt.';}
+}
+function open(){
+  cycle++;userEdited=false;generated=false;
+  const panel=$('lmOfferFollowupTemplates'),list=leadsOffers();
+  if(!panel)return;
+  panel.style.display=list.length?'block':'none';
+  if(!list.length)return;
+  const choices=$('lmOfferFuOffer');
+  choices.replaceChildren(...list.map(o=>{
+    const option=document.createElement('option');option.value=o.id;option.textContent='Tilbud '+o.offer_ref;return option;
+  }));
+  $('lmOfferFuMode').value='auto';
+  previous={body:$('mBody')?.value||'',subject:$('mSubject')?.value||''};
+  updateHistory(true);
+}
+function start(){
+  const modal=$('mailModal'),mode=$('lmOfferFuMode'),offers=$('lmOfferFuOffer');
+  if(!modal||!mode||!offers)return;
+  mode.addEventListener('change',()=>{userEdited=true;fill()});
+  offers.addEventListener('change',()=>{userEdited=true;cycle++;updateHistory(false);if(mode.value==='second')fill()});
+  for(const id of ['mBody','mSubject']){
+    $(id)?.addEventListener('input',()=>{if(modal.open&&!internalWrite)userEdited=true});
+  }
+  window.addEventListener('lm:mail-opened',()=>setTimeout(open,0));
+  window.addEventListener('lm:mail-closed',()=>{cycle++});
+  if(modal.open)open();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();</script>
 </body></html>
