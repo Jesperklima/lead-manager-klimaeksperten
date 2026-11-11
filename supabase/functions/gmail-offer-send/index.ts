@@ -250,7 +250,7 @@ async function minubaLiveRenderCandidate(admin:any,clientId:string,offer:any,off
   const stableId=minubaOfferId(offer);if(!stableId)return null;
   let auth:any=null;try{auth=await minubaAccessToken(admin,clientId)}catch(e){console.error('[gmail-offer-send] Minuba live render token lookup failed',e)}
   if(!auth?.token)return null;
-  const path='Order?'+new URLSearchParams({id:stableId}).toString();
+  const path='Order?'+new URLSearchParams({id:stableId,include:'client,addresses'}).toString();
   const once=()=>fetch('https://app.minuba.dk/api/1/'+path,{headers:{Accept:'application/json',Authorization:'Bearer '+auth.token}});
   let r=await once();if(r.status===401&&await auth.refresh())r=await once();
   if(!r.ok){console.error('[gmail-offer-send] Minuba live order fetch failed',{status:r.status,offer_ref:offerRef,minuba_offer_id:stableId});return null}
