@@ -117,6 +117,7 @@
       wrap.innerHTML='<label>Mail-skabelon</label><div class="split"><select id="offerTemplateSelect" style="min-width:220px;flex:1"></select><button type="button" class="btn small" id="manageOfferTemplates">Administrér skabeloner</button></div>';
       field?.insertAdjacentElement('beforebegin',wrap);
       byId('offerTemplateSelect').onchange=e=>{e.target.dataset.userSelected='1';applyTemplate('offer',e.target.value)};
+      ['offerMailSubject','offerMailBody'].forEach(fieldId=>byId(fieldId)?.addEventListener('input',()=>{if(byId('offerMailModal')?.classList.contains('open'))byId('offerTemplateSelect').dataset.userSelected='1'}));
       const note=document.createElement('div');note.id='offerFollowupTemplateStatus';note.className='sub';note.style.marginTop='6px';note.textContent='Du kan vælge enhver skabelon, også efter flere opfølgninger.';wrap.appendChild(note);
 
       byId('manageOfferTemplates').onclick=()=>openManager('offer');
@@ -277,6 +278,9 @@
   window.addEventListener('lm:mail-opened',schedule);
   window.addEventListener('lm:offer-mail-ready',schedule);
   window.addEventListener('lm:offer-mail-opened',schedule);
+  window.addEventListener('lm:offer-mail-closed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('#openMailComposer,#openOfferMail,.nav button[data-view="mail"],.nav button[data-view="offers"],.nav button[data-view="offerpipeline"]'))schedule()},true);
+  const offerModal=byId('offerMailModal');
+  if(offerModal)new MutationObserver(schedule).observe(offerModal,{attributes:true,attributeFilter:['class']});
   setTimeout(watch,300);
 })();
