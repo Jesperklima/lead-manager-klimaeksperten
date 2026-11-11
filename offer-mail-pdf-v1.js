@@ -28,6 +28,13 @@
   function offer(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
   function contacts(o){try{return typeof contactsFor==='function'?contactsFor(o.company_id):((state?.contacts||[]).filter(x=>x.company_id===o.company_id))}catch{return[]}}
+  function isInvoiceMailbox(email){
+    const e=lower(email),idx=e.lastIndexOf('@');if(idx<=0)return false;
+    const local=e.slice(0,idx),host=e.slice(idx+1);
+    if(host==='basware.com'||host.endsWith('.basware.com'))return true;
+    const blocked=new Set(['invoice','invoices','invoicing','einvoice','einvoicing','faktura','fakturaer','fakturering','faktureringer','kreditor','kreditorer','accounts','accountspayable','payables','billing','billings','ean','e-faktura']);
+    return local.split(/[._+\-]/).some(part=>blocked.has(part))||/^(?:invoice|invoicing|faktura|kreditor|billing|accountspayable)[0-9]*$/.test(local);
+  }
   function bounced(email,o){const e=lower(email);return contacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function pdfName(o){const ref=String(o?.offer_ref||'').trim();return ref?`Tilbud ${ref}.pdf`:''}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
@@ -47,6 +54,7 @@
       const reason=message.replace(/^Opfølgning er blokeret:\s*/i,'').trim();
       return reason?`Denne kunde/modtager er markeret “ingen opfølgning”. Årsag: ${reason}`:'Denne kunde/modtager er markeret “ingen opfølgning”. Mailen er ikke sendt.';
     }
+    if(code==='OFFER_RECIPIENT_INVOICE_MAILBOX')return message||'Modtageren er en faktura- eller dokumentindbakke. Vælg en kontaktperson til tilbudsopfølgning.';
     if(code==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER')return message||'Tilbud og priser må kun sendes til den direkte kunde. Den valgte modtager er ikke godkendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
     if(code==='MINUBA_RECONNECT_REQUIRED')return 'Minuba kræver ny godkendelse under Integrationer. Mailen er ikke sendt.';
@@ -481,11 +489,18 @@
     if(!to||!subject||!body){if(typeof toast==='function')toast('Udfyld modtager, emne og mailtekst');return}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){if(typeof toast==='function')toast('Mailadressen er ikke gyldig');return}
     if(bounced(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl. Vælg en anden adresse.`);return}
+    if(isInvoiceMailbox(to)){
+      const reason=to+' er en faktura-/dokumentmodtagelsesadresse. Vælg en relevant kontaktperson hos kunden. Mailen er ikke sendt.';
+      renderSendStatus('error','TILBUD BLOKERET – FAKTURAMODTAGER',reason);
+      alert(reason);
+      return;
+    }
     if(!name){alert('Tilbudsnummeret mangler. Mailen sendes ikke, fordi den rigtige PDF ikke kan identificeres sikkert.');return}
     const suppression=await checkSuppressionStatus(false);
     if(suppression?.blocked){
+      const invoiceMailbox=String(suppression.code||'')==='OFFER_RECIPIENT_INVOICE_MAILBOX';
       const wrongRecipient=String(suppression.code||'')==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
-      alert((wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(suppression.reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
+      alert((invoiceMailbox?'TILBUD BLOKERET – FAKTURAMODTAGER':wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(suppression.reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
       return;
     }
     // Verify the attachment BEFORE asking for final approval or creating a send job.
