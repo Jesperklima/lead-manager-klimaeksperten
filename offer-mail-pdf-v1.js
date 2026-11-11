@@ -417,7 +417,9 @@
     if(status?.error){
       box.innerHTML=`⚠️ <strong>PDF kunne ikke kontrolleres</strong><div class="sub" style="margin-top:4px">${escapeHtml(status.error)}</div>`;return;
     }
-    box.innerHTML=`⚠️ <strong>Tilbuds-PDF er ikke klar endnu</strong><div class="sub" style="margin-top:4px">Tilbuddet findes i Minuba. Lead Manager prøver både eksisterende PDF-kilder og en sikker PDF-generering fra Minuba-data. Der sendes aldrig uden en valideret PDF.</div>`;
+    const reason=String(status?.message||'').trim();
+    const specific=String(status?.code||'')==='MINUBA_OFFER_PRICE_MISSING';
+    box.innerHTML=`⚠️ <strong>${specific?'Tilbudspris mangler i API – original PDF kræves':'Tilbuds-PDF er ikke klar endnu'}</strong><div class="sub" style="margin-top:4px">${escapeHtml(reason||'Tilbuddet findes i Minuba, men en kontrolleret PDF er ikke tilgængelig. Lead Manager sender aldrig uden en verificeret PDF.')}</div>`;
   }
 
   async function checkPdfStatus(force=false){
