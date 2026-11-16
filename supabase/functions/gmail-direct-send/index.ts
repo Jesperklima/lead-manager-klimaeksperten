@@ -239,7 +239,9 @@ Deno.serve(async(req:Request)=>{
       }).select('id,email,verified').single();
       if(createContactError)throw createContactError;contact=created;
     }
-    if(!contact)return json({error:'Modtageren matcher hverken en kontaktmail eller virksomhedens standardmail. Kontrollér adressen først.',code:'RECIPIENT_NOT_ON_CUSTOMER'},412);
+    // Manually entered recipients are permitted for lead mails after an explicit user send action.
+    // Offer mails still require the direct-customer recipient policy above.
+    if(!contact&&offer)return json({error:'Modtageren kunne ikke knyttes til den direkte kunde.',code:'RECIPIENT_NOT_ON_CUSTOMER'},412);
 
     const approvalPayload={
       to,subject,body:mailBody,company_id:companyId,offer_id:offer?.id||null,include_signature:true,purpose:offer?'offer_followup':trim(body.purpose,50)||'direct_marketing',
@@ -258,7 +260,7 @@ Deno.serve(async(req:Request)=>{
     const now=new Date().toISOString();
     const {data:job,error:jobError}=await admin.from('crm_mail_send_jobs').insert({
       client_id:clientId,send_id:requestId,user_id:user.id,user_email:user.email,company_id:companyId,
-      lead_id:effectiveLeadId,offer_id:offer?.id||null,contact_id:contact.id,approval_id:approval.id,
+      lead_id:effectiveLeadId,offer_id:offer?.id||null,contact_id:contact?.id||null,approval_id:approval.id,
       to_email:to,subject,body_text:mailBody,follow_up_date:followUpDate,follow_up_at:followUpAt,
       from_email:from,sender_name:fromName,ai_generated:aiGenerated,ai_model:aiModel,
       signature_appended:!!(sigText||sigHtml),message_rfc822_id:messageRfc822Id,status:'prepared'
