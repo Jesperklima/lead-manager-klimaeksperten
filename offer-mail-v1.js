@@ -364,7 +364,7 @@
     setNodeText('offerMailContactNameNote',name?'Navnet er hentet fra Minuba.':'Minuba har mailadressen, men ikke et navn på denne kontakt.');
     setNodeText('offerMailRecipientNote','Modtageren er bekræftet som kontakt hos den direkte kunde i Minuba.');
     refreshGreeting(o);
-    const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
+    // A contact refresh must not re-apply a template: doing so discards the user's edits.
   }
 
   function updateComposerFromOffer(o,contactSource=''){
@@ -382,7 +382,7 @@
     setNodeText('offerMailRecipientNote',to?`Modtageren er fundet hos den direkte kunde: ${directCustomer}.`:`Vælg en mailadresse hos den direkte kunde: ${directCustomer}. Leverings-/arbejdsstedets kontakt bruges kun, når maildomænet er bekræftet som den direkte kundes.`);
     renderContactChoices(o);
     document.dispatchEvent(new CustomEvent('lm:offer-contact-updated',{detail:{offer_id:o.id,contact_person:o.contact_person||'',contact_details:o.contact_details||''}}));
-    const selectedTemplate=byId('offerTemplateSelect');if(selectedTemplate?.value)selectedTemplate.dispatchEvent(new Event('change',{bubbles:true}));
+    // A contact refresh must not re-apply a template: doing so discards the user's edits.
   }
 
   // Contact enrichment is optional, unlike the mandatory pre-send status check.
@@ -469,7 +469,7 @@
     ensureContactName(o);
     const to=recipientFor(o),ref=String(o.offer_ref||'').trim();
     setNodeText('offerMailMeta',[`Tilbud ${ref}`,o.customer_name||'',o.installation_address||''].filter(Boolean).join(' · '));
-    setNodeValue('offerMailTo',to);setNodeValue('offerMailContactName',String(o.contact_person||''));setNodeValue('offerMailSubject',`Opfølgning på tilbud ${ref}`);setNodeValue('offerMailBody',`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`);setNodeValue('offerMailFollow',byId('oFollow')?.value||o.follow_up_date||plusDays(7));setNodeText('offerMailSender',`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`);
+    setNodeValue('offerMailTo',to);setNodeValue('offerMailContactName',String(o.contact_person||''));setNodeValue('offerMailSubject',`Opfølgning på tilbud ${ref}`);setNodeValue('offerMailBody',`${greeting(o)}\n\nJeg vil blot følge op på tilbud ${ref}.\n\nHar I haft mulighed for at kigge på det, og er der noget, jeg skal uddybe?\n\nSer frem til at høre fra jer.`);setNodeValue('offerMailFollow',([byId('oFollow')?.value,o.follow_up_date].find(d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d||''))&&String(d)>ymd(new Date()))||plusDays(7)));setNodeText('offerMailSender',`Afsender: ${sender()} · din mailsignatur tilføjes automatisk.`);
     updateComposerFromOffer(o);openOfferMailModal();enrichFromMinuba(o);setTimeout(()=>{(to?byId('offerMailSubject'):byId('offerMailTo'))?.focus()},0);
   }
 
