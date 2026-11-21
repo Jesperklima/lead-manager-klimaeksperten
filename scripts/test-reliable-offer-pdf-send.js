@@ -15,7 +15,7 @@ for(const marker of [
   'status===546',
   'Kontrollerer automatisk',
   'lm_offer_send_pending:',
-  "action:'resume'",
+  'if(!pending)return false;',
   'checkPdfStatus',
   "action:'pdf_status'",
   'PDF klar',
@@ -52,6 +52,7 @@ for(const marker of [
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
 must(ui.includes("return finalizedStatuses.has(String(data?.status||''))"),'offer PDF UI must require final CRM status before reporting complete');
 must(!ui.includes('finalizedStatuses.has(status)||postprocessStatuses.has(status)'), 'postprocessing must not be treated as completed send');
+must(!ui.includes("action:'resume'"),'composer must not resume an unrelated send');
 must(!ui.includes('Brug “Kontroller status”'), 'offer PDF UI returned to manual status recovery wording');
 
 must(!ui.includes('Kontrollerer den originale PDF'),'offer PDF UI still promises an original PDF even when live Minuba rendering is the safe fallback');
