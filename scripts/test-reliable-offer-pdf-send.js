@@ -46,7 +46,7 @@ for(const marker of [
   "byId('oFollow').value=expected",
   'applyFollowDateLocally',
   'effectiveFollowDate',
-  'backendFollow'
+  'if(!pending)return false;'
 ]) must(ui.includes(marker),'offer PDF UI reliability marker missing: '+marker);
 
 must(!ui.includes("const sentStatuses=new Set(['sent','sent_pending_postprocess','postprocessing'])"),'offer PDF UI must preserve the dedicated finalized/postprocess status sets');
