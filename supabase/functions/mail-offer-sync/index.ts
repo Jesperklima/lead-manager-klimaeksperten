@@ -622,7 +622,22 @@ Deno.serve(async(req:Request)=>{
         if(['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(String(offer.status||'').toUpperCase()))return json({error:'Tilbuddet er allerede afsluttet',code:'OFFER_CLOSED'},409);
         p.offer=offer;
       }
-      await applyProposal(admin,p,user.email||'Bruger');await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id);return json({ok:true});
+      const {data:claimed,error:claimError}=await admin.from('crm_approvals')
+        .update({status:'applying'}).eq('id',approval.id).eq('client_id',approval.client_id)
+        .eq('status','pending').eq('action_type','offer_mail_update').select('id').maybeSingle();
+      if(claimError)throw claimError;
+      if(!claimed)return json({error:'Godkendelsen er allerede under behandling',code:'APPROVAL_ALREADY_CLAIMED'},409);
+      try{
+        await applyProposal(admin,p,user.email||'Bruger');
+        const {error:finalizeError}=await admin.from('crm_approvals')
+          .update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id).eq('status','applying');
+        if(finalizeError)throw finalizeError;
+        return json({ok:true});
+      }catch(applyError){
+        const {error:failError}=await admin.from('crm_approvals').update({status:'failed',decided_at:new Date().toISOString()}).eq('id',approval.id).eq('status','applying');
+        if(failError)console.error('Approval failure state could not be saved',failError);
+        throw applyError;
+      }
     }
     let clients:any[]=[];if(requestedClient){if(user){const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',requestedClient).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang til denne klient'},403)}const{data}=await admin.from('crm_clients').select('id,name,settings').eq('id',requestedClient).limit(1);clients=data||[]}else{if(!cron)return json({error:'client_id er påkrævet'},400);const{data}=await admin.from('crm_clients').select('id,name,settings');clients=data||[]}
     const dryRun=body.dry_run===true,backfillDays=Math.max(0,Math.min(30,Number(body.backfill_days||0))),results:any[]=[];
