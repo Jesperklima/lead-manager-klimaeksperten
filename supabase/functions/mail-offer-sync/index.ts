@@ -164,8 +164,8 @@ function classify(text:string,at:any){
   const shortWait=/(?:næste\s+uge|vender\s+tilbage|afventer\s+intern|hører\s+fra\s+os|snart|within\s+a\s+week|next\s+week|awaiting\s+internal)/i.test(t);
   const explicitDate=parseExplicitDate(t,at);
   if(lost)return{kind:'lost',status:'TABT',followUp:null,decisive:true,needsReview:false,reason:'Kundens seneste svar afslår tilbuddet.'};
-  if(hardWon||(softWon&&!negotiation))return{kind:'won',status:'VUNDET',followUp:null,decisive:true,needsReview:false,reason:'Kundens seneste svar accepterer tilbuddet.'};
-  if(negotiation)return{kind:'negotiation',status:'I GANG',followUp:explicitDate||addBusinessDays(at,3),decisive:false,needsReview:false,reason:'Kunden er fortsat i dialog eller forhandling; tilbuddet er ikke endeligt afgjort.'};
+  if((hardWon||softWon)&&!negotiation&&!t.includes('?')&&!/(?:før\s+vi|først\s+når|\bnår\b|\bhvis\b|forudsat|afhænger\s+af)/i.test(t))return{kind:'won',status:'VUNDET',followUp:null,decisive:true,needsReview:false,reason:'Kundens seneste svar accepterer tilbuddet.'};
+  if(negotiation||hardWon||softWon)return{kind:'negotiation',status:'I GANG',followUp:explicitDate||addBusinessDays(at,3),decisive:false,needsReview:false,reason:'Kunden er fortsat i dialog eller forhandling; tilbuddet er ikke endeligt afgjort.'};
   if(longDelay||(explicitDate&&new Date(explicitDate).getTime()>Date.now()+90*86400000))return{kind:'long_delay',status:'LUKKET – UDSKUDT',followUp:null,decisive:true,needsReview:false,reason:'Sagen er udskudt så længe, at tilbuddet skal genberegnes ved genoptagelse.',futureDate:explicitDate};
   if(shortWait)return{kind:'short_wait',status:'I GANG',followUp:explicitDate||addBusinessDays(at,7),decisive:false,needsReview:false,reason:explicitDate?'Opfølgningsdato fundet i kundens svar.':'Kunden vender tilbage; opfølgning er sat til 7 hverdage.'};
   return{kind:'follow_up',status:'I GANG',followUp:explicitDate||addBusinessDays(at,7),decisive:false,needsReview:true,reason:explicitDate?'Opfølgningsdato fundet, men kundens beslutning er ikke entydig.':'Kundens seneste svar er ikke entydigt; eksisterende opfølgning skal bevares og kontrolleres.'};
