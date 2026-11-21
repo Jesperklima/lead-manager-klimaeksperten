@@ -245,32 +245,7 @@
     const o=offer();if(!o?.id||!state?.client?.id||typeof callProtectedEdge!=='function')return false;
     const button=byId('sendOfferMail');
     let pending=saved||loadPendingSend(o);
-    if(!pending){
-      const to=String(byId('offerMailTo')?.value||'').trim();
-      try{
-        const result=await callProtectedEdge('gmail-offer-send',{action:'resume',client_id:state.client.id,offer_id:o.id,to:to||null});
-        if(result?.error){
-          if(String(result.error.code||'')==='SEND_INTERRUPTED_NOT_FOUND')return false;
-          throw mailErrorFrom(result);
-        }
-        const data=result?.data??result;
-        if(data?.pending===false||data?.status==='none')return false;
-        if(!data?.send_id)return false;
-        const backendFollow=effectiveFollowDate(data,'');
-        pending={request_id:data.send_id,created_at:Date.now(),to:to||'',follow:backendFollow||String(byId('offerMailFollow')?.value||''),name:pdfName(o)};
-        // Resuming a provider send does not confirm a saved follow-up date.
-        savePendingSend(o,data.send_id,pending);
-        if(isSentResult(data)){
-          currentPdfSendId=data.send_id;
-          pdfSendState='uncertain';
-          const done=await finishPdfSend(o,pending.to||to,data,pending.name||pdfName(o),pending.follow||String(byId('offerMailFollow')?.value||''));
-          return done||true;
-        }
-      }catch(error){
-        console.warn('[Offer mail] Kunne ikke genoptage afsendelsesstatus',error);
-        return false;
-      }
-    }
+    if(!pending)return false;
     if(!pending?.request_id)return false;
     currentPdfSendId=pending.request_id;
     pdfSendState='uncertain';
@@ -460,11 +435,13 @@
     if(!pending||pending.request_id!==requestId)return;
     if(result?.error){
       const error=mailErrorFrom(result),status=Number(error?.status||0),code=String(error?.code||'');
-      if(status===546||code==='SEND_IN_PROGRESS'||(status>=500&&status<600))return;
+      if(status===546||code==='SEND_IN_PROGRESS')return;
       sendWatchSeq++;
       clearPendingSend(o,requestId);
       pdfSendState='idle';currentPdfSendId=makeSendId();
+      renderSendStatus('error','Mailen blev ikke sendt',friendlyMailError(error));
       if(typeof toast==='function')toast('Mailen blev ikke sendt · '+friendlyMailError(error));
+      wire();
       return;
     }
     const data=result?.data??result;
