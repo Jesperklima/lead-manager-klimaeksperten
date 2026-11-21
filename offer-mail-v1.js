@@ -448,7 +448,8 @@
     const {data:rows,error}=await supabase.from('crm_integrations').select('status').eq('client_id',state.client.id).eq('provider','minuba').limit(1);
     if(error)throw new Error(error.message||'Kunne ikke kontrollere Minuba-forbindelsen');
     const integration=Array.isArray(rows)?rows[0]:rows;
-    if(!integration||String(integration.status||'').toLowerCase()!=='connected')return {ok:true,skipped:true};
+    if(!integration||String(integration.status||'').toLowerCase()==='not_connected')return {ok:true,skipped:true};
+    if(String(integration.status||'').toLowerCase()!=='connected')return {ok:false,reason:'Minuba-forbindelsen skal genetableres, før der kan sendes opfølgning.'};
     const response=await callProtectedEdge('minuba-offer-lookup',{client_id:state.client.id,offer_ref:ref});
     if(response?.error)throw new Error(response.error.message||String(response.error));
     const data=response?.data??response;
