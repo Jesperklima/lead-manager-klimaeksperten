@@ -247,6 +247,7 @@ Deno.serve(async(req:Request)=>{
     // Minuba exposes active offers as Order records with state PROPOSAL.
     const proposal=await mg('Order',{state:'proposal',forAllUsers:'true',include:'client,addresses'});
     attempts.push({endpoint:'Order',state:'proposal',status:proposal.status});
+    if(!proposal.ok)return resp({error:'Minuba svarer ikke lige nu',code:'MINUBA_UNAVAILABLE',minuba_status:proposal.status,attempts},502);
     if(proposal.ok){
       const rows=arr(proposal.data,['orders','Orders','data']);
       const exact=rows.find((x:any)=>matchesRef(x,target));
@@ -261,7 +262,7 @@ Deno.serve(async(req:Request)=>{
     for(const state of ['new','started','delayed','completed','closed']){
       const r=await mg('Order',{state,forAllUsers:'true',include:'client,addresses'});
       attempts.push({endpoint:'Order',state,status:r.status});
-      if(!r.ok)continue;
+      if(!r.ok)return resp({error:'Minuba svarer ikke lige nu',code:'MINUBA_UNAVAILABLE',minuba_status:r.status,attempts},502);
       const rows=arr(r.data,['orders','Orders','data']);
       const exact=rows.find((x:any)=>matchesRef(x,target));
       if(exact){

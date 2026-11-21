@@ -499,6 +499,15 @@ function createLeadManagerSupabase(url,key){
     ilike(col,val){this.params.push([col,'ilike.'+String(val)]);return this}
     order(col,opt={}){this.params.push(['order',`${col}.${opt.ascending===false?'desc':'asc'}`]);return this}
     limit(n){this.params.push(['limit',String(n)]);return this}
+    is(col,val){this.params.push([col,'is.'+String(val)]);return this}
+    not(col,op,val){this.params.push([col,'not.'+op+'.'+String(val)]);return this}
+    gte(col,val){this.params.push([col,'gte.'+String(val)]);return this}
+    lte(col,val){this.params.push([col,'lte.'+String(val)]);return this}
+    gt(col,val){this.params.push([col,'gt.'+String(val)]);return this}
+    lt(col,val){this.params.push([col,'lt.'+String(val)]);return this}
+    in(col,vals){this.params.push([col,'in.('+(vals||[]).map(v=>'"'+String(v).replace(/["\\]/g,'\\    limit(n){this.params.push(['limit',String(n)]);return this}')+'"').join(',')+')']);return this}
+    or(expr){this.params.push(['or','('+String(expr)+')']);return this}
+    maybeSingle(){this.wantMaybeSingle=true;this.returnRepresentation=true;return this}
     insert(payload){this.method='POST';this.body=payload;return this}
     update(payload){this.method='PATCH';this.body=payload;return this}
     single(){this.wantSingle=true;this.returnRepresentation=true;return this}
@@ -511,6 +520,7 @@ function createLeadManagerSupabase(url,key){
       if(this.returnRepresentation&&['POST','PATCH'].includes(this.method))headers.Prefer='return=representation';
       if(this.wantSingle)headers.Accept='application/vnd.pgrst.object+json';
       const r=await request(`/rest/v1/${encodeURIComponent(this.table)}${qs.toString()?'?'+qs.toString():''}`,{method:this.method,body:this.body,headers});
+      if(this.wantMaybeSingle&&!r.error){const rows=Array.isArray(r.data)?r.data:(r.data==null?[]:[r.data]);if(rows.length>1)return {data:null,error:{code:'PGRST116',message:'Flere rækker returneret, hvor højst én var forventet'}};return {data:rows[0]??null,error:null};}
       return {data:r.data,error:r.error};
     }
     then(resolve,reject){return this.execute().then(resolve,reject)}

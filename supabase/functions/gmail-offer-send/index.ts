@@ -682,6 +682,7 @@ Deno.serve(async(req:Request)=>{
     const {data:client,error:clientError}=clientR as any,{data:offer,error:offerError}=offerR as any,{data:mat,error:matError}=materialR as any,{data:limits}=limitsR as any,{data:usage}=usageR as any;
     if(clientError||!client)return json({error:'Kundeprofil blev ikke fundet'},404);
     if(offerError)throw offerError;if(!offer)return json({error:'Tilbuddet blev ikke fundet'},404);
+    if((action==='send'||action==='preflight')&&['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(trim(offer.status,100).toUpperCase()))return json({error:'Tilbuddet er afsluttet, så opfølgningsmailen må ikke sendes.',code:'OFFER_CLOSED'},409);
     if(matError)throw matError;
 
     const companyId=String(offer.company_id||'');if(!companyId)return json({error:'Tilbuddet er ikke koblet til en kunde',code:'OFFER_NO_COMPANY'},412);
