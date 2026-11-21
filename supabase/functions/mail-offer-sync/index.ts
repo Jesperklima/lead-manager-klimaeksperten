@@ -609,7 +609,20 @@ Deno.serve(async(req:Request)=>{
     if(!cron){const token=clean((req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,''),5000);if(!token)return json({error:'Mangler login-token'},401);const auth=await admin.auth.getUser(token);user=auth.data?.user;if(auth.error||!user?.id)return json({error:'Ugyldigt login'},401);const _apiEntryAccess=await apiSessionGuard(token,null);if(!_apiEntryAccess.allowed)return json({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);}
     if(action==='apply_approval'){
       if(!user)return json({error:'Kun en bruger kan godkende ændringer'},403);const approvalId=clean(body.approval_id,100),{data:approval}=await admin.from('crm_approvals').select('*').eq('id',approvalId).eq('status','pending').eq('action_type','offer_mail_update').single();if(!approval)return json({error:'Godkendelsen blev ikke fundet'},404);
-      const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',approval.client_id).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang'},403);const p=approval.payload||{};if(p.offer?.id){const{data:offer}=await admin.from('crm_offers').select('*').eq('id',p.offer.id).eq('client_id',approval.client_id).single();p.offer=offer}await applyProposal(admin,p,user.email||'Bruger');await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id);return json({ok:true});
+      const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',approval.client_id).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang'},403);const p={...(approval.payload||{}),client_id:approval.client_id};
+      // The browser-controlled approval payload must never choose the destination tenant.
+      for(const [field,table] of [['company_id','crm_companies'],['lead_id','crm_leads'],['contact_id','crm_contacts']] as const){
+        if(!p[field])continue;
+        const {data:linked,error:linkedError}=await admin.from(table).select('id').eq('id',p[field]).eq('client_id',approval.client_id).maybeSingle();
+        if(linkedError||!linked)return json({error:'Godkendelsen indeholder oplysninger fra et andet workspace',code:'APPROVAL_TENANT_MISMATCH'},403);
+      }
+      if(p.offer?.id){
+        const {data:offer,error:offerError}=await admin.from('crm_offers').select('*').eq('id',p.offer.id).eq('client_id',approval.client_id).maybeSingle();
+        if(offerError||!offer)return json({error:'Tilbuddet tilhører ikke dette workspace',code:'APPROVAL_TENANT_MISMATCH'},403);
+        if(['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(String(offer.status||'').toUpperCase()))return json({error:'Tilbuddet er allerede afsluttet',code:'OFFER_CLOSED'},409);
+        p.offer=offer;
+      }
+      await applyProposal(admin,p,user.email||'Bruger');await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id);return json({ok:true});
     }
     let clients:any[]=[];if(requestedClient){if(user){const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',requestedClient).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang til denne klient'},403)}const{data}=await admin.from('crm_clients').select('id,name,settings').eq('id',requestedClient).limit(1);clients=data||[]}else{if(!cron)return json({error:'client_id er påkrævet'},400);const{data}=await admin.from('crm_clients').select('id,name,settings');clients=data||[]}
     const dryRun=body.dry_run===true,backfillDays=Math.max(0,Math.min(30,Number(body.backfill_days||0))),results:any[]=[];
