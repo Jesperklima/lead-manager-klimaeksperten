@@ -127,6 +127,8 @@ node scripts/test-mail-composer-top-layer.js
 node scripts/test-mail-recipient-templates-signature.js
 node scripts/test-reliable-mail-send.js
 node scripts/test-reliable-offer-pdf-send.js
+node scripts/test-audit-followup-security-20261121.js
+node scripts/test-review-20261122.js
 node scripts/test-offer-mail-auto-recovery.js
 node scripts/test-minuba-offer-contact-resolution.js
 node scripts/test-minuba-all-offer-contact-backfill.js
