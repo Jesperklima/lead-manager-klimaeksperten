@@ -34,8 +34,8 @@ must('supabase/functions/minuba-offer-status-sync/index.ts',[
   "minuba_sync_state:'missing_once'",
   "o.minuba_sync_state==='missing_once'",
   '10*60*1000',
-  "patch.status='LUKKET'",
-  'to sikre statuskontroller',
+  'minuba_missing_twice_unverified',
+  "minuba_sync_state:'mismatch'",
   "minuba_sync_state:'converted_to_order'",
   "patch.status='VUNDET'",
   'Genåbnet automatisk'
