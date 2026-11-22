@@ -214,7 +214,7 @@ if(!accessBootstrap.includes('/saas-mail-providers-v1.js?v=20260919-3'))fail('ma
 if(app.includes('<script src="/saas-gmail-platform-ui-v1.js'))fail('gmail settings returned to static startup');
 if(!accessBootstrap.includes('/saas-gmail-platform-ui-v1.js?v=20260919-4'))fail('gmail settings missing from lazy settings stack');
 if(app.includes('<script src="/saas-minuba-v1.js'))fail('Minuba settings returned to static startup');
-if(!accessBootstrap.includes('/saas-minuba-v1.js?v=20260919-3'))fail('Minuba settings missing from lazy settings stack');
+if(!accessBootstrap.includes('/saas-minuba-v1.js?v=20261028-oauth-recovery-1'))fail('Minuba settings missing from lazy settings stack');
 if(app.includes('<script src="/saas-mail-sender-name-v1.js'))fail('mail sender-name returned to static startup');
 if(!accessBootstrap.includes('/saas-mail-sender-name-v1.js?v=20260919-3'))fail('mail sender-name missing from lazy settings stack');
 if(!accessBootstrap.includes('function settingsReturnCallback()'))fail('settings return callback lazy-load guard missing');
