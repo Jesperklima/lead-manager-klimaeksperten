@@ -514,10 +514,12 @@ Deno.serve(async(req:Request)=>{
 
   const supabaseUrl=Deno.env.get('SUPABASE_URL')!,serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  let requestAction='send',sendJobCreated=false;
 
   try{
     const body=await req.json().catch(()=>({}));
     const action=trim(body.action,30)||'send';
+    requestAction=action;
 
     if(action==='recover_failed'){
       const recoverySecret=trim(req.headers.get('x-mail-recovery-secret'),500);
@@ -839,6 +841,7 @@ Deno.serve(async(req:Request)=>{
       throw jobError;
     }
 
+    sendJobCreated=true;
     const plain=mailBody+(sigText?'\n\n'+sigText:'');
     const htmlBody='<div style="font-family:Arial,sans-serif;font-size:10.5pt;line-height:1.5">'+escHtml(mailBody).replaceAll('\n','<br>')+'</div>'+(sigHtml?sigHtml:'');
     const mixed='lm_mix_'+crypto.randomUUID().replaceAll('-',''),alt='lm_alt_'+crypto.randomUUID().replaceAll('-',''),fromHeader=fromName?`${b64header(fromName)} <${from}>`:from;
@@ -900,7 +903,9 @@ Deno.serve(async(req:Request)=>{
       2000
     )||'Ukendt fejl';
     if(/MAIL_DAILY_LIMIT/.test(message))return json({error:'Dagens mailgrænse er nået',code:'MAIL_DAILY_LIMIT'},429);
-    const code=trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR';
+    const code=err?.status!==429&&requestAction==='send'&&!sendJobCreated
+      ?'OFFER_MAIL_PRE_SEND_ERROR'
+      :(trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR');
     return json({error:message,code,retry_after_seconds:err?.retry_after_seconds||null},err?.status===429?429:500);
   }
 });
