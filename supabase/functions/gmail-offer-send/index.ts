@@ -674,7 +674,7 @@ Deno.serve(async(req:Request)=>{
 
     const [clientR,offerR,materialR,limitsR,usageR]=await Promise.all([
       admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single(),
-      admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
+      admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_record_type,minuba_sync_state,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
       admin.rpc('get_gmail_oauth_material',{p_client_id:clientId}),
       admin.from('crm_usage_limits').select('*').eq('client_id',clientId).maybeSingle(),
       admin.rpc('crm_usage_snapshot',{p_client_id:clientId})
@@ -683,6 +683,7 @@ Deno.serve(async(req:Request)=>{
     if(clientError||!client)return json({error:'Kundeprofil blev ikke fundet'},404);
     if(offerError)throw offerError;if(!offer)return json({error:'Tilbuddet blev ikke fundet'},404);
     if((action==='send'||action==='preflight')&&['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(trim(offer.status,100).toUpperCase()))return json({error:'Tilbuddet er afsluttet, så opfølgningsmailen må ikke sendes.',code:'OFFER_CLOSED'},409);
+    if((action==='send'||action==='preflight')&&(trim(offer.minuba_record_type,40).toLowerCase()==='order'||['closed','converted_to_order','rejected'].includes(trim(offer.minuba_sync_state,40).toLowerCase())))return json({error:'Tilbuddet er afsluttet eller blevet til en ordre i Minuba, så opfølgningsmailen må ikke sendes.',code:'OFFER_CLOSED_IN_MINUBA'},409);
     if(matError)throw matError;
 
     const companyId=String(offer.company_id||'');if(!companyId)return json({error:'Tilbuddet er ikke koblet til en kunde',code:'OFFER_NO_COMPANY'},412);
@@ -898,6 +899,7 @@ Deno.serve(async(req:Request)=>{
       err instanceof Error?err.message:(err?.message||err?.error_description||err?.details||err?.hint||String(err||'')),
       2000
     )||'Ukendt fejl';
+    if(/MAIL_DAILY_LIMIT/.test(message))return json({error:'Dagens mailgrænse er nået',code:'MAIL_DAILY_LIMIT'},429);
     const code=trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR';
     return json({error:message,code,retry_after_seconds:err?.retry_after_seconds||null},err?.status===429?429:500);
   }
