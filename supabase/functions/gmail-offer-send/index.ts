@@ -25,6 +25,7 @@ const fromB64Url=(s:string)=>{let x=String(s||'').replaceAll('-','+').replaceAll
 const wrap76=(s:string)=>s.match(/.{1,76}/g)?.join('\r\n')||s;
 
 const refNorm=(v:any)=>trim(v,300).toLowerCase().replace(/[^a-z0-9æøå]+/g,'');
+const pdfOfferRefFromFilename=(name:any)=>{const m=trim(name,400).match(/(?:tilbud|offer|quote|quotation|proposal|overslag)[ _#-]*(\d{3,8}(?:-\d+)?)(?=\b|\.|_|-)/i);return m?refNorm(m[1]):''};
 const headerValue=(payload:any,name:string)=>trim((payload?.headers||[]).find((h:any)=>String(h?.name||'').toLowerCase()===name.toLowerCase())?.value,3000);
 function collectPdfParts(payload:any,out:any[]=[]):any[]{
   if(!payload)return out;
@@ -113,7 +114,7 @@ function minubaPdfScore(item:any,offerRef:string,minubaId:string){
   const mime=trim(item?.mimeType||item?.contentType||item?.type,200).toLowerCase();
   if(!(mime.includes('pdf')||/\.pdf$/i.test(name)))return -999;
   let score=0;
-  if((name.match(/\d+/g)||[]).includes(String(offerRef)))score+=90;
+  if(pdfOfferRefFromFilename(name)===refNorm(offerRef))score+=90;
   if(/tilbud|offer|quote|quotation|proposal/i.test(name))score+=20;
   const relation=trim(item?.orderId||item?.parentId||item?.entityId||item?.relationId,200);
   if(minubaId&&relation&&relation.toLowerCase()===minubaId.toLowerCase())score+=50;
@@ -301,14 +302,14 @@ async function gmailCachedPdfCandidate(offer:any,offerRef:string,accessToken:str
     .map(({part,filename})=>{
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=160;
-      else if((filename.match(/\d+/g)||[]).includes(String(offerRef)))score+=120;
+      else if(pdfOfferRefFromFilename(filename)===refNorm(offerRef))score+=120;
       if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=20;
       return{part,filename,score};
     })
     .filter(x=>x.score>=120)
     .sort((a,b)=>b.score-a.score);
   for(const {part,filename} of parts.slice(0,3)){
-    if(!(filename.match(/\d+/g)||[]).includes(String(offerRef)))continue;
+    if(!pdfOfferRefFromFilename(filename)===refNorm(offerRef))continue;
     const b64=await gmailAttachmentB64(accessToken,mid,part);
     if(!await originalPdfValid(b64))continue;
     return{
@@ -340,7 +341,7 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
     for(const {part,filename} of collectPdfParts(msg.payload)){
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=120;
-      else if((filename.match(/\d+/g)||[]).includes(String(offerRef)))score+=80;
+      else if(pdfOfferRefFromFilename(filename)===refNorm(offerRef))score+=80;
       if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=15;
       if(target&&evidence.includes(target))score+=40;
       if(/@minuba\.dk/i.test(from)||/minuba/i.test(from))score+=20;
@@ -348,7 +349,7 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
       if(String(offer?.pdf_source_message_id||'')===mid)score+=150;
       const numbered=filename.match(/(?:tilbud|offer|quote|quotation|proposal)[ _-]*(\d{3,8})/i);
       if(numbered&&refNorm(numbered[1])!==target)continue;
-      if(!(filename.match(/\d+/g)||[]).includes(String(offerRef)))continue;
+      if(!pdfOfferRefFromFilename(filename)===refNorm(offerRef))continue;
       if(score<80)continue;
       const b64=await gmailAttachmentB64(accessToken,mid,part);if(!await originalPdfValid(b64))continue;
       candidates.push({b64,filename,source:String(offer?.pdf_source_message_id||'')===mid?'gmail_cache':linkedIds.has(mid)?'gmail_linked':'gmail_search',messageId:mid,attachmentId:trim(part?.body?.attachmentId,1000),score,date:Number(msg.internalDate||0)});
