@@ -483,13 +483,41 @@ function createLeadManagerSupabase(url,key){
     if(!res.ok){const message=(data&&((data.msg)||(data.message)||(data.error_description)||(data.error)))||`${res.status} ${res.statusText}`;return {data:null,error:{message,status:res.status,details:data}}}
     return {data,error:null,headers:res.headers,status:res.status};
   }
+  let refreshPromise=null;
+  window.addEventListener('storage',e=>{
+    if(e.key!==STORAGE)return;
+    try{session=e.newValue?JSON.parse(e.newValue):null}catch(_){session=null}
+  });
   async function refreshIfNeeded(){
+    if(refreshPromise)return refreshPromise;
+    try{
+      const stored=JSON.parse(localStorage.getItem(STORAGE)||'null');
+      if(stored?.refresh_token)session=stored;
+    }catch(_){}
     if(!session?.refresh_token)return session;
     const exp=session.expires_at?Number(session.expires_at)*1000:0;
-    if(exp && Date.now()<exp-60000)return session;
-    const r=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token},auth:false});
-    if(r.error){save(null,'SIGNED_OUT');return null}
-    const d=r.data||{};const s={access_token:d.access_token,refresh_token:d.refresh_token||session.refresh_token,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user};save(s,'TOKEN_REFRESHED');return s;
+    if(exp&&Date.now()<exp-60000)return session;
+    refreshPromise=(async()=>{
+      const tokenUsed=session.refresh_token;
+      for(let attempt=0;attempt<3;attempt++){
+        const r=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:tokenUsed},auth:false});
+        if(!r.error){
+          const d=r.data||{};
+          const s={access_token:d.access_token,refresh_token:d.refresh_token||tokenUsed,expires_in:d.expires_in,expires_at:d.expires_at||Math.floor(Date.now()/1000)+(d.expires_in||3600),token_type:d.token_type||'bearer',user:d.user||session?.user};
+          save(s,'TOKEN_REFRESHED');return s;
+        }
+        const status=Number(r.error.status||0),code=String(r.error.details?.error||r.error.details?.error_code||'');
+        if((status===400||status===401)&&/invalid_grant|refresh_token_not_found|invalid refresh/i.test(code+' '+r.error.message)){
+          try{const changed=JSON.parse(localStorage.getItem(STORAGE)||'null');if(changed?.refresh_token&&changed.refresh_token!==tokenUsed){session=changed;return session}}catch(_){}
+          save(null,'SIGNED_OUT');return null;
+        }
+        if(attempt<2&&(!status||status===429||status>=500))await new Promise(resolve=>setTimeout(resolve,(attempt+1)*700));
+        else break;
+      }
+      // Keep the session on temporary outages; never silently sign the user out.
+      return session;
+    })();
+    try{return await refreshPromise}finally{refreshPromise=null}
   }
   class Query{
     constructor(table){this.table=table;this.method='GET';this.body=null;this.params=[];this.selectCols=null;this.wantSingle=false;this.returnRepresentation=false;}
@@ -582,7 +610,7 @@ function sanitizeSignatureHtml(value){
 }
 function showAuth(msg=''){ $('authScreen')?.classList.remove('hidden');$('appShell')?.classList.add('hidden');setText('authMessage',msg);}
 function showApp(){ $('authScreen')?.classList.add('hidden');$('appShell')?.classList.remove('hidden');setText('userEmail',state.session?.user?.email||''); }
-async function authInit(){const {data:{session}}=await supabase.auth.getSession();state.session=session;if(session){await startApp()}else showAuth();supabase.auth.onAuthStateChange(async(_e,s)=>{state.session=s;if(s)await startApp();else showAuth()})}
+async function authInit(){const {data:{session}}=await supabase.auth.getSession();state.session=session;if(session){await startApp()}else showAuth();supabase.auth.onAuthStateChange(async(event,s)=>{state.session=s;if(event==='TOKEN_REFRESHED')return;if(s)await startApp();else showAuth()})}
 $('loginBtn').onclick=async()=>{const p=$('authPassword')?.value||'';if(p.length<8){setText('authMessage','Password skal være mindst 8 tegn.');return}setText('authMessage','Logger ind…');const {error}=await supabase.auth.signInWithPassword({email:$('authEmail')?.value||'',password:p});if(error)setText('authMessage',error.message);}
 $('logoutBtn').onclick=()=>supabase.auth.signOut();
 let startAppPromise=null;
