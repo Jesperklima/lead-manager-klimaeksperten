@@ -51,7 +51,7 @@ async function load(force=false){
   busy=true;lastClient=cid;style();host();
   try{
     const [a,b]=await Promise.all([
-      supabase.from('crm_integrations').select('id,provider,account,status,last_sync_at,last_error,updated_at').eq('client_id',cid),
+      supabase.from('crm_integrations').select('id,client_id,provider,account,status,last_sync_at,last_error,updated_at').eq('client_id',cid),
       supabase.from('crm_marketing_connections').select('id,platform,label,status,last_event_at,last_error,updated_at').eq('client_id',cid).neq('status','disabled')
     ]);
     if(a.error)throw a.error;if(b.error)throw b.error;if(String(state?.client?.id)!==cid)return;
