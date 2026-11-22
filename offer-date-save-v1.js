@@ -50,9 +50,10 @@
       // The offer card can stay open while a mail finishes in the background.
       // Never blindly overwrite a newer confirmed server follow-up with an unchanged stale date input.
       const persistedBeforeSave=await readSavedDate(o.id,clientId);
-      const date=(!dateEditedByUser&&persistedBeforeSave!==requestedDate)
-        ?persistedBeforeSave:requestedDate;
-      const savedNewerDate=!dateEditedByUser&&persistedBeforeSave!==requestedDate;
+      const terminalStatus=['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(status);
+      const date=terminalStatus?null:((!dateEditedByUser&&persistedBeforeSave!==requestedDate)
+        ?persistedBeforeSave:requestedDate);
+      const savedNewerDate=!terminalStatus&&!dateEditedByUser&&persistedBeforeSave!==requestedDate;
       if(savedNewerDate&&byId('oFollow'))byId('oFollow').value=date||'';
       message(savedNewerDate?'Mailen har allerede opdateret opfølgningsdatoen til '+formatDate(date)+'. Den bevares.':'Gemmer '+formatDate(date)+'…');
       // Compare-and-swap guarantees a second concurrent mail update is never silently overwritten.

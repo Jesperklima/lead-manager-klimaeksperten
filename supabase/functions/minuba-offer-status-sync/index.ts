@@ -255,14 +255,20 @@ async function clientRunner(admin:any,clientId:string){
     if(Object.keys(patch).length){patch.updated_at=new Date().toISOString();const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;Object.assign(o,patch);contactBackfilled++}
     if(!clean(o.contact_person,300)&&!firstEmail(o.contact_details))contactUnresolved++;
   }
-  const candidates=offerRows.filter((o:any)=>o.offer_ref&&!closedCrm.has(o.status)&&(o.status!=='LUKKET'||o.status_source==='minuba'));
+  const candidates=offerRows.filter((o:any)=>o.offer_ref&&(!closedCrm.has(o.status)||o.status_source!=='minuba'));
   const now=new Date().toISOString();let active=0,won=0,closed=0,rejected=0,reopened=0,missingOnce=0,unlinked=0,manual=0,manualOverrides=0;
   for(const o of candidates){
     const target=norm(o.offer_ref),proposal=(buckets.proposal||[]).find((x:any)=>matchesRef(x,target));let order:any=null,orderState='';
     if(!proposal){for(const s of states.slice(1)){const x=(buckets[s]||[]).find((z:any)=>matchesRef(z,target));if(x){order=x;orderState=s;break}}}
     if(proposal){
-      const prev=o.status,wasClosed=prev==='LUKKET',status=rawStatus(proposal)||'proposal',terminal=terminalProposalDisposition(proposal);
+      const prev=o.status,wasClosed=closedCrm.has(prev)&&o.status_source!=='manual',status=rawStatus(proposal)||'proposal',terminal=terminalProposalDisposition(proposal);
       if(terminal){
+        if(o.manual_lock){
+          const {error:lockError}=await admin.from('crm_offers').update({minuba_status:status,minuba_record_type:'proposal',minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:'mismatch',minuba_raw:proposal,updated_at:now}).eq('id',o.id).eq('client_id',clientId);
+          if(lockError)throw lockError;
+          await log(admin,o,'Manuel låsning: Minuba viser afsluttet tilbud, men CRM-status er bevaret.',{previous_status:prev,minuba_status:status,manual_lock:true});
+          manual++;continue;
+        }
         const note=`${dkDate()}: ${terminal.reason} Aktiv tilbudsopfølgning er stoppet automatisk.`;
         const patch:any={minuba_status:status,minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_sync_state:terminal.syncState,minuba_raw:proposal,status:terminal.crmStatus,follow_up_date:null,status_source:'minuba',status_updated_at:now,status_reason:terminal.reason,current_comment:appendNote(o.current_comment,note),updated_at:now};
         const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;
@@ -288,6 +294,11 @@ async function clientRunner(admin:any,clientId:string){
       continue;
     }
     if(order){
+      if(o.manual_lock){
+        const {error:lockedOrderError}=await admin.from('crm_offers').update({minuba_last_checked_at:now,minuba_last_seen_at:now,minuba_record_type:'order',minuba_sync_state:'mismatch',minuba_raw:order,updated_at:now}).eq('id',o.id).eq('client_id',clientId);
+        if(lockedOrderError)throw lockedOrderError;
+        await log(admin,o,'Minuba viser en ordre, men CRM-status er manuelt låst og kræver gennemgang.',{previous_status:o.status,manual_lock:true});manual++;continue;
+      }
       const orderNo=clean(order?.orderNumber||order?.number,160),status=rawStatus(order)||orderState,prev=o.status;
       const resolvedContact=bestContact(order,o,offerRows,clientRows,contacts||[],companyRows);
       const unsafeStored=unsafeStoredDeliveryContact(order,o,companyDomainsFor(o,companyRows));
@@ -308,11 +319,13 @@ async function clientRunner(admin:any,clientId:string){
     if(!o.minuba_last_seen_at){await admin.from('crm_offers').update({minuba_last_checked_at:now,minuba_sync_state:'unlinked',updated_at:now}).eq('id',o.id);unlinked++;continue}
     const oldCheck=o.minuba_last_checked_at?new Date(o.minuba_last_checked_at).getTime():0,eligibleSecond=o.minuba_sync_state==='missing_once'&&(Date.now()-oldCheck)>=10*60*1000;
     if(!eligibleSecond){await admin.from('crm_offers').update({minuba_last_checked_at:now,minuba_sync_state:'missing_once',updated_at:now}).eq('id',o.id);missingOnce++;continue}
-    const prev=o.status,note=`${dkDate()}: Lukket automatisk i Lead Manager, fordi tilbuddet ikke længere er aktivt i Minuba efter to sikre statuskontroller.`;
-    const patch:any={minuba_status:'closed',minuba_record_type:'proposal',minuba_order_number:null,minuba_last_checked_at:now,minuba_sync_state:'closed',updated_at:now};
-    patch.status='LUKKET';patch.follow_up_date=null;patch.status_source='minuba';patch.status_updated_at=now;patch.status_reason='Lukket i Lead Manager, fordi tilbuddet ikke længere er aktivt i Minuba.';patch.current_comment=appendNote(o.current_comment,note)
-    const {error}=await admin.from('crm_offers').update(patch).eq('id',o.id);if(error)throw error;
-    await closeTasks(admin,o,now);if(o.manual_lock)manualOverrides++;await log(admin,o,`Tilbud ${o.offer_ref} lukket efter to Minuba-kontroller uden aktivt tilbud eller ordre.`,{previous_status:prev,status:'LUKKET',reason:'minuba_missing_twice',manual_lock_overridden:!!o.manual_lock});closed++;
+    // Missing records in Minuba's unpaginated lists are NOT proof of closure.
+    // Keep the offer active and mark a mismatch for manual reconciliation.
+    const {error:missingError}=await admin.from('crm_offers').update({minuba_last_checked_at:now,minuba_sync_state:'mismatch',updated_at:now}).eq('id',o.id).eq('client_id',clientId);
+    if(missingError)throw missingError;
+    await log(admin,o,`Tilbud ${o.offer_ref} mangler i Minuba-oversigten efter to kontroller; manuel kontrol kræves.`,{reason:'minuba_missing_twice_unverified',manual_lock:!!o.manual_lock});
+    unlinked++;
+
   }
   let terminalFollowupCleaned=0;
   const terminalStatuses=new Set(['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT']);

@@ -77,7 +77,7 @@ for(const marker of [
 
 for(const marker of [
   '/saas-website-intake-v1.js?v=20260920-1',
-  '/saas-integrations-overview-v2.js?v=20260920-1',
+  '/saas-integrations-overview-v2.js?v=20261122-audit-2',
   '/saas-admin-ops-v2.js?v=20260920-1'
 ]) assert(boot.includes(marker),'new bundle is not lazy-loaded: '+marker);
 

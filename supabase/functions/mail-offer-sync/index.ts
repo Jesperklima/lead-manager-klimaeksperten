@@ -164,8 +164,8 @@ function classify(text:string,at:any){
   const shortWait=/(?:næste\s+uge|vender\s+tilbage|afventer\s+intern|hører\s+fra\s+os|snart|within\s+a\s+week|next\s+week|awaiting\s+internal)/i.test(t);
   const explicitDate=parseExplicitDate(t,at);
   if(lost)return{kind:'lost',status:'TABT',followUp:null,decisive:true,needsReview:false,reason:'Kundens seneste svar afslår tilbuddet.'};
-  if(hardWon||(softWon&&!negotiation))return{kind:'won',status:'VUNDET',followUp:null,decisive:true,needsReview:false,reason:'Kundens seneste svar accepterer tilbuddet.'};
-  if(negotiation)return{kind:'negotiation',status:'I GANG',followUp:explicitDate||addBusinessDays(at,3),decisive:false,needsReview:false,reason:'Kunden er fortsat i dialog eller forhandling; tilbuddet er ikke endeligt afgjort.'};
+  if((hardWon||softWon)&&!negotiation&&!t.includes('?')&&!/(?:før\s+vi|først\s+når|\bnår\b|\bhvis\b|forudsat|afhænger\s+af)/i.test(t))return{kind:'won',status:'VUNDET',followUp:null,decisive:true,needsReview:false,reason:'Kundens seneste svar accepterer tilbuddet.'};
+  if(negotiation||hardWon||softWon)return{kind:'negotiation',status:'I GANG',followUp:explicitDate||addBusinessDays(at,3),decisive:false,needsReview:true,reason:'Kunden er fortsat i dialog eller forhandling; tilbuddet er ikke endeligt afgjort.'};
   if(longDelay||(explicitDate&&new Date(explicitDate).getTime()>Date.now()+90*86400000))return{kind:'long_delay',status:'LUKKET – UDSKUDT',followUp:null,decisive:true,needsReview:false,reason:'Sagen er udskudt så længe, at tilbuddet skal genberegnes ved genoptagelse.',futureDate:explicitDate};
   if(shortWait)return{kind:'short_wait',status:'I GANG',followUp:explicitDate||addBusinessDays(at,7),decisive:false,needsReview:false,reason:explicitDate?'Opfølgningsdato fundet i kundens svar.':'Kunden vender tilbage; opfølgning er sat til 7 hverdage.'};
   return{kind:'follow_up',status:'I GANG',followUp:explicitDate||addBusinessDays(at,7),decisive:false,needsReview:true,reason:explicitDate?'Opfølgningsdato fundet, men kundens beslutning er ikke entydig.':'Kundens seneste svar er ikke entydigt; eksisterende opfølgning skal bevares og kontrolleres.'};
@@ -607,9 +607,49 @@ Deno.serve(async(req:Request)=>{
     const url=Deno.env.get('SUPABASE_URL')!,serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,admin=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
     const body=await req.json().catch(()=>({})),action=clean(body.action||'run',40),requestedClient=clean(body.client_id,100),cronSecret=clean(req.headers.get('x-mail-offer-sync-secret'),500),{data:expected}=await admin.rpc('crm_get_mail_offer_sync_secret'),cron=!!cronSecret&&!!expected&&safeEqual(cronSecret,String(expected));let user:any=null;
     if(!cron){const token=clean((req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,''),5000);if(!token)return json({error:'Mangler login-token'},401);const auth=await admin.auth.getUser(token);user=auth.data?.user;if(auth.error||!user?.id)return json({error:'Ugyldigt login'},401);const _apiEntryAccess=await apiSessionGuard(token,null);if(!_apiEntryAccess.allowed)return json({error:_apiEntryAccess.error,code:_apiEntryAccess.code},_apiEntryAccess.status);}
+    if(action==='reject_approval'){
+      if(!user)return json({error:'Kun en bruger kan afvise ændringer'},403);
+      const approvalId=clean(body.approval_id,100);
+      const {data:approval}=await admin.from('crm_approvals').select('id,client_id').eq('id',approvalId).eq('status','pending').eq('action_type','offer_mail_update').maybeSingle();
+      if(!approval)return json({error:'Godkendelsen blev ikke fundet'},404);
+      const {data:membership}=await admin.from('crm_users').select('id').eq('client_id',approval.client_id).eq('auth_user_id',user.id).eq('active',true).maybeSingle();
+      if(!membership)return json({error:'Ingen adgang'},403);
+      const {data:rejected,error:rejectError}=await admin.from('crm_approvals').update({status:'rejected',decided_at:new Date().toISOString()}).eq('id',approval.id).eq('client_id',approval.client_id).eq('status','pending').select('id').maybeSingle();
+      if(rejectError)throw rejectError;
+      if(!rejected)return json({error:'Godkendelsen er allerede behandlet',code:'APPROVAL_ALREADY_CLAIMED'},409);
+      return json({ok:true});
+    }
     if(action==='apply_approval'){
       if(!user)return json({error:'Kun en bruger kan godkende ændringer'},403);const approvalId=clean(body.approval_id,100),{data:approval}=await admin.from('crm_approvals').select('*').eq('id',approvalId).eq('status','pending').eq('action_type','offer_mail_update').single();if(!approval)return json({error:'Godkendelsen blev ikke fundet'},404);
-      const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',approval.client_id).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang'},403);const p=approval.payload||{};if(p.offer?.id){const{data:offer}=await admin.from('crm_offers').select('*').eq('id',p.offer.id).eq('client_id',approval.client_id).single();p.offer=offer}await applyProposal(admin,p,user.email||'Bruger');await admin.from('crm_approvals').update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id);return json({ok:true});
+      const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',approval.client_id).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang'},403);const p={...(approval.payload||{}),client_id:approval.client_id};
+      // The browser-controlled approval payload must never choose the destination tenant.
+      for(const [field,table] of [['company_id','crm_companies'],['lead_id','crm_leads'],['contact_id','crm_contacts']] as const){
+        if(!p[field])continue;
+        const {data:linked,error:linkedError}=await admin.from(table).select('id').eq('id',p[field]).eq('client_id',approval.client_id).maybeSingle();
+        if(linkedError||!linked)return json({error:'Godkendelsen indeholder oplysninger fra et andet workspace',code:'APPROVAL_TENANT_MISMATCH'},403);
+      }
+      if(p.offer?.id){
+        const {data:offer,error:offerError}=await admin.from('crm_offers').select('*').eq('id',p.offer.id).eq('client_id',approval.client_id).maybeSingle();
+        if(offerError||!offer)return json({error:'Tilbuddet tilhører ikke dette workspace',code:'APPROVAL_TENANT_MISMATCH'},403);
+        if(['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(String(offer.status||'').toUpperCase()))return json({error:'Tilbuddet er allerede afsluttet',code:'OFFER_CLOSED'},409);
+        p.offer=offer;
+      }
+      const {data:claimed,error:claimError}=await admin.from('crm_approvals')
+        .update({status:'applying'}).eq('id',approval.id).eq('client_id',approval.client_id)
+        .eq('status','pending').eq('action_type','offer_mail_update').select('id').maybeSingle();
+      if(claimError)throw claimError;
+      if(!claimed)return json({error:'Godkendelsen er allerede under behandling',code:'APPROVAL_ALREADY_CLAIMED'},409);
+      try{
+        await applyProposal(admin,p,user.email||'Bruger');
+        const {error:finalizeError}=await admin.from('crm_approvals')
+          .update({status:'approved',decided_at:new Date().toISOString()}).eq('id',approval.id).eq('status','applying');
+        if(finalizeError)throw finalizeError;
+        return json({ok:true});
+      }catch(applyError){
+        const {error:failError}=await admin.from('crm_approvals').update({status:'failed',decided_at:new Date().toISOString()}).eq('id',approval.id).eq('status','applying');
+        if(failError)console.error('Approval failure state could not be saved',failError);
+        throw applyError;
+      }
     }
     let clients:any[]=[];if(requestedClient){if(user){const{data:membership}=await admin.from('crm_users').select('id').eq('client_id',requestedClient).eq('auth_user_id',user.id).eq('active',true).maybeSingle();if(!membership)return json({error:'Ingen adgang til denne klient'},403)}const{data}=await admin.from('crm_clients').select('id,name,settings').eq('id',requestedClient).limit(1);clients=data||[]}else{if(!cron)return json({error:'client_id er påkrævet'},400);const{data}=await admin.from('crm_clients').select('id,name,settings');clients=data||[]}
     const dryRun=body.dry_run===true,backfillDays=Math.max(0,Math.min(30,Number(body.backfill_days||0))),results:any[]=[];

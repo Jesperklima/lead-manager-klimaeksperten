@@ -246,12 +246,8 @@
   document.head.appendChild(approvalScript);
 
   const offerMailScript=document.createElement('script');
-  offerMailScript.src='/offer-mail-v1.js?v=20260928-7-recipient-audit';
+  offerMailScript.src='/offer-mail-v1.js?v=20261122-review-2';
   offerMailScript.defer=true;
   document.head.appendChild(offerMailScript);
 
-  const mailTemplatesScript=document.createElement('script');
-  mailTemplatesScript.src='/mail-templates-v1.js?v=20260925-1-contact-name';
-  mailTemplatesScript.defer=true;
-  document.head.appendChild(mailTemplatesScript);
 })();

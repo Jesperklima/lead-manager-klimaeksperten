@@ -25,6 +25,7 @@ const fromB64Url=(s:string)=>{let x=String(s||'').replaceAll('-','+').replaceAll
 const wrap76=(s:string)=>s.match(/.{1,76}/g)?.join('\r\n')||s;
 
 const refNorm=(v:any)=>trim(v,300).toLowerCase().replace(/[^a-z0-9æøå]+/g,'');
+const pdfOfferRefFromFilename=(name:any)=>{const m=trim(name,400).match(/(?:tilbud|offer|quote|quotation|proposal|overslag)[ _#-]*(\d{3,8}(?:-\d+)?)(?=\b|\.|_|-)/i);return m?refNorm(m[1]):''};
 const headerValue=(payload:any,name:string)=>trim((payload?.headers||[]).find((h:any)=>String(h?.name||'').toLowerCase()===name.toLowerCase())?.value,3000);
 function collectPdfParts(payload:any,out:any[]=[]):any[]{
   if(!payload)return out;
@@ -113,7 +114,7 @@ function minubaPdfScore(item:any,offerRef:string,minubaId:string){
   const mime=trim(item?.mimeType||item?.contentType||item?.type,200).toLowerCase();
   if(!(mime.includes('pdf')||/\.pdf$/i.test(name)))return -999;
   let score=0;
-  if((name.match(/\d+/g)||[]).includes(String(offerRef)))score+=90;
+  if(pdfOfferRefFromFilename(name)===refNorm(offerRef))score+=90;
   if(/tilbud|offer|quote|quotation|proposal/i.test(name))score+=20;
   const relation=trim(item?.orderId||item?.parentId||item?.entityId||item?.relationId,200);
   if(minubaId&&relation&&relation.toLowerCase()===minubaId.toLowerCase())score+=50;
@@ -301,14 +302,14 @@ async function gmailCachedPdfCandidate(offer:any,offerRef:string,accessToken:str
     .map(({part,filename})=>{
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=160;
-      else if((filename.match(/\d+/g)||[]).includes(String(offerRef)))score+=120;
+      else if(pdfOfferRefFromFilename(filename)===refNorm(offerRef))score+=120;
       if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=20;
       return{part,filename,score};
     })
     .filter(x=>x.score>=120)
     .sort((a,b)=>b.score-a.score);
   for(const {part,filename} of parts.slice(0,3)){
-    if(!(filename.match(/\d+/g)||[]).includes(String(offerRef)))continue;
+    if(!pdfOfferRefFromFilename(filename)===refNorm(offerRef))continue;
     const b64=await gmailAttachmentB64(accessToken,mid,part);
     if(!await originalPdfValid(b64))continue;
     return{
@@ -340,7 +341,7 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
     for(const {part,filename} of collectPdfParts(msg.payload)){
       const nf=refNorm(filename);let score=0;
       if(nf===refNorm(expected))score+=120;
-      else if((filename.match(/\d+/g)||[]).includes(String(offerRef)))score+=80;
+      else if(pdfOfferRefFromFilename(filename)===refNorm(offerRef))score+=80;
       if(/tilbud|offer|quote|quotation|proposal/i.test(filename))score+=15;
       if(target&&evidence.includes(target))score+=40;
       if(/@minuba\.dk/i.test(from)||/minuba/i.test(from))score+=20;
@@ -348,7 +349,7 @@ async function gmailPdfCandidate(admin:any,clientId:string,offer:any,offerRef:st
       if(String(offer?.pdf_source_message_id||'')===mid)score+=150;
       const numbered=filename.match(/(?:tilbud|offer|quote|quotation|proposal)[ _-]*(\d{3,8})/i);
       if(numbered&&refNorm(numbered[1])!==target)continue;
-      if(!(filename.match(/\d+/g)||[]).includes(String(offerRef)))continue;
+      if(!pdfOfferRefFromFilename(filename)===refNorm(offerRef))continue;
       if(score<80)continue;
       const b64=await gmailAttachmentB64(accessToken,mid,part);if(!await originalPdfValid(b64))continue;
       candidates.push({b64,filename,source:String(offer?.pdf_source_message_id||'')===mid?'gmail_cache':linkedIds.has(mid)?'gmail_linked':'gmail_search',messageId:mid,attachmentId:trim(part?.body?.attachmentId,1000),score,date:Number(msg.internalDate||0)});
@@ -514,10 +515,12 @@ Deno.serve(async(req:Request)=>{
 
   const supabaseUrl=Deno.env.get('SUPABASE_URL')!,serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const admin=createClient(supabaseUrl,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  let requestAction='send',sendJobCreated=false;
 
   try{
     const body=await req.json().catch(()=>({}));
     const action=trim(body.action,30)||'send';
+    requestAction=action;
 
     if(action==='recover_failed'){
       const recoverySecret=trim(req.headers.get('x-mail-recovery-secret'),500);
@@ -674,7 +677,7 @@ Deno.serve(async(req:Request)=>{
 
     const [clientR,offerR,materialR,limitsR,usageR]=await Promise.all([
       admin.from('crm_clients').select('id,name,settings').eq('id',clientId).single(),
-      admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
+      admin.from('crm_offers').select('id,company_id,lead_id,offer_ref,customer_name,contact_person,contact_details,follow_up_owner,status,follow_up_date,minuba_record_type,minuba_sync_state,minuba_raw,minuba_offer_id,pdf_source_message_id,pdf_source_attachment_id,pdf_source_filename,pdf_source_kind,pdf_verified_at,pdf_last_error').eq('id',offerId).eq('client_id',clientId).maybeSingle(),
       admin.rpc('get_gmail_oauth_material',{p_client_id:clientId}),
       admin.from('crm_usage_limits').select('*').eq('client_id',clientId).maybeSingle(),
       admin.rpc('crm_usage_snapshot',{p_client_id:clientId})
@@ -682,6 +685,8 @@ Deno.serve(async(req:Request)=>{
     const {data:client,error:clientError}=clientR as any,{data:offer,error:offerError}=offerR as any,{data:mat,error:matError}=materialR as any,{data:limits}=limitsR as any,{data:usage}=usageR as any;
     if(clientError||!client)return json({error:'Kundeprofil blev ikke fundet'},404);
     if(offerError)throw offerError;if(!offer)return json({error:'Tilbuddet blev ikke fundet'},404);
+    if((action==='send'||action==='preflight')&&['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(trim(offer.status,100).toUpperCase()))return json({error:'Tilbuddet er afsluttet, så opfølgningsmailen må ikke sendes.',code:'OFFER_CLOSED'},409);
+    if((action==='send'||action==='preflight')&&(trim(offer.minuba_record_type,40).toLowerCase()==='order'||['closed','converted_to_order','rejected'].includes(trim(offer.minuba_sync_state,40).toLowerCase())))return json({error:'Tilbuddet er afsluttet eller blevet til en ordre i Minuba, så opfølgningsmailen må ikke sendes.',code:'OFFER_CLOSED_IN_MINUBA'},409);
     if(matError)throw matError;
 
     const companyId=String(offer.company_id||'');if(!companyId)return json({error:'Tilbuddet er ikke koblet til en kunde',code:'OFFER_NO_COMPANY'},412);
@@ -837,6 +842,7 @@ Deno.serve(async(req:Request)=>{
       throw jobError;
     }
 
+    sendJobCreated=true;
     const plain=mailBody+(sigText?'\n\n'+sigText:'');
     const htmlBody='<div style="font-family:Arial,sans-serif;font-size:10.5pt;line-height:1.5">'+escHtml(mailBody).replaceAll('\n','<br>')+'</div>'+(sigHtml?sigHtml:'');
     const mixed='lm_mix_'+crypto.randomUUID().replaceAll('-',''),alt='lm_alt_'+crypto.randomUUID().replaceAll('-',''),fromHeader=fromName?`${b64header(fromName)} <${from}>`:from;
@@ -897,7 +903,10 @@ Deno.serve(async(req:Request)=>{
       err instanceof Error?err.message:(err?.message||err?.error_description||err?.details||err?.hint||String(err||'')),
       2000
     )||'Ukendt fejl';
-    const code=trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR';
+    if(/MAIL_DAILY_LIMIT/.test(message))return json({error:'Dagens mailgrænse er nået',code:'MAIL_DAILY_LIMIT'},429);
+    const code=err?.status!==429&&requestAction==='send'&&!sendJobCreated
+      ?'OFFER_MAIL_PRE_SEND_ERROR'
+      :(trim(err?.code,120)||'OFFER_MAIL_SEND_INTERNAL_ERROR');
     return json({error:message,code,retry_after_seconds:err?.retry_after_seconds||null},err?.status===429?429:500);
   }
 });

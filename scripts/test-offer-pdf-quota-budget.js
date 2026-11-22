@@ -16,7 +16,8 @@ if(quota)return new Response(JSON.stringify({error:{message:'Quota exceeded',err
 if(url.includes('?maxResults='))return new Response(JSON.stringify({messages:Array.from({length:40},(_,i)=>({id:'m'+i}))}));
 return new Response(JSON.stringify({payload:{parts:exact?[{filename:'Tilbud 2615.pdf',body:{data:'validated-pdf'}}]:[]}}));
 }};
-const api=vm.runInNewContext(stripTypeScriptTypes(functions,{mode:'transform'})+';({gmailPdfCandidate,gmailReadJson})',context);
+const matchHelper=source.match(/^const pdfOfferRefFromFilename=.*;$/m);assert.ok(matchHelper,'exact PDF reference helper missing');
+const api=vm.runInNewContext(stripTypeScriptTypes(matchHelper[0]+'\n'+functions,{mode:'transform'})+';({gmailPdfCandidate,gmailReadJson})',context);
 const chain={select:()=>chain,eq:()=>chain,order:()=>chain,limit:async()=>({data:[]})};
 const admin={from:()=>chain};
 (async()=>{

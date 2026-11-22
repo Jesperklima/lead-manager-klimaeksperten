@@ -84,7 +84,8 @@
     (messages || []).forEach(function (m) {
       if (!allowedOutbound.has(String(m.direction || '').toLowerCase())) return;
       if (!m.message_at || !dateKey(m.message_at)) return;
-      if (!recipientIsCustomer(m.to_emails, m.from_email, expected)) return;
+      const confirmedOfferSend=!!(m.metadata && (m.metadata.mail_send_job_id || m.metadata.direct_send));
+      if (!confirmedOfferSend && !recipientIsCustomer(m.to_emails, m.from_email, expected)) return;
       records.push({
         id: String(m.external_message_id || ''),
         at: m.message_at, kind: 'mail', subject: String(m.subject || ''),
@@ -255,7 +256,7 @@
     // Omitting it silently turns genuine outbound mails into an empty history.
     const kinds = [
       ['crm_offer_history', 'id,client_id,sent_date,follow_up_date', 'imported_at'],
-      ['crm_mail_messages', 'id,client_id,direction,message_at,subject,to_emails,from_email,external_message_id,body_text', 'message_at'],
+      ['crm_mail_messages', 'id,client_id,direction,message_at,subject,to_emails,from_email,external_message_id,body_text,metadata', 'message_at'],
       ['crm_activities', 'id,client_id,type,created_at,metadata,summary', 'created_at']
     ];
     const output = await Promise.all(kinds.map(async function (kind) {

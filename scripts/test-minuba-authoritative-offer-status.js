@@ -8,9 +8,10 @@ function before(text,a,b,label){const ia=text.indexOf(a),ib=text.indexOf(b,Math.
 const sync=read('supabase/functions/minuba-offer-status-sync/index.ts');
 must(sync,'function terminalProposalDisposition','terminal Minuba proposal classifier');
 must(sync,"if(prev!=='VUNDET'){patch.status='VUNDET';patch.follow_up_date=null",'order always closes follow-up');
-forbid(sync,"if(!o.manual_lock&&prev!=='VUNDET')",'manual lock blocking Minuba order');
-must(sync,"patch.status='LUKKET';patch.follow_up_date=null;patch.status_source='minuba'",'missing twice forces closed status');
-forbid(sync,"if(!o.manual_lock){patch.status='LUKKET'",'manual lock blocking Minuba closure');
+must(sync,"if(o.manual_lock){",'manual override must be prevented and recorded as mismatch');
+forbid(sync,"patch.status='LUKKET';patch.follow_up_date=null;patch.status_source='minuba'",'absence-only closure must be forbidden');
+must(sync,'minuba_missing_twice_unverified','missing record is marked for review');
+must(sync,"minuba_sync_state:'mismatch'",'mismatch must remain visible');
 must(sync,'manual_lock_overridden:!!o.manual_lock','audit terminal manual-lock override');
 must(sync,'manual_terminal_overrides:manualOverrides','terminal override metric');
 must(sync,">=10*60*1000",'second safe status check threshold');

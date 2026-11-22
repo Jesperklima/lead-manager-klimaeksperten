@@ -1,5 +1,7 @@
 (()=>{
   'use strict';
+  if(window.__LM_MAIL_TEMPLATES_V1)return;
+  window.__LM_MAIL_TEMPLATES_V1=true;
 
   const byId=id=>document.getElementById(id);
   let templates=[];
@@ -175,7 +177,7 @@
     const box=byId('mailTemplateList');if(!box)return;
     const scope=byId('mailTemplateScope')?.dataset?.managerScope||'';
     const arr=templates.filter(t=>!scope||t.scope===scope||t.scope==='both');
-    box.innerHTML=arr.length?arr.map(t=>`<div class="task"><div><strong>${String(t.name||'')}</strong><div class="sub">${t.scope==='offer'?'Tilbud':t.scope==='lead'?'Leads':'Leads + tilbud'}${t.is_default?' · Standard':''}</div><div class="mailbody">${String(t.body_text||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}</div></div><button class="btn small" data-edit-template="${t.id}">Redigér</button></div>`).join(''):'<div class="empty">Ingen skabeloner endnu.</div>';
+    box.innerHTML=arr.length?arr.map(t=>`<div class="task"><div><strong>${String(t.name||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}</strong><div class="sub">${t.scope==='offer'?'Tilbud':t.scope==='lead'?'Leads':'Leads + tilbud'}${t.is_default?' · Standard':''}</div><div class="mailbody">${String(t.body_text||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}</div></div><button class="btn small" data-edit-template="${t.id}">Redigér</button></div>`).join(''):'<div class="empty">Ingen skabeloner endnu.</div>';
     box.querySelectorAll('[data-edit-template]').forEach(b=>b.onclick=()=>editTemplate(b.dataset.editTemplate));
   }
 
@@ -280,7 +282,5 @@
   window.addEventListener('lm:offer-mail-opened',schedule);
   window.addEventListener('lm:offer-mail-closed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('#openMailComposer,#openOfferMail,.nav button[data-view="mail"],.nav button[data-view="offers"],.nav button[data-view="offerpipeline"]'))schedule()},true);
-  const offerModal=byId('offerMailModal');
-  if(offerModal)new MutationObserver(schedule).observe(offerModal,{attributes:true,attributeFilter:['class']});
   setTimeout(watch,300);
 })();

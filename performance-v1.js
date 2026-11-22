@@ -72,7 +72,7 @@ function queryFor(key,cid,{light=false}={}){
     case 'offers': return supabase.from('crm_offers').select(light?'id,client_id,company_id,lead_id,opportunity_id,offer_ref,customer_name,installation_address,sent_date,follow_up_date,follow_up_month,follow_up_owner,contact_person,contact_details,status,status_reason,current_comment,source_file,source_sheet,source_row,data_warning,created_at,updated_at,manual_lock,status_source,status_updated_at,minuba_status,minuba_record_type,minuba_order_number,minuba_last_checked_at,minuba_last_seen_at,minuba_sync_state':'*').eq('client_id',cid).order('follow_up_date',{ascending:true});
     case 'approvals':
       return light
-        ? supabase.from('crm_approvals').select('id,status,created_at').eq('client_id',cid).eq('status','pending').order('created_at',{ascending:false})
+        ? supabase.from('crm_approvals').select('id,client_id,status,created_at').eq('client_id',cid).eq('status','pending').order('created_at',{ascending:false})
         : supabase.from('crm_approvals').select('*').eq('client_id',cid).order('created_at',{ascending:false});
     case 'runs': return supabase.from('crm_agent_runs').select('*').eq('client_id',cid).order('started_at',{ascending:false}).limit(100);
     case 'tasks': return supabase.from('crm_tasks').select('*').eq('client_id',cid).order('scheduled_at',{ascending:true});
