@@ -39,6 +39,7 @@
   function pdfName(o){const ref=String(o?.offer_ref||'').trim();return ref?`Tilbud ${ref}.pdf`:''}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
   const finalizedStatuses=new Set(['sent']);
+  const FINAL_PRE_SEND_CODES=new Set(['GMAIL_TOKEN_ERROR','GMAIL_SEND_ERROR','GMAIL_QUOTA_EXCEEDED','OFFER_CLOSED','OFFER_CLOSED_IN_MINUBA','MAIL_DAILY_LIMIT','OFFER_MAIL_PRE_SEND_ERROR']);
   const postprocessStatuses=new Set(['sent_pending_postprocess','postprocessing']);
   // Gmail acceptance is NOT the same as a completed CRM follow-up commit.
   function isSentResult(data){return finalizedStatuses.has(String(data?.status||''))}
@@ -245,7 +246,29 @@
     const o=offer();if(!o?.id||!state?.client?.id||typeof callProtectedEdge!=='function')return false;
     const button=byId('sendOfferMail');
     let pending=saved||loadPendingSend(o);
-    if(!pending)return false;
+    if(!pending){
+      const to=String(byId('offerMailTo')?.value||'').trim();
+      try{
+        const result=await callProtectedEdge('gmail-offer-send',{action:'resume',client_id:state.client.id,offer_id:o.id,to:to||null});
+        if(result?.error){
+          if(String(result.error.code||'')==='SEND_INTERRUPTED_NOT_FOUND')return false;
+          throw mailErrorFrom(result);
+        }
+        const data=result?.data??result;
+        if(data?.pending===false||data?.status==='none')return false;
+        if(!data?.send_id)return false;
+        if(isSentResult(data)){
+          renderSendStatus('info','En mail til denne kunde er netop sendt','Kontrollér, at du ikke sender den samme mail igen.');
+          return false;
+        }
+        const backendFollow=effectiveFollowDate(data,'');
+        pending={request_id:data.send_id,created_at:Date.now(),to:to||'',follow:backendFollow||String(byId('offerMailFollow')?.value||''),name:pdfName(o)};
+        savePendingSend(o,data.send_id,pending);
+      }catch(error){
+        console.warn('[Offer mail] Kunne ikke genoptage afsendelsesstatus',error);
+        return false;
+      }
+    }
     if(!pending?.request_id)return false;
     currentPdfSendId=pending.request_id;
     pdfSendState='uncertain';
@@ -436,6 +459,8 @@
     if(result?.error){
       const error=mailErrorFrom(result),status=Number(error?.status||0),code=String(error?.code||'');
       if(status===546||code==='SEND_IN_PROGRESS')return;
+      // Ambiguous 5xx (timeouts/internal errors) may occur AFTER Gmail received the mail.
+      if(status>=500&&status<600&&!FINAL_PRE_SEND_CODES.has(code))return;
       sendWatchSeq++;
       clearPendingSend(o,requestId);
       pdfSendState='idle';currentPdfSendId=makeSendId();
@@ -487,7 +512,7 @@
       const detail=String(pdfCheck?.message||pdfCheck?.error||'En verificeret tilbuds-PDF kunne ikke hentes.').trim();
       renderPdfStatus(pdfCheck||{error:detail});
       renderSendStatus('error','Afsendelse blokeret – PDF ikke klar',detail);
-      alert('MAILEN ER IKKE SENDT\\n\\n'+detail+'\\n\\nKontrollér den originale PDF fra Minuba, før du prøver igen.');
+      alert('MAILEN ER IKKE SENDT\n\n'+detail+'\n\nKontrollér den originale PDF fra Minuba, før du prøver igen.');
       return;
     }
     if(pdfSendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${to} med ${name} vedhæftet?`))return;
