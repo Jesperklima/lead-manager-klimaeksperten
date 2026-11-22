@@ -51,8 +51,8 @@ const referenceBlock=sync.slice(sync.indexOf('function referenceContact(record:a
 assert(referenceBlock&&!referenceBlock.includes('record?.deliveryAddress'),'TheirRef-match må aldrig bruge DELIVERY/end-customer som bevis');
 assert(!sync.includes('record?.client?.lastUsedDeliveryAddressId'),'Status-sync må ikke bruge seneste DELIVERY-adresse som kundebevis');
 
-assert(dashboard.includes("/offer-mail-v1.js?v=20260928-7-recipient-audit"),'Offer mail cache-version er ikke opdateret');
-assert(dashboard.includes("/mail-templates-v1.js?v=20260925-1-contact-name"),'Mail template cache-version er ikke opdateret');
+assert(dashboard.includes("/offer-mail-v1.js?v=20261122-review-2"),'Offer mail cache-version er ikke opdateret');
+assert(!dashboard.includes("/mail-templates-v1.js")&&fs.readFileSync("api/app.js","utf8").includes("/mail-templates-v1.js?v="),'Mail template cache-version er ikke opdateret');
 
 // 2726: I-KLIMA er direkte kunde, KAB er arbejdsstedets/slutkundens domæne.
 const iklima={
