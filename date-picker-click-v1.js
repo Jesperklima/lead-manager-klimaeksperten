@@ -49,10 +49,9 @@
       event.preventDefault();
       event.stopPropagation();
       const days=Number(button.dataset.dateShift||0);
-      const base=input.value?new Date(input.value+'T12:00:00'):new Date();
-      if(Number.isNaN(base.getTime()))return;
-      base.setDate(base.getDate()+days);
-      const value=[base.getFullYear(),String(base.getMonth()+1).padStart(2,'0'),String(base.getDate()).padStart(2,'0')].join('-');
+      const dates=window.LMFollowupDate;
+      const value=dates.addDays(input.value||dates.today(),days);
+      if(!value)return;
       setValue(input,value);
     }));
   }
@@ -62,6 +61,7 @@
   }
 
   scan();
+  window.addEventListener('lm:offer-mail-ready',scan);
   window.addEventListener('lm:client-data-ready',()=>setTimeout(scan,0));
   window.addEventListener('lm:data-refreshed',()=>setTimeout(scan,0));
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-open-lead],[data-open-offer],.leadcard,.offer-pipe-card,.calitem'))setTimeout(scan,0)},true);

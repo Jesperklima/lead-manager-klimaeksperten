@@ -96,6 +96,7 @@
     if(scope==='offer'){
       if(byId('offerMailSubject'))byId('offerMailSubject').value=resolve(t.subject,scope);
       if(byId('offerMailBody'))byId('offerMailBody').value=resolve(t.body_text,scope);
+      window.dispatchEvent(new CustomEvent('lm:offer-mail-template-applied'));
     }else{
       if(byId('mSubject'))byId('mSubject').value=resolve(t.subject,scope);
       if(byId('mBody'))byId('mBody').value=resolve(t.body_text,scope);

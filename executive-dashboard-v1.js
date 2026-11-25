@@ -246,7 +246,7 @@
   document.head.appendChild(approvalScript);
 
   const offerMailScript=document.createElement('script');
-  offerMailScript.src='/offer-mail-v1.js?v=20261122-review-2';
+  offerMailScript.src='/offer-mail-v1.js?v=20261125-followup-date';
   offerMailScript.defer=true;
   document.head.appendChild(offerMailScript);
 

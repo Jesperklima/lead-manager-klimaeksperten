@@ -10,6 +10,7 @@
   let pdfStatusSeq=0;
   let suppressionSeq=0;
   let suppressionBlocked=false;
+  let suppressionLoading=false;
   let suppressionReason='';
   let suppressionCode='';
   let sendWatchSeq=0;
@@ -17,8 +18,14 @@
   const pdfStatusCache=new Map();
   const suppressionCache=new Map();
   const manualRecipients=new Set();
+  let invoiceMailboxApproval=null;
+  let invoiceMailboxAction=null;
   const recipientKey=(o,to)=>String(state?.client?.id||'')+'|'+String(o?.id||'')+'|'+lower(to);
   function recipientConfirmation(o,to){return manualRecipients.has(recipientKey(o,to))?{confirmed:true,offer_id:o.id,email:lower(to)}:null}
+  function invoiceMailboxConfirmation(o,to){
+    return invoiceMailboxApproval?.key===recipientKey(o,to)&&invoiceMailboxApproval.request_id===currentPdfSendId
+      ?{confirmed:true,offer_id:o.id,email:lower(to),request_id:currentPdfSendId,reason:'only_customer_address'}:null;
+  }
   // Mail preparation may be re-rendered many times during CRM refresh. Never
   // start another identical Minuba/PDF/preflight call while one is running.
   const pdfPreflights=new Map();
@@ -28,13 +35,6 @@
   function offer(){try{return typeof currentOffer!=='undefined'?currentOffer:null}catch{return null}}
   function sender(){try{return String(state?.client?.settings?.mail||'js@klimaeksperten.dk').trim()}catch{return'js@klimaeksperten.dk'}}
   function contacts(o){try{return typeof contactsFor==='function'?contactsFor(o.company_id):((state?.contacts||[]).filter(x=>x.company_id===o.company_id))}catch{return[]}}
-  function isInvoiceMailbox(email){
-    const e=lower(email),idx=e.lastIndexOf('@');if(idx<=0)return false;
-    const local=e.slice(0,idx),host=e.slice(idx+1);
-    if(host==='basware.com'||host.endsWith('.basware.com'))return true;
-    const blocked=new Set(['invoice','invoices','invoicing','einvoice','einvoicing','faktura','fakturaer','fakturering','faktureringer','kreditor','kreditorer','accounts','accountspayable','payables','billing','billings','ean','e-faktura']);
-    return local.split(/[._+\-]/).some(part=>blocked.has(part))||/^(?:invoice|invoicing|faktura|kreditor|billing|accountspayable)[0-9]*$/.test(local);
-  }
   function bounced(email,o){const e=lower(email);return contacts(o).find(x=>lower(x?.email)===e&&String(x?.source_type||'').startsWith('smtp_bounced'))||null}
   function pdfName(o){const ref=String(o?.offer_ref||'').trim();return ref?`Tilbud ${ref}.pdf`:''}
   function makeSendId(){return window.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15,v=c==='x'?r:(r&3|8);return v.toString(16)})}
@@ -55,12 +55,12 @@
       const reason=message.replace(/^Opfølgning er blokeret:\s*/i,'').trim();
       return reason?`Denne kunde/modtager er markeret “ingen opfølgning”. Årsag: ${reason}`:'Denne kunde/modtager er markeret “ingen opfølgning”. Mailen er ikke sendt.';
     }
-    if(code==='OFFER_RECIPIENT_INVOICE_MAILBOX')return message||'Modtageren er en faktura- eller dokumentindbakke. Vælg en kontaktperson til tilbudsopfølgning.';
+    if(code==='OFFER_RECIPIENT_INVOICE_MAILBOX')return message||'Fakturaadressen kræver en bekræftelse til denne afsendelse.';
     if(code==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER')return message||'Tilbud og priser må kun sendes til den direkte kunde. Den valgte modtager er ikke godkendt.';
     if(code==='GMAIL_TOKEN_ERROR'||code==='GMAIL_NOT_CONNECTED')return 'Gmail-forbindelsen skal genetableres, før mailen kan sendes.';
     if(code==='MINUBA_RECONNECT_REQUIRED')return 'Minuba kræver ny godkendelse under Integrationer. Mailen er ikke sendt.';
     if(code==='MINUBA_REFRESH_UNAVAILABLE')return 'Minuba svarer ikke på tokenfornyelse. Prøv igen senere; mailen er ikke sendt.';
-    if(code==='OFFER_PDF_NOT_FOUND')return message||'Tilbuddet findes, men Lead Manager kunne ikke hente eller generere en verificeret tilbuds-PDF. Mailen blev ikke sendt.';
+    if(code==='OFFER_PDF_NOT_FOUND')return message||'Originalen til den aktuelle tilbudsversion er endnu ikke fundet.';
     if(code==='OFFER_PDF_INVALID')return message||'PDF-kilden blev fundet, men filen kunne ikke valideres som en rigtig PDF. Mailen blev ikke sendt.';
     return message||'Mailen kunne ikke sendes.';
   }
@@ -315,11 +315,11 @@
     let box=byId('offerMailAttachment');
     if(!box){
       const field=document.createElement('div');field.className='field';field.id='offerMailAttachmentField';
-      field.innerHTML='<label>Vedhæftning</label><div id="offerMailAttachment" style="border:1px solid #dfe4ea;border-radius:10px;padding:11px 12px;background:#f8fafc;font-size:14px"></div>';
+      field.innerHTML='<label>Vedhæftning</label><div id="offerMailAttachment" style="border:1px solid var(--border);border-radius:10px;padding:11px 12px;background:var(--soft);color:var(--text);font-size:14px"></div>';
       body.closest('.field')?.insertAdjacentElement('afterend',field);box=byId('offerMailAttachment');
     }
     const o=offer(),name=pdfName(o);
-    if(box)box.innerHTML=name?`📎 <strong>${name}</strong><div class="sub" style="margin-top:4px">Lead Manager henter en eksisterende PDF eller genererer den fra tilbudsdata i Minuba. Mailen kan ikke sendes uden en verificeret PDF.</div>`:'📎 Tilbudsnummer mangler – PDF kan ikke vælges sikkert.';
+    if(box)box.innerHTML=name?`📎 <strong>${escapeHtml(name)}</strong><div class="sub" style="margin-top:4px">Lead Manager finder og kontrollerer originalen automatisk.</div>`:'📎 Tilbudsnummer mangler – PDF kan ikke vælges sikkert.';
   }
 
   function ensureSuppressionBanner(){
@@ -336,10 +336,14 @@
   }
 
   function blockedButtonText(){
+    if(suppressionLoading)return 'Kontrollerer modtager…';
+    if(suppressionCode==='OFFER_RECIPIENT_INVOICE_MAILBOX')return invoiceMailboxAction?'Bekræft fakturaadresse':'Blokeret – vælg direkte kunde';
     return suppressionCode==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER'?'Blokeret – vælg direkte kunde':'Blokeret – ingen opfølgning';
   }
   function renderSuppressionStatus(status){
     const box=ensureSuppressionBanner(),field=byId('offerMailSuppressionField'),button=byId('sendOfferMail');
+    invoiceMailboxAction=null;
+    suppressionLoading=!!status?.loading;
     suppressionBlocked=!!status?.blocked;
     suppressionReason=String(status?.reason||'').trim();
     suppressionCode=String(status?.code||'').trim();
@@ -347,6 +351,7 @@
     if(status?.loading){
       field.hidden=false;
       box.innerHTML='<div style="border:2px solid rgba(148,163,184,.45);border-radius:12px;padding:14px 16px;background:rgba(15,23,42,.72);color:#cbd5e1;font-weight:700">Kontrollerer modtager og opfølgningsregler…</div>';
+      if(button&&pdfSendState==='idle'){button.disabled=true;button.textContent=blockedButtonText()}
       return;
     }
     if(suppressionBlocked&&suppressionCode==='OFFER_RECIPIENT_CONFIRMATION_REQUIRED'){
@@ -361,6 +366,14 @@
       if(button){button.disabled=true;button.textContent='Bekræft modtager først'}
       return;
     }
+    if(suppressionBlocked&&suppressionCode==='OFFER_RECIPIENT_INVOICE_MAILBOX'){
+      const current=offer(),to=byId('offerMailTo')?.value;
+      field.hidden=false;
+      box.textContent=suppressionReason;
+      if(status.override_allowed&&current?.id&&to)invoiceMailboxAction=recipientKey(current,to);
+      if(button&&pdfSendState==='idle'){button.disabled=!invoiceMailboxAction;button.textContent=blockedButtonText()}
+      return;
+    }
     if(suppressionBlocked){
       const wrongRecipient=suppressionCode==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
       const reason=suppressionReason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Kunden eller modtageren er markeret som “ingen opfølgning”.');
@@ -372,7 +385,10 @@
       if(button&&pdfSendState==='idle'){button.disabled=true;button.textContent=blockedButtonText()}
       return;
     }
-    field.hidden=true;box.innerHTML='';box.dataset.guardCode='';
+    const invoiceConfirmed=status?.recipient_scope==='invoice_mailbox_confirmed';
+    field.hidden=!invoiceConfirmed;
+    box.textContent=invoiceConfirmed?'Fakturaadressen er bekræftet til denne ene afsendelse.':'';
+    box.dataset.guardCode='';
     suppressionCode='';
     if(button&&pdfSendState==='idle'){button.disabled=false;button.textContent='Send mail'}
   }
@@ -382,24 +398,29 @@
     if(!o?.id||typeof callProtectedEdge!=='function'||!state?.client?.id||!to){
       renderSuppressionStatus({blocked:false});return {blocked:false};
     }
-    const key=state.client.id+'|'+o.id+'|'+lower(to),cached=suppressionCache.get(key);
+    const invoice=invoiceMailboxConfirmation(o,to);
+    const recipient=recipientKey(o,to),key=invoice?recipient+'|'+invoice.request_id:recipient,cached=suppressionCache.get(key);
     if(!force&&cached&&Date.now()-cached.at<30000){renderSuppressionStatus(cached.value);return cached.value}
     if(recipientPreflights.has(key))return recipientPreflights.get(key);
     const seq=++suppressionSeq;
+    const stillCurrent=()=>{
+      const current=offer(),address=byId('offerMailTo')?.value;
+      return seq===suppressionSeq&&recipient===recipientKey(current,address)&&invoice?.request_id===invoiceMailboxConfirmation(current,address)?.request_id;
+    };
     renderSuppressionStatus({loading:true});
     const job=(async()=>{
       try{
-        const result=await callProtectedEdge('gmail-offer-send',{action:'preflight',client_id:state.client.id,offer_id:o.id,to,recipient_confirmation:recipientConfirmation(o,to)});
+        const result=await callProtectedEdge('gmail-offer-send',{action:'preflight',client_id:state.client.id,offer_id:o.id,to,recipient_confirmation:recipientConfirmation(o,to),request_id:invoice?.request_id,invoice_mailbox_confirmation:invoice});
         if(result?.error)throw mailErrorFrom(result);
         const value=result?.data??result;
         suppressionCache.set(key,{at:Date.now(),value});
-        if(seq===suppressionSeq&&offer()?.id===o.id)renderSuppressionStatus(value);
+        if(stillCurrent())renderSuppressionStatus(value);
         return value;
       }catch(error){
         console.warn('[Offer mail] Modtagerkontrol kunne ikke gennemføres',error);
         const value={blocked:true,code:'PREFLIGHT_UNAVAILABLE',reason:'Modtager og ingen-opfølgning kunne ikke kontrolleres. Prøv igen senere.'};
         suppressionCache.set(key,{at:Date.now(),value});
-        if(seq===suppressionSeq&&offer()?.id===o.id)renderSuppressionStatus(value);
+        if(stillCurrent())renderSuppressionStatus(value);
         return value;
       }
     })();
@@ -407,28 +428,76 @@
     try{return await job}finally{if(recipientPreflights.get(key)===job)recipientPreflights.delete(key)}
   }
 
+  function pdfRequest(action, o, data={},expectPdf=false){
+    return callProtectedEdge('gmail-offer-send',{action,client_id:state.client.id,offer_id:o.id,...data},expectPdf);
+  }
+
+  async function previewPdf(o,status){
+    const clientId=state.client.id;
+    const tab=window.open('about:blank','_blank');
+    if(!tab){toast('Tillad pop op-vinduer for at åbne PDF’en.');return}
+    tab.opener=null;
+    try{
+      const result=await pdfRequest('pdf_preview',o,{pdf_version:status.version,pdf_digest:status.digest,preview_format:'pdf'},true);
+      if(result.error)throw mailErrorFrom(result);
+      if(offer()?.id!==o.id||state.client.id!==clientId)throw new Error('Tilbuddet blev ændret.');
+      if(!(result.data instanceof Blob))throw new Error('Forhåndsvisning kunne ikke åbnes. Opdatér siden og prøv igen.');
+      const url=URL.createObjectURL(result.data);
+      tab.location.replace(url);
+      setTimeout(()=>URL.revokeObjectURL(url),120000);
+    }catch(error){tab.close();toast(friendlyMailError(error))}
+  }
+
+  function uploadPdf(o,status){
+    const input=document.createElement('input');
+    input.type='file';input.accept='application/pdf,.pdf';
+    input.onchange=async()=>{
+      const file=input.files?.[0];
+      if(!file||offer()?.id!==o.id)return;
+      if(file.size>20*1024*1024){toast('PDF’en må højst fylde 20 MiB.');return}
+      if(!confirm(`Er dette det godkendte tilbud ${o.offer_ref}, som du netop har eksporteret fra Minuba?`))return;
+      renderPdfStatus({loading:true});
+      try{
+        const base64=await new Promise((resolve,reject)=>{
+          const reader=new FileReader();
+          reader.onerror=reject;reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.readAsDataURL(file);
+        });
+        if(offer()?.id!==o.id)return;
+        const result=await pdfRequest('pdf_upload',o,{pdf_base64:base64,pdf_version:status.version,confirmed_original:true});
+        if(result.error)throw mailErrorFrom(result);
+        pdfStatusCache.set(state.client.id+'|'+o.id,{at:Date.now(),value:result.data});
+        if(offer()?.id===o.id)renderPdfStatus(result.data);
+        void refreshCrmKeys('offers');
+      }catch(error){
+        toast(friendlyMailError(error));
+        if(offer()?.id===o.id)renderPdfStatus(status);
+      }
+    };
+    input.click();
+  }
+
   function renderPdfStatus(status){
     const box=byId('offerMailAttachment');if(!box)return;
     const o=offer(),expected=pdfName(o);
-    if(status?.loading){box.innerHTML=`⏳ Forbereder verificeret PDF for <strong>${escapeHtml(expected||'tilbuddet')}</strong>…`;return}
+    if(status?.loading){box.innerHTML=`⏳ Kontrollerer <strong>${escapeHtml(expected||'tilbuds-PDF')}</strong>…`;return}
     if(status?.ready){
-      const actual=String(status?.attachment?.filename||expected||'Tilbuds-PDF');
-      const generated=status?.generated===true||String(status?.attachment?.source||'')==='minuba_live_render';
-      const detail=generated
-        ?'Den oprindelige fil var ikke tilgængelig via Minuba API/mailkilden, så Lead Manager har dannet PDF’en direkte af de aktuelle tilbudsdata i Minuba. Den valideres igen ved afsendelse.'
-        :'Kilden er verificeret. Ved afsendelse kontrolleres PDF’en igen, så der ikke kan vedhæftes en forkert fil.';
-      box.innerHTML=`✅ <strong>PDF klar · ${escapeHtml(actual)}</strong><div class="sub" style="margin-top:4px">${detail}</div>`;
-      return;
+      const actual=String(status.attachment?.filename||expected||'Tilbuds-PDF');
+      const source={minuba_file:'Minuba',gmail_sent:'Sendt Gmail',gmail_outbound_copy:'Firmamail',gmail_minuba_copy:'Original fra Minuba via firmamail',manual:'Manuel upload'}[status.attachment?.source]||'Privat lager';
+      box.innerHTML=`✅ <strong>${escapeHtml(actual)}</strong> · ${source}<div class="sub">PDF’en vedhæftes automatisk.</div>`;
+    }else{
+      const reason=String(status?.error||status?.message||'Synkronisér tilbuddet, hvis Minuba-versionen mangler.');
+      box.innerHTML=`⚠️ <strong>PDF mangler</strong><div class="sub">${escapeHtml(reason)}</div>`;
     }
-    if(status?.error){
-      box.innerHTML=`⚠️ <strong>PDF kunne ikke kontrolleres</strong><div class="sub" style="margin-top:4px">${escapeHtml(status.error)}</div>`;return;
-    }
-    const reason=String(status?.message||'').trim();
-    const specific=String(status?.code||'')==='MINUBA_OFFER_PRICE_MISSING';
-    box.innerHTML=`⚠️ <strong>${specific?'Tilbudspris mangler i API – original PDF kræves':'Tilbuds-PDF er ikke klar endnu'}</strong><div class="sub" style="margin-top:4px">${escapeHtml(reason||'Tilbuddet findes i Minuba, men en kontrolleret PDF er ikke tilgængelig. Lead Manager sender aldrig uden en verificeret PDF.')}</div>`;
+    const add=(label,action)=>{
+      const button=document.createElement('button');
+      button.type='button';button.className='btn secondary';button.textContent=label;button.onclick=action;box.append(button);
+    };
+    if(status?.ready)add('Åbn PDF',()=>void previewPdf(o,status));
+    if(status?.version&&!status.ready)add('Upload original fra Minuba',()=>uploadPdf(o,status));
+    if(!status?.ready)add('Søg igen',()=>void checkPdfStatus(true,true));
   }
 
-  async function checkPdfStatus(force=false){
+  async function checkPdfStatus(force=false,refreshSources=false){
     const o=offer();if(!o?.id||typeof callProtectedEdge!=='function'||!state?.client?.id)return;
     const key=state.client.id+'|'+o.id,cached=pdfStatusCache.get(key);
     if(!force&&cached&&Date.now()-cached.at<60000){renderPdfStatus(cached.value);return cached.value}
@@ -436,7 +505,7 @@
     const seq=++pdfStatusSeq;renderPdfStatus({loading:true});
     const job=(async()=>{
       try{
-        const result=await callProtectedEdge('gmail-offer-send',{action:'pdf_status',client_id:state.client.id,offer_id:o.id});
+        const result=await pdfRequest('pdf_status',o,{refresh_sources:refreshSources});
         if(result?.error)throw mailErrorFrom(result);
         const value=result?.data??result;
         pdfStatusCache.set(key,{at:Date.now(),value});
@@ -487,22 +556,18 @@
   async function sendWithPdf(){
     const o=offer();if(!o)return;
     if(pdfSendState!=='idle')return;
-    const to=String(byId('offerMailTo')?.value||'').trim(),subject=String(byId('offerMailSubject')?.value||'').trim(),body=String(byId('offerMailBody')?.value||'').trim(),follow=String(byId('offerMailFollow')?.value||'').trim(),name=pdfName(o);
+    if(!window.LMFollowupDate?.snapshot())return;
+    let to=String(byId('offerMailTo')?.value||'').trim(),subject=String(byId('offerMailSubject')?.value||'').trim(),body=String(byId('offerMailBody')?.value||'').trim(),follow=String(byId('offerMailFollow')?.value||'').trim(),name=pdfName(o);
     if(!to||!subject||!body){if(typeof toast==='function')toast('Udfyld modtager, emne og mailtekst');return}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){if(typeof toast==='function')toast('Mailadressen er ikke gyldig');return}
     if(bounced(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl. Vælg en anden adresse.`);return}
-    if(isInvoiceMailbox(to)){
-      const reason=to+' er en faktura-/dokumentmodtagelsesadresse. Vælg en relevant kontaktperson hos kunden. Mailen er ikke sendt.';
-      renderSendStatus('error','TILBUD BLOKERET – FAKTURAMODTAGER',reason);
-      alert(reason);
-      return;
-    }
     if(!name){alert('Tilbudsnummeret mangler. Mailen sendes ikke, fordi den rigtige PDF ikke kan identificeres sikkert.');return}
     const suppression=await checkSuppressionStatus(false);
     if(suppression?.blocked){
       const invoiceMailbox=String(suppression.code||'')==='OFFER_RECIPIENT_INVOICE_MAILBOX';
+      if(invoiceMailbox)return;
       const wrongRecipient=String(suppression.code||'')==='OFFER_RECIPIENT_NOT_DIRECT_CUSTOMER';
-      alert((invoiceMailbox?'TILBUD BLOKERET – FAKTURAMODTAGER':wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(suppression.reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
+      alert((wrongRecipient?'TILBUD BLOKERET – FORKERT MODTAGER':'MAIL BLOKERET – INGEN OPFØLGNING')+'\n\n'+(suppression.reason||(wrongRecipient?'Tilbud og priser må kun sendes til den direkte kunde.':'Denne kunde/modtager må ikke følges op.'))+'\n\nMailen er ikke sendt.');
       return;
     }
     // Verify the attachment BEFORE asking for final approval or creating a send job.
@@ -512,9 +577,12 @@
       const detail=String(pdfCheck?.message||pdfCheck?.error||'En verificeret tilbuds-PDF kunne ikke hentes.').trim();
       renderPdfStatus(pdfCheck||{error:detail});
       renderSendStatus('error','Afsendelse blokeret – PDF ikke klar',detail);
-      alert('MAILEN ER IKKE SENDT\n\n'+detail+'\n\nKontrollér den originale PDF fra Minuba, før du prøver igen.');
+      alert('MAILEN ER IKKE SENDT\n\n'+detail);
       return;
     }
+    if(recipientKey(o,to)!==recipientKey(offer(),byId('offerMailTo')?.value))return;
+    const prepared=window.LMFollowupDate.snapshot();if(!prepared)return;
+    ({body,follow}=prepared);
     if(pdfSendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${to} med ${name} vedhæftet?`))return;
     if(!currentPdfSendId)currentPdfSendId=makeSendId();
     const requestId=currentPdfSendId,button=byId('sendOfferMail'),old='Send mail';
@@ -523,12 +591,13 @@
     renderSendStatus('checking','Forbereder og sender','Lead Manager bruger et unikt send-id og kontrollerer automatisk resultatet, hvis forbindelsen bliver afbrudt.');
     if(button){button.disabled=true;button.textContent='Forbereder PDF og sender…'}
     const attachment=byId('offerMailAttachment');
-    if(attachment&&pdfSendState!=='uncertain')attachment.innerHTML=`⏳ Henter eller genererer <strong>${name}</strong> fra Minuba…`;
+    if(attachment&&pdfSendState!=='uncertain')attachment.textContent='Kontrollerer den vedhæftede PDF…';
     try{
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const sendRequest=callProtectedEdge('gmail-offer-send',{
         client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,
-        follow_up_date:follow||null,request_id:requestId,recipient_confirmation:recipientConfirmation(o,to)
+        follow_up_date:follow||null,request_id:requestId,recipient_confirmation:recipientConfirmation(o,to),invoice_mailbox_confirmation:invoiceMailboxConfirmation(o,to),
+        pdf_version:pdfCheck.version,pdf_digest:pdfCheck.digest
       });
       const result=await Promise.race([
         sendRequest,
@@ -586,13 +655,24 @@
       }
       clearPendingSend(o,requestId);
       pdfSendState='idle';currentPdfSendId=makeSendId();
+      if(invoiceMailboxApproval){invoiceMailboxApproval=null;void checkSuppressionStatus(true)}
     }finally{
       if(button){
         const waiting=pdfSendState!=='idle';
-        button.disabled=waiting||suppressionBlocked;
-        button.textContent=waiting?'Kontrollerer automatisk…':(suppressionBlocked?blockedButtonText():old);
+        button.disabled=waiting||suppressionLoading||(suppressionBlocked&&!invoiceMailboxAction);
+        button.textContent=waiting?'Kontrollerer automatisk…':(suppressionLoading||suppressionBlocked?blockedButtonText():old);
       }
     }
+  }
+
+  function handleOfferMailPrimary(){
+    if(pdfSendState!=='idle'||suppressionLoading)return;
+    if(!invoiceMailboxAction){void sendWithPdf();return}
+    const current=offer(),to=byId('offerMailTo')?.value;
+    if(!current?.id||invoiceMailboxAction!==recipientKey(current,to)){void checkSuppressionStatus(true);return}
+    if(!currentPdfSendId)currentPdfSendId=makeSendId();
+    invoiceMailboxApproval={key:invoiceMailboxAction,request_id:currentPdfSendId};
+    void checkSuppressionStatus(true);
   }
 
   function wire(){
@@ -607,16 +687,26 @@
     if(to&&!to.dataset.suppressionBound){
       to.dataset.suppressionBound='1';
       let timer=null;
-      const recheck=()=>{clearTimeout(timer);timer=setTimeout(()=>void checkSuppressionStatus(true),250)};
+      let lastRecipient=recipientKey(offer(),to.value);
+      const recheck=()=>{
+        const key=recipientKey(offer(),to.value);
+        if(key===lastRecipient)return;
+        lastRecipient=key;
+        if(invoiceMailboxApproval?.key===key)return;
+        invoiceMailboxApproval=null;suppressionSeq++;recipientPreflights.clear();renderSuppressionStatus({loading:true});
+        clearTimeout(timer);
+        timer=setTimeout(()=>{if(byId('offerMailModal')?.classList.contains('open'))void checkSuppressionStatus(true)},250);
+      };
       to.addEventListener('input',recheck);to.addEventListener('change',recheck);
     }
     if(button.dataset.pdfOfferSend==='1')return;
-    button.onclick=sendWithPdf;button.dataset.pdfOfferSend='1';
+    button.onclick=handleOfferMailPrimary;button.dataset.pdfOfferSend='1';
   }
 
   const schedule=()=>setTimeout(wire,0);
   window.addEventListener('lm:offer-mail-ready',schedule);
-  window.addEventListener('lm:offer-mail-opened',()=>{manualRecipients.clear();currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionReason='';suppressionCode='';sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(String(state?.client?.id||'')+'|'+o.id);for(const key of suppressionCache.keys())if(key.startsWith(String(state?.client?.id||'')+'|'+o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
+  window.addEventListener('lm:offer-mail-closed',()=>{invoiceMailboxApproval=null;invoiceMailboxAction=null;suppressionSeq++;recipientPreflights.clear()});
+  window.addEventListener('lm:offer-mail-opened',()=>{manualRecipients.clear();invoiceMailboxApproval=null;invoiceMailboxAction=null;currentPdfSendId=null;pdfSendState='checking';suppressionBlocked=false;suppressionLoading=false;suppressionReason='';suppressionCode='';suppressionSeq++;recipientPreflights.clear();sendWatchSeq++;const o=offer();if(o?.id){pdfStatusCache.delete(String(state?.client?.id||'')+'|'+o.id);for(const key of suppressionCache.keys())if(key.startsWith(String(state?.client?.id||'')+'|'+o.id+'|'))suppressionCache.delete(key)}schedule();setTimeout(async()=>{const resumed=await resumePendingOfferSend();if(!resumed&&offer()?.id===o?.id){pdfSendState='idle';if(!currentPdfSendId)currentPdfSendId=makeSendId();renderSendStatus();wire()}},0)});
   window.addEventListener('lm:data-refreshed',schedule);
   document.addEventListener('click',e=>{if(e.target.closest?.('[data-offer-mail],#openOfferMail,#sendOfferMail,[data-open-offer]'))schedule()},true);
   setTimeout(wire,100);

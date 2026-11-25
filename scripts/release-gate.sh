@@ -13,6 +13,8 @@ node --check mfa-gate-v1.js
 node --check saas-admin-client-switcher-v1.js
 node --check saas-crm-integrations-v1.js
 node --check offer-mail-v1.js
+node --check followup-date-v1.js
+node scripts/test-followup-date.js
 node --check offer-history-v1.js
 node scripts/test-offer-history-v1.js
 node --check saas-mail-providers-v1.js

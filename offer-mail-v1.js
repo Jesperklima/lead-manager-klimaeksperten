@@ -5,9 +5,8 @@
   function setNodeText(id,value){const el=byId(id);if(!el){console.warn('[Offer mail] DOM element mangler:',id);return false}el.textContent=value??'';return true}
   function setNodeValue(id,value){const el=byId(id);if(!el){console.warn('[Offer mail] DOM element mangler:',id);return false}el.value=value??'';return true}
   function composerReady(){const ids=['offerMailMeta','offerMailTo','offerMailContactName','offerMailSubject','offerMailBody','offerMailFollow','offerMailSender','sendOfferMail'];const missing=ids.filter(id=>!byId(id));if(missing.length){console.warn('[Offer mail] Composer mangler elementer:',missing.join(', '));return false}return true}
-  const pad=n=>String(n).padStart(2,'0');
-  const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  const plusDays=days=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+days);return ymd(d)};
+  const ymd=d=>window.LMFollowupDate.today(d);
+  const plusDays=days=>window.LMFollowupDate.addDays(ymd(new Date()),days);
   const firstEmail=value=>(String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||'';
   const emailList=value=>[...new Set((String(value||'').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig)||[]).map(x=>x.trim()))];
   const lower=v=>String(v||'').trim().toLowerCase();
@@ -477,7 +476,8 @@
   async function sendMail(){
     const o=offer();if(!o)return;
     syncContactName(false);
-    const name=String(byId('offerMailContactName')?.value||'').trim(),to=String(byId('offerMailTo')?.value||'').trim(),subject=String(byId('offerMailSubject')?.value||'').trim(),body=String(byId('offerMailBody')?.value||'').trim(),follow=String(byId('offerMailFollow')?.value||'').trim();
+    if(!window.LMFollowupDate?.snapshot())return;
+    let name=String(byId('offerMailContactName')?.value||'').trim(),to=String(byId('offerMailTo')?.value||'').trim(),subject=String(byId('offerMailSubject')?.value||'').trim(),body=String(byId('offerMailBody')?.value||'').trim(),follow=String(byId('offerMailFollow')?.value||'').trim();
     if(!to||!subject||!body){if(typeof toast==='function')toast('Udfyld modtager, emne og mailtekst');return}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){if(typeof toast==='function')toast('Mailadressen er ikke gyldig');return}
     if(bouncedContact(to,o)){alert(`${to} er markeret som ugyldig efter en permanent mailfejl (Account disabled). Vælg en anden adresse.`);return}
@@ -502,6 +502,8 @@
     }
     o.contact_person=name;o.contact_details=to;
     if(typeof supabase!=='undefined')await supabase.from('crm_offers').update({contact_person:name||null,contact_details:to,updated_at:new Date().toISOString()}).eq('id',o.id);
+    const prepared=window.LMFollowupDate.snapshot();if(!prepared)return;
+    ({body,follow}=prepared);
     if(sendState!=='uncertain'&&!confirm(`Send mailen nu fra ${sender()} til ${name?name+' · ':''}${to}?`))return;
     if(!currentSendId)currentSendId=makeSendId();
     const requestId=currentSendId,button=byId('sendOfferMail');
@@ -510,8 +512,8 @@
     try{
       if(typeof callProtectedEdge!=='function')throw new Error('Mailfunktionen er ikke tilgængelig i denne version af Lead Manager.');
       const result=await callProtectedEdge('gmail-direct-send',{
-        client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body,
-        follow_up_date:follow||null,ai_generated:false,ai_model:null,request_id:requestId
+        client_id:state.client.id,offer_id:o.id,lead_id:o.lead_id||null,to,subject,body:prepared.body,
+        follow_up_date:prepared.follow,ai_generated:false,ai_model:null,request_id:requestId
       });
       if(result?.error)throw mailErrorFrom(result);
       if(isSentResult(result?.data)){await finishSuccessfulSend(o,name,to,follow);return}

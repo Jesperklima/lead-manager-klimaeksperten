@@ -99,7 +99,7 @@ if(!accessBootstrap.includes('[data-executive-offer]'))fail('executive offer laz
 const datePicker=read('date-picker-click-v1.js');
 if(app.includes('<script src="/date-picker-click-v1.js'))fail('date picker returned to static startup');
 if(!datePicker.includes('window.__LM_DATE_PICKER_V1=true'))fail('date picker lazy-load guard missing');
-if(!accessBootstrap.includes('/date-picker-click-v1.js?v=20260919-4'))fail('date picker missing from offer lazy stack');
+if(!/loadLazyScript\('\/date-picker-click-v1\.js\?v=[\w-]+'\)/.test(accessBootstrap))fail('date picker missing from offer lazy stack');
 const settingsHub=read('saas-settings-hub-v1.js');
 if(/new\s+MutationObserver/.test(settingsHub))fail('settings hub MutationObserver returned');
 if(!settingsHub.includes('function runMountPasses()'))fail('settings deterministic mount passes missing');

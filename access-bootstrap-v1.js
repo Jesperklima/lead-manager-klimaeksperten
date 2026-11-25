@@ -61,7 +61,7 @@ function ensureOfferSearch(){
  if(offerSearchPromise)return offerSearchPromise;
  offerSearchPromise=Promise.all([
   loadLazyScript('/saas-offer-search-controls-v2.js?v=20260919-4'),
-  loadLazyScript('/date-picker-click-v1.js?v=20260919-4')
+  loadLazyScript('/date-picker-click-v1.js?v=20261125-followup-date')
  ]).catch(error=>{offerSearchPromise=null;throw error});
  return offerSearchPromise;
 }

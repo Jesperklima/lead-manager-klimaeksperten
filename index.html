@@ -2,6 +2,7 @@
 <html lang="da">
 <head>
 <meta charset="utf-8" />
+<script src="/followup-date-v1.js?v=20261125-1"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Lead Manager – Klimaeksperten</title>
 <style>
@@ -657,7 +658,7 @@ function baseCrmQuery(key,cid){
   if(key==='activities')return supabase.from('crm_activities').select('*').eq('client_id',cid).order('created_at',{ascending:false}).limit(500);
   if(key==='mail')return supabase.from('crm_mail_messages').select('*').eq('client_id',cid).order('message_at',{ascending:false}).limit(300);
   if(key==='opps')return supabase.from('crm_opportunities').select('*').eq('client_id',cid).order('updated_at',{ascending:false});
-  if(key==='offers')return supabase.from('crm_offers').select('*').eq('client_id',cid).order('follow_up_date',{ascending:true});
+  if(key==='offers')return supabase.from('crm_offers').select('*,crm_offer_pdf_status(pdf_resolution)').eq('client_id',cid).order('follow_up_date',{ascending:true});
   if(key==='approvals')return supabase.from('crm_approvals').select('*').eq('client_id',cid).order('created_at',{ascending:false});
   if(key==='runs')return supabase.from('crm_agent_runs').select('*').eq('client_id',cid).order('started_at',{ascending:false}).limit(100);
   if(key==='tasks')return supabase.from('crm_tasks').select('*').eq('client_id',cid).order('scheduled_at',{ascending:true});
@@ -866,7 +867,16 @@ function setPipelineEdgeGlow(x=null){ensurePipelineEdgeGlow();const board=$('kan
 function wirePipelineNavigation(){const board=$('kanban'),left=$('pipelineLeft'),right=$('pipelineRight'),compact=$('pipelineCompact');if(left)left.onclick=()=>board.scrollBy({left:-Math.max(420,board.clientWidth*.72),behavior:'smooth'});if(right)right.onclick=()=>board.scrollBy({left:Math.max(420,board.clientWidth*.72),behavior:'smooth'});if(compact){compact.textContent=document.body.classList.contains('pipeline-compact')?'Normal visning':'Kompakt visning';compact.onclick=()=>{document.body.classList.toggle('pipeline-compact');compact.textContent=document.body.classList.contains('pipeline-compact')?'Normal visning':'Kompakt visning';localStorage.setItem('lm_pipeline_compact',document.body.classList.contains('pipeline-compact')?'1':'0')}}if(localStorage.getItem('lm_pipeline_compact')==='1')document.body.classList.add('pipeline-compact');ensurePipelineEdgeGlow()}
 function mondayFor(offset=0){const d=new Date();d.setHours(12,0,0,0);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day+offset*7);return d}
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-function renderOffers(){const active=state.offers.filter(o=>o.status==='I GANG').length,won=state.offers.filter(o=>o.status==='VUNDET').length,lost=state.offers.filter(o=>o.status==='TABT').length,overdue=state.offers.filter(isOfferOverdue).length;$('offerMetrics').innerHTML=[[active,'Tilbud ude'],[overdue,'Forfaldne'],[won,'Vundet'],[lost,'Tabt']].map(([v,l])=>`<div class="card"><div class="sub">${l}</div><div class="metric">${v}</div></div>`).join('');const q=($('offerSearch')?.value||'').trim().toLowerCase(),sf=$('offerStatusFilter')?.value||'';const rows=state.offers.filter(o=>{const hay=[o.offer_ref,o.customer_name,o.installation_address,o.contact_person,o.contact_details,o.current_comment,o.status].join(' ').toLowerCase();return (!q||hay.includes(q))&&(!sf||o.status===sf)}).sort((a,b)=>{const ao=isOfferOverdue(a),bo=isOfferOverdue(b);if(ao!==bo)return bo-ao;return String(a.follow_up_date||'9999').localeCompare(String(b.follow_up_date||'9999'))});$('offerRows').innerHTML=rows.length?rows.map(o=>`<tr data-open-offer="${o.id}" style="cursor:pointer"><td><strong>${esc(o.offer_ref)}</strong>${o.data_warning?'<div class="badge warn" style="margin-top:4px">Kontrollér data</div>':''}</td><td><strong>${esc(o.customer_name||company(o.company_id).name||'')}</strong></td><td>${esc(o.installation_address||'—')}</td><td><span class="status ${statusClass(o.status)}">${esc(o.status)}</span></td><td>${fmtDate(o.follow_up_date)} ${isOfferOverdue(o)?'<span class="badge a">Forfalden</span>':''}</td><td>${esc([o.contact_person,o.contact_details].filter(Boolean).join(' · ')||'—')}</td><td><div class="mailbody">${esc(o.current_comment||'—')}</div></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Ingen tilbud matcher filtrene.</td></tr>';wireOfferButtons();}
+function offerPdfBadge(offer){
+  if(['VUNDET','TABT','LUKKET','LUKKET – UDSKUDT'].includes(offer.status))return '';
+  const record=offer.crm_offer_pdf_status?.pdf_resolution,raw=offer.minuba_raw;
+  const version=raw?.id+':'+Date.parse(raw?.updated)+':'+String(offer.offer_ref||'').trim().toLowerCase();
+  if(offer.minuba_record_type!=='proposal'||offer.minuba_sync_state!=='active')return '<div class="sub">PDF afventer Minuba</div>';
+  if(record?.version!==version)return '<div class="sub">PDF afventer kontrol</div>';
+  if(record.status==='ready')return '<div class="sub">PDF klar</div>';
+  return record.status==='error'?'<div class="badge warn">PDF-kontrol fejlede</div>':'<div class="badge warn">PDF mangler</div>';
+}
+function renderOffers(){const active=state.offers.filter(o=>o.status==='I GANG').length,won=state.offers.filter(o=>o.status==='VUNDET').length,lost=state.offers.filter(o=>o.status==='TABT').length,overdue=state.offers.filter(isOfferOverdue).length;$('offerMetrics').innerHTML=[[active,'Tilbud ude'],[overdue,'Forfaldne'],[won,'Vundet'],[lost,'Tabt']].map(([v,l])=>`<div class="card"><div class="sub">${l}</div><div class="metric">${v}</div></div>`).join('');const q=($('offerSearch')?.value||'').trim().toLowerCase(),sf=$('offerStatusFilter')?.value||'';const rows=state.offers.filter(o=>{const hay=[o.offer_ref,o.customer_name,o.installation_address,o.contact_person,o.contact_details,o.current_comment,o.status].join(' ').toLowerCase();return (!q||hay.includes(q))&&(!sf||o.status===sf)}).sort((a,b)=>{const ao=isOfferOverdue(a),bo=isOfferOverdue(b);if(ao!==bo)return bo-ao;return String(a.follow_up_date||'9999').localeCompare(String(b.follow_up_date||'9999'))});$('offerRows').innerHTML=rows.length?rows.map(o=>`<tr data-open-offer="${o.id}" style="cursor:pointer"><td><strong>${esc(o.offer_ref)}</strong>${offerPdfBadge(o)}${o.data_warning?'<div class="badge warn" style="margin-top:4px">Kontrollér data</div>':''}</td><td><strong>${esc(o.customer_name||company(o.company_id).name||'')}</strong></td><td>${esc(o.installation_address||'—')}</td><td><span class="status ${statusClass(o.status)}">${esc(o.status)}</span></td><td>${fmtDate(o.follow_up_date)} ${isOfferOverdue(o)?'<span class="badge a">Forfalden</span>':''}</td><td>${esc([o.contact_person,o.contact_details].filter(Boolean).join(' · ')||'—')}</td><td><div class="mailbody">${esc(o.current_comment||'—')}</div></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Ingen tilbud matcher filtrene.</td></tr>';wireOfferButtons();}
 function wireOfferButtons(){document.querySelectorAll('[data-open-offer]').forEach(el=>el.onclick=()=>openOffer(el.dataset.openOffer));}
 function openOffer(id){const o=offerById(id);if(!o)return;currentOffer=o;$('oTitle').textContent=`Tilbud ${o.offer_ref} – ${o.customer_name||company(o.company_id).name||''}`;$('oMeta').textContent=[o.installation_address,o.sent_date?'Sendt '+fmtDate(o.sent_date):null,o.follow_up_owner?'Ansvarlig '+o.follow_up_owner:null].filter(Boolean).join(' · ');$('oStatus').value=o.status;$('oFollow').value=o.follow_up_date||'';$('oContact').value=[o.contact_person,o.contact_details].filter(Boolean).join('\n');$('oComment').value=o.current_comment||'';$('oWarning').textContent=o.data_warning||'';$('oWarning').classList.toggle('hidden',!o.data_warning);$('offerModal').classList.add('open');window.dispatchEvent(new CustomEvent('lm:offer-opened',{detail:{offer_id:o.id}}));}
 function renderCalendar(){const mon=mondayFor(weekOffset),days=[];for(let i=0;i<5;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);days.push(d)}$('weekLabel').textContent=`Uge ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(days[0])} – ${new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',year:'numeric'}).format(days[4])}`;$('calendarGrid').innerHTML=days.map(d=>{const date=ymd(d);const leadItems=state.leads.filter(l=>l.next_at&&localDateTime(l.next_at).date===date).map(l=>({kind:'lead',id:l.id,time:localDateTime(l.next_at).time,name:leadName(l),label:l.next_action||''}));const taskItems=state.tasks.filter(t=>t.offer_id&&t.status==='open'&&t.scheduled_at&&localDateTime(t.scheduled_at).date===date).map(t=>{const o=offerById(t.offer_id);return {kind:'task',id:t.id,time:localDateTime(t.scheduled_at).time,name:o?.customer_name||company(t.company_id).name||'Tilbud',label:`Tilbud ${o?.offer_ref||''}`}});const items=[...leadItems,...taskItems].sort((a,b)=>a.time.localeCompare(b.time));return `<div class="day" data-date="${date}"><strong>${new Intl.DateTimeFormat('da-DK',{weekday:'short',day:'numeric',month:'short'}).format(d)}</strong>${items.map(x=>`<div class="calitem" draggable="true" ${x.kind==='lead'?`data-drag-lead="${x.id}" data-open-lead="${x.id}"`:`data-drag-task="${x.id}" data-open-offer="${state.tasks.find(t=>t.id===x.id)?.offer_id||''}"`}><strong>${x.time}</strong>${esc(x.name)}<div class="sub">${esc(x.label)}</div></div>`).join('')}</div>`}).join('');wireLeadButtons();wireOfferButtons();wireCalendarDrag();}
@@ -1141,12 +1151,13 @@ $('offerSearch').oninput=renderOffers;$('offerStatusFilter').onchange=renderOffe
 $('leadSearch').oninput=renderRows;$('statusFilter').innerHTML='<option value="">Alle statusser</option>'+STATUSES.map(s=>`<option>${esc(s)}</option>`).join('');$('statusFilter').onchange=renderRows;$('prevWeek').onclick=()=>{weekOffset--;renderCalendar()};$('nextWeek').onclick=()=>{weekOffset++;renderCalendar()};$('thisWeek').onclick=()=>{weekOffset=0;renderCalendar()};
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$(b.dataset.view)?.classList.add('active');setText('title',b.textContent)});
 
-async function callProtectedEdge(name,payload){
+async function callProtectedEdge(name,payload,expectPdf=false){
   const {data:{session}}=await supabase.auth.getSession();
   if(!session?.access_token) return {data:null,error:{message:'Du er ikke logget ind'}};
   const body=JSON.stringify(payload);
   const keepalive=name==='gmail-offer-send'&&(!payload?.action||payload.action==='send');
   const res=await fetch(`${SUPABASE_URL}/functions/v1/${name}`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+session.access_token},body,keepalive});
+  if(expectPdf&&res.ok&&res.headers.get('content-type')?.startsWith('application/pdf'))return {data:await res.blob(),error:null};
   const text=await res.text();let data=null;try{data=text?JSON.parse(text):null}catch(_){data={error:text}}
   if(!res.ok)return {data:null,error:{message:data?.error||`${res.status} ${res.statusText}`,code:data?.code||null,status:res.status}};
   return {data,error:null};
@@ -1737,7 +1748,7 @@ $('checkOpenAIStatus').onclick=checkOpenAIAuthStatus;
   setTimeout(installQuickStatus,150);
 })();
 </script>
-<script src="/executive-dashboard-v1.js?v=20260925-contact-name-1"></script>
+<script src="/executive-dashboard-v1.js?v=20261125-followup-date"></script>
 <script id="lm-offer-followup-template-v2-20261111">(()=>{
 'use strict';
 const $=id=>document.getElementById(id);
